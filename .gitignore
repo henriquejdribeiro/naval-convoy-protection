@@ -20,6 +20,9 @@ venv/
 .DS_Store
 Thumbs.db
 
+# Claude Code local state (per-machine, never commit)
+.claude/
+
 # Build / cache
 dist/
 build/
