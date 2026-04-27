@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Naval Convoy Protection — Verifiable Mission Compliance</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div class="badge">Naval Mission Architecture</div>
+    <h1>Naval Convoy Protection</h1>
+    <p class="tagline">Verifiable mission compliance for naval drone escort operations, built on a modular zk-STARK rollup architecture.</p>
+    <div class="hero-meta">
+      <span class="chip">Two parallel L2 chains</span>
+      <span class="chip">Six-ship convoy</span>
+      <span class="chip">Best-signal proof relay</span>
+      <span class="chip">Two-of-two governance gate</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<!-- ════════════════════════════════════════════════════════════
+     SECTION 1 — INTERACTIVE SIMULATION (the centrepiece)
+     ════════════════════════════════════════════════════════════ -->
+<section class="container" id="simulation">
+  <h2>Interactive end-to-end simulation</h2>
+  <p class="subtitle">Click <strong>▶ Play Demonstration</strong> to watch the eight phases of the convoy mission play out, from L1 mission deployment to convoy advance. Use Prev / Next to scrub at your own pace.</p>
+
+  <!-- The convoy-sim.js script populates this div -->
+  <div class="convoy-sim">
+    <div style="padding:14px;color:#94a3b8;font-size:.8rem;font-style:italic;background:#0a0e17;border:1px solid #1e293b;border-radius:8px">Loading convoy simulation&hellip;</div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════
+     SECTION 2 — THE MISSION BRIEF
+     ════════════════════════════════════════════════════════════ -->
+<section class="container" id="mission-brief">
+  <h2>Mission brief</h2>
+  <p class="subtitle">The convoy holds while two simultaneous reconnaissance missions complete in parallel. Each L2 produces an independent STARK proof of mission compliance.</p>
+
+  <div class="card-grid">
+    <div class="card mission-card mission-alpha">
+      <div class="card-tag">EX-010</div>
+      <h3>Left frontal area &mdash; Alpha drones</h3>
+      <ul class="spec">
+        <li><strong>L2 chain:</strong> <code>L2-Alpha</code> (Madara α)</li>
+        <li><strong>Sweep pattern:</strong> zig-zag area coverage</li>
+        <li><strong>Coverage threshold:</strong> &ge; 95&thinsp;%</li>
+        <li><strong>Detection threshold:</strong> contacts above probability <em>p</em> &ge; 0.7</li>
+        <li><strong>Time window:</strong> &le; 6 minutes</li>
+        <li><strong>Primary relay:</strong> ship A or F</li>
+      </ul>
+    </div>
+
+    <div class="card mission-card mission-bravo">
+      <div class="card-tag">EX-011</div>
+      <h3>Right frontal area &mdash; Bravo drones</h3>
+      <ul class="spec">
+        <li><strong>L2 chain:</strong> <code>L2-Bravo</code> (Madara β)</li>
+        <li><strong>Sweep pattern:</strong> corridor (width 2<em>a</em>)</li>
+        <li><strong>Coverage threshold:</strong> &ge; 95&thinsp;%</li>
+        <li><strong>Detection threshold:</strong> contacts above probability <em>p</em> &ge; 0.7</li>
+        <li><strong>Time window:</strong> &le; 6 minutes</li>
+        <li><strong>Primary relay:</strong> ship A or B</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card success-card">
+    <h3>SAFE_AREA criterion</h3>
+    <p>A mission concludes with <code>SAFE_AREA</code> if and only if:</p>
+    <ol>
+      <li>Total coverage &ge; threshold percentage of the assigned area, AND</li>
+      <li>Total execution time &le; window, AND</li>
+      <li>No contacts detected above the probability threshold.</li>
+    </ol>
+    <p>The Cairo program <code>convoy_alpha_verify.cairo</code> (resp. <code>convoy_bravo_verify.cairo</code>) encodes these constraints. The STARK proof attests that all three conditions held without revealing the drone telemetry that produced them.</p>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════
+     SECTION 3 — ARCHITECTURE SUMMARY
+     ════════════════════════════════════════════════════════════ -->
+<section class="container" id="architecture">
+  <h2>Architecture at a glance</h2>
+  <p class="subtitle">One Layer 1 settlement chain coordinates two parallel Layer 2 proving stacks. Six PoA validator ships act as proof relays; the cryptographic ground truth lives in the L1 verifier contract.</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <h3>Layer 1 — Geth Clique PoA</h3>
+      <p>Six validator ships (A&ndash;F) sign blocks with their PoA keys. Three Solidity contracts: <code>ConvoyProofVerifier</code> (deployed twice, one per L2), <code>ConvoyMissionRegistry</code> (per-mission status), and <code>ConvoyCommandLog</code> (the commander's advance commands).</p>
+    </div>
+    <div class="card">
+      <h3>Layer 2 — Madara &times; 2</h3>
+      <p>One Madara sequencer per drone swarm. Each runs the Cairo VM, executes drone telemetry transactions, produces blocks plus an execution trace, and feeds the trace into its own SNOS &rarr; Stone proving pipeline.</p>
+    </div>
+    <div class="card">
+      <h3>Proof relay model</h3>
+      <p>The orchestrator does <em>not</em> submit proofs to L1 directly. The closest reachable ship (best radio signal) collects the proof bytes from L2 and submits them in an L1 transaction, where the verifier contract performs the cryptographic check.</p>
+    </div>
+    <div class="card">
+      <h3>Two-of-two governance</h3>
+      <p>Ship D (commander) issues the convoy advance command only after <em>both</em> <code>EX-010 SAFE</code> and <code>EX-011 SAFE</code> events appear on L1. A single advance command transaction is broadcast as an L1 event to all six ships.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════
+     SECTION 4 — SHIP ROLES
+     ════════════════════════════════════════════════════════════ -->
+<section class="container" id="ships">
+  <h2>Ship roles in the convoy</h2>
+  <p class="subtitle">All six ships are L1 validators. They differ in their relay assignments and in the special role of ship D as commander.</p>
+
+  <div class="ship-roles">
+    <div class="ship-role"><span class="ship-letter A">A</span><div><strong>Forward</strong><br/>Primary relay for both L2-Alpha and L2-Bravo (closest to both frontal areas).</div></div>
+    <div class="ship-role"><span class="ship-letter B">B</span><div><strong>Forward-right</strong><br/>Primary relay for L2-Bravo (right corridor).</div></div>
+    <div class="ship-role"><span class="ship-letter C">C</span><div><strong>Mid-right</strong><br/>Secondary relay for L2-Bravo. Maintains right-flank radio coverage.</div></div>
+    <div class="ship-role"><span class="ship-letter D">D</span><div><strong>Commander (rear)</strong><br/>Watches L1 for both SAFE confirmations and issues the convoy advance command.</div></div>
+    <div class="ship-role"><span class="ship-letter E">E</span><div><strong>Mid-left</strong><br/>Secondary relay for L2-Alpha. Maintains left-flank radio coverage.</div></div>
+    <div class="ship-role"><span class="ship-letter F">F</span><div><strong>Rear-left</strong><br/>Primary relay for L2-Alpha (left zig-zag area).</div></div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════
+     SECTION 5 — PROJECT STATUS
+     ════════════════════════════════════════════════════════════ -->
+<section class="container" id="status">
+  <h2>Project status</h2>
+  <p class="subtitle">This deliverable follows a four-phase build. Phase 1 is what you are looking at.</p>
+
+  <table class="phases">
+    <thead>
+      <tr><th>Phase</th><th>Scope</th><th>Containers</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      <tr class="phase-current">
+        <td><strong>1</strong> — Visualization-first</td>
+        <td>Single-page interactive simulation, no Docker required</td>
+        <td>0</td>
+        <td><span class="status-active">Active</span></td>
+      </tr>
+      <tr>
+        <td><strong>2</strong> — L1 mechanics</td>
+        <td>6 Geth Clique-PoA validators, 4 Solidity contracts, ship-D commander logic</td>
+        <td>~10</td>
+        <td><span class="status-pending">Pending</span></td>
+      </tr>
+      <tr>
+        <td><strong>3</strong> — L2 stacks + drones</td>
+        <td>Madara α + β, Pathfinder, SNOS, Stone, orchestrators, 10 drone agents</td>
+        <td>~31</td>
+        <td><span class="status-pending">Pending</span></td>
+      </tr>
+      <tr>
+        <td><strong>4</strong> — Polish</td>
+        <td>ArduPilot SITL, network chaos (<code>tc</code>/<code>netem</code>), live WebSocket bridge to this page</td>
+        <td>~31 + SITL</td>
+        <td><span class="status-pending">Pending</span></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+</main>
+
+<footer>
+  <div class="footer-inner">
+    <span>Naval Convoy Protection &middot; Apache-2.0</span>
+    <span>Provenance: derived from the author's MSc thesis on modular blockchain architectures for drone swarms (Instituto Superior Técnico, 2026).</span>
+  </div>
+</footer>
+
+<script type="module" src="js/convoy-sim.js"></script>
+</body>
+</html>

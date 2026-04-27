@@ -1,0 +1,36 @@
+# Environment
+.env
+.env.local
+
+# Node / npm (in case docs tooling is added later)
+node_modules/
+package-lock.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Build / cache
+dist/
+build/
+.cache/
+
+# Docker / persistent volumes (Phase 2+)
+infrastructure/**/data/
+infrastructure/**/keystore/
+
+# Generated proofs / artifacts (Phase 3+)
+proofs/
+artifacts/
+*.pie
+*.proof.json
