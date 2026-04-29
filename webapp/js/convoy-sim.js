@@ -14,75 +14,113 @@
 import { poseidonHashChain, toHex, toHexShort } from './poseidon-core.js';
 
 // ── Convoy world geometry ────────────────────────────────────────────────
-// SVG coordinate space: 0..1000 horizontal, 0..600 vertical.
-// Convoy heading is "up" (decreasing y).
+// SVG coordinate space: 0..1000 × 0..600. The grid is 40-unit and EVERY
+// node, area corner, and drone waypoint sits on a grid vertex (multiple
+// of 40). Convoy heading is "up" (decreasing y).
 //
-//   y=0   ┌───────── frontal areas ─────────┐
-//         │   left  (zigzag)  │  right (corridor) │
-//   y=200 ├───────────────────┴───────────────────┤
-//         │   convoy formation (ships)            │
+//   y=0   ┌───────── frontal sweep areas ────────┐
+//         │  ALPHA (zigzag)   │   BRAVO (corridor) │
+//   y=280 ├───────────────────┴───────────────────┤
+//         │   convoy formation (6 ships, 3 HVUs)  │
 //   y=600 └───────────────────────────────────────┘
+//
+// L1 is the collective of all six ships' Clique-PoA validators — there is
+// no separate L1 box; verification fans out peer-to-peer across the ring.
 
+const GRID = 40;
+const VIEW_W = 960;    // square world (24 × 40 = 960)
+const VIEW_H = 960;
+
+// Ships and HVUs centred on x=440 (area-junction column, on grid).
+// Horizontal margin = 3 grid squares (120) each side. A and D equidistant
+// (120 units) from HVU-2.
 const SHIPS = {
-    A: { x: 500, y: 320, role: 'forward',         relays: ['alpha', 'bravo'] },
-    B: { x: 600, y: 380, role: 'forward-right',   relays: ['bravo']          },
-    C: { x: 600, y: 460, role: 'mid-right',       relays: ['bravo']          },
-    D: { x: 500, y: 540, role: 'commander',       relays: []                 },
-    E: { x: 400, y: 460, role: 'mid-left',        relays: ['alpha']          },
-    F: { x: 400, y: 380, role: 'rear-left',       relays: ['alpha']          },
+    A: { x: 440, y: 520, role: 'forward',         relays: ['alpha', 'bravo'] },
+    B: { x: 560, y: 600, role: 'forward-right',   relays: ['bravo']          },
+    C: { x: 560, y: 680, role: 'mid-right',       relays: ['bravo']          },
+    D: { x: 440, y: 760, role: 'commander',       relays: []                 },
+    E: { x: 320, y: 680, role: 'mid-left',        relays: ['alpha']          },
+    F: { x: 320, y: 600, role: 'rear-left',       relays: ['alpha']          },
 };
 
 const PROTECTED_SHIPS = [
-    { x: 500, y: 400 },   // VIP-1
-    { x: 500, y: 440 },   // VIP-2
-    { x: 500, y: 480 },   // VIP-3
+    { x: 440, y: 600 },   // HVU-1
+    { x: 440, y: 640 },   // HVU-2 (centre)
+    { x: 440, y: 680 },   // HVU-3
 ];
 
-// Frontal sweep areas
-const ALPHA_AREA = { x: 100, y: 30,  w: 380, h: 180 };  // left zigzag
-const BRAVO_AREA = { x: 520, y: 30,  w: 380, h: 180 };  // right corridor
+// L2 sequencer drones — they ARE the drones. Each has a home vertex and a
+// sweep path that takes them from home, into the area, through the sweep,
+// and back home. Position is interpolated along the path during Phase 2.
+const L2_NODES = [
+    { id: 'L2-A', home: { x: 200, y: 600 }, color: '#fb923c', sweepKey: 'alpha' },
+    { id: 'L2-B', home: { x: 680, y: 600 }, color: '#fb923c', sweepKey: 'bravo' },
+];
 
-// Alpha drones — zigzag pattern in the left area
-const ALPHA_DRONES = generateAlphaSweep();
-function generateAlphaSweep() {
-    const drones = [];
-    // 5 drones, each starts at left edge, sweeps in horizontal bands
-    const bands = 5;
-    for (let i = 0; i < bands; i++) {
-        const baseY = ALPHA_AREA.y + 20 + i * (ALPHA_AREA.h - 40) / (bands - 1);
-        // each drone produces a list of waypoints (zigzag right then left)
-        const waypoints = [];
-        const cells = 8;
-        for (let c = 0; c <= cells; c++) {
-            const x = ALPHA_AREA.x + 20 + (c / cells) * (ALPHA_AREA.w - 40);
-            const yOff = (c % 2 === 0) ? 0 : 18;  // small zigzag amplitude
-            waypoints.push({ x, y: baseY + yOff });
-        }
-        drones.push({ id: `alpha-${i+1}`, waypoints, color: '#22c55e' });
-    }
-    return drones;
+// Frontal sweep areas — corners on grid. Areas TOUCH at x=440.
+// Vertical = 8 squares tall (320). Horizontal margin = 3 squares each side.
+const ALPHA_AREA = { x: 120, y: 120, w: 320, h: 320 };   // 320 × 320
+const BRAVO_AREA = { x: 440, y: 120, w: 400, h: 320 };   // 400 × 320 (1.25× Alpha)
+const ALPHA_CENTER = { x: ALPHA_AREA.x + ALPHA_AREA.w/2, y: ALPHA_AREA.y + ALPHA_AREA.h/2 };
+const BRAVO_CENTER = { x: BRAVO_AREA.x + BRAVO_AREA.w/2, y: BRAVO_AREA.y + BRAVO_AREA.h/2 };
+
+// Bravo corridor — the inner band where drones do their actual sweep.
+// Pattern matches the spec's a:2a:a layout (a = 2 squares = 80; corridor = 4 squares).
+const BRAVO_CORRIDOR = { x: 440, y: 200, w: 400, h: 160 };
+
+// L2-A drone — sensor reaches 2 grid squares (80 units). 4 vertical strokes
+// (UP → right → DOWN → right → UP → right → DOWN). Drone enters at the
+// area's BOTTOM-left so the first stroke goes UP, matching the spec drawing.
+const ALPHA_DRONES = [{
+    id: 'L2-A', color: '#ef4444',     // RED (matches the spec sketch)
+    sensor: GRID,                      // radius = 1 square (3×3 footprint)
+    area: ALPHA_AREA,
+    waypoints: buildAlphaVerticalZigZag(),
+}];
+function buildAlphaVerticalZigZag() {
+    // Explicit vertex list in user grid coords (bottom-left origin, y up).
+    // Translate to internal pixels (x*40, (24-y)*40).
+    const G = (x, y) => ({ x: x * GRID, y: (24 - y) * GRID });
+    return [
+        G(5, 9),     //  1. home
+        G(5, 12),    //  2. 3 north
+        G(10, 12),   //  3. 5 east
+        G(10, 20),   //  4. 8 north
+        G(8, 20),    //  5. 2 west
+        G(8, 14),    //  6. 6 south
+        G(6, 14),    //  7. 2 west
+        G(6, 20),    //  8. 6 north
+        G(4, 20),    //  9. 2 west
+        G(4, 9),     // 10. 11 south
+        G(5, 9),     // 11. 1 east — home
+    ];
 }
 
-// Bravo drones — corridor sweep (length-wise back and forth)
-const BRAVO_DRONES = generateBravoSweep();
-function generateBravoSweep() {
-    const drones = [];
-    const lanes = 5;
-    for (let i = 0; i < lanes; i++) {
-        const x = BRAVO_AREA.x + 20 + i * (BRAVO_AREA.w - 40) / (lanes - 1);
-        const waypoints = [];
-        const segments = 6;
-        for (let s = 0; s <= segments; s++) {
-            const y = BRAVO_AREA.y + 20 + (s / segments) * (BRAVO_AREA.h - 40);
-            waypoints.push({ x, y });
-        }
-        drones.push({ id: `bravo-${i+1}`, waypoints, color: '#8b5cf6' });
-    }
-    return drones;
+// L2-B drone — sensor reaches 2 grid squares (80 units = 2a). Only 2 horizontal
+// sweeps are needed to fully cover the 4-row corridor: sweep at y=200 covers
+// rows 1-2, sweep at y=280 covers rows 3-4. Exits at corridor bottom-left.
+const BRAVO_DRONES = [{
+    id: 'L2-B', color: '#3b82f6',     // BLUE (matches the spec sketch)
+    sensor: GRID * 2,                  // radius = 2 squares (5×5 footprint)
+    area: BRAVO_CORRIDOR,              // only the corridor counts as covered
+    waypoints: buildBravoTwoSweepPath(),
+}];
+function buildBravoTwoSweepPath() {
+    // Explicit vertex list in user grid coords (bottom-left origin, y up).
+    const G = (x, y) => ({ x: x * GRID, y: (24 - y) * GRID });
+    return [
+        G(17, 9),    //  1. home
+        G(17, 12),   //  2. 3 north
+        G(13, 12),   //  3. 4 west
+        G(13, 15),   //  4. 3 north
+        G(19, 15),   //  5. 6 east
+        G(19, 19),   //  6. 4 north
+        G(13, 19),   //  7. 6 west
+        G(13, 12),   //  8. 7 south
+        G(17, 12),   //  9. 4 east
+        G(17, 9),    // 10. 3 south — home
+    ];
 }
-
-// L1 node (rendered as a central box at the bottom corner)
-const L1_NODE = { x: 870, y: 540 };
 
 // ── Compute commitments from drone sweep data ────────────────────────────
 // Each sweep cell coordinate is folded into a Poseidon hash chain.
@@ -116,15 +154,16 @@ const COMMITMENTS = computeCommitments();
 
 function renderBaseScene() {
     return `
-      <svg viewBox="0 0 1000 600" xmlns="http://www.w3.org/2000/svg">
-        <!-- background gradient: deep maritime blue -->
+      <svg viewBox="0 0 ${VIEW_W} ${VIEW_H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
         <defs>
           <radialGradient id="seaGrad" cx="50%" cy="80%" r="80%">
             <stop offset="0%"  stop-color="#0d1a2f"/>
             <stop offset="100%" stop-color="#050810"/>
           </radialGradient>
+          <!-- 40-unit grid: stronger lines + vertex dots so positions are legible -->
           <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#243758" stroke-width="0.7"/>
+            <circle cx="0" cy="0" r="1" fill="#3a5478"/>
           </pattern>
           <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
             <path d="M0,0 L10,5 L0,10 Z" fill="#4fc3f7"/>
@@ -135,16 +174,18 @@ function renderBaseScene() {
           <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
             <path d="M0,0 L10,5 L0,10 Z" fill="#22c55e"/>
           </marker>
+          <marker id="arrow-purple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0,0 L10,5 L0,10 Z" fill="#8b5cf6"/>
+          </marker>
+          <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0,0 L10,5 L0,10 Z" fill="#ef4444"/>
+          </marker>
+          <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0,0 L10,5 L0,10 Z" fill="#3b82f6"/>
+          </marker>
         </defs>
-        <rect width="1000" height="600" fill="url(#seaGrad)"/>
-        <rect width="1000" height="600" fill="url(#grid)"/>
-
-        <!-- compass / heading indicator -->
-        <g transform="translate(50,60)">
-          <circle r="22" fill="#0a0e17" stroke="#1e293b"/>
-          <path d="M0,-14 L0,12" stroke="#4fc3f7" stroke-width="2" marker-end="url(#arrow)"/>
-          <text y="-22" text-anchor="middle" font-family="Consolas,monospace" font-size="9" fill="#4fc3f7">CONVOY HEADING</text>
-        </g>
+        <rect width="${VIEW_W}" height="${VIEW_H}" fill="url(#seaGrad)"/>
+        <rect width="${VIEW_W}" height="${VIEW_H}" fill="url(#grid)"/>
       </svg>
     `;
 }
@@ -171,10 +212,10 @@ function renderConvoy() {
 }
 
 function renderAreas(highlightAlpha = false, highlightBravo = false) {
-    const aStroke = highlightAlpha ? '#22c55e' : '#1e3a2e';
-    const aFill   = highlightAlpha ? 'rgba(34,197,94,0.08)' : 'rgba(34,197,94,0.03)';
-    const bStroke = highlightBravo ? '#8b5cf6' : '#2e1e3a';
-    const bFill   = highlightBravo ? 'rgba(139,92,246,0.08)' : 'rgba(139,92,246,0.03)';
+    const aStroke = highlightAlpha ? '#ef4444' : '#3a1d1d';
+    const aFill   = highlightAlpha ? 'rgba(239,68,68,0.08)' : 'rgba(239,68,68,0.03)';
+    const bStroke = highlightBravo ? '#3b82f6' : '#1d2a3a';
+    const bFill   = highlightBravo ? 'rgba(59,130,246,0.08)' : 'rgba(59,130,246,0.03)';
     return `
       <rect x="${ALPHA_AREA.x}" y="${ALPHA_AREA.y}" width="${ALPHA_AREA.w}" height="${ALPHA_AREA.h}"
             fill="${aFill}" stroke="${aStroke}" stroke-width="1.5" stroke-dasharray="4,3" rx="6"/>
@@ -183,29 +224,63 @@ function renderAreas(highlightAlpha = false, highlightBravo = false) {
       <rect x="${BRAVO_AREA.x}" y="${BRAVO_AREA.y}" width="${BRAVO_AREA.w}" height="${BRAVO_AREA.h}"
             fill="${bFill}" stroke="${bStroke}" stroke-width="1.5" stroke-dasharray="4,3" rx="6"/>
       <text x="${BRAVO_AREA.x + 8}" y="${BRAVO_AREA.y + 18}" font-family="Consolas,monospace" font-size="11" fill="${bStroke}">EX-011 · RIGHT FRONTAL · BRAVO</text>
+
+      <!-- Bravo inner corridor (the 2a band where the actual sweep happens) -->
+      <rect x="${BRAVO_CORRIDOR.x}" y="${BRAVO_CORRIDOR.y}" width="${BRAVO_CORRIDOR.w}" height="${BRAVO_CORRIDOR.h}"
+            fill="rgba(59,130,246,0.05)" stroke="${bStroke}" stroke-width="1" stroke-dasharray="2,2" rx="3" opacity="0.7"/>
+      <text x="${BRAVO_CORRIDOR.x + 8}" y="${BRAVO_CORRIDOR.y - 4}" font-family="Consolas,monospace" font-size="9" fill="${bStroke}" opacity="0.7">corridor 2a</text>
     `;
 }
 
-function renderL1Node(highlight = false) {
-    const stroke = highlight ? '#ffd600' : '#4fc3f7';
-    return `
-      <g transform="translate(${L1_NODE.x}, ${L1_NODE.y})">
-        <rect x="-50" y="-30" width="100" height="60" rx="6"
-              fill="#0a1828" stroke="${stroke}" stroke-width="1.5"/>
-        <text y="-14" text-anchor="middle" font-family="Consolas,monospace" font-size="9.5" fill="${stroke}">L1 PoA</text>
-        <text y="3"   text-anchor="middle" font-family="Consolas,monospace" font-size="11" font-weight="700" fill="${stroke}">VERIFIER</text>
-        <text y="20"  text-anchor="middle" font-family="Consolas,monospace" font-size="8.5" fill="#94a3b8">6 validators</text>
-      </g>
-    `;
+// L1 is the collective of all six ships' validators — there is no separate
+// L1 node. When verification happens, every ship's outline pulses green
+// (handled inline in renderScene), representing the proof landing on the
+// shared chain.
+function renderL1Node() { return ''; }
+
+// Position along a waypoint path at progress p ∈ [0,1].
+function positionAlongPath(wp, p) {
+    if (p <= 0) return { ...wp[0] };
+    if (p >= 1) return { ...wp[wp.length - 1] };
+    const segCount = wp.length - 1;
+    const t = p * segCount;
+    const segIdx = Math.min(Math.floor(t), segCount - 1);
+    const segT = t - segIdx;
+    const a = wp[segIdx], b = wp[segIdx + 1];
+    return { x: a.x + segT * (b.x - a.x), y: a.y + segT * (b.y - a.y) };
+}
+
+// L2 sequencer drones — orange labelled circles. Position is at home when
+// idle; during sweep they travel along their path (entry → sweep → return).
+// During convoy advance they translate forward with the rest of the formation
+// but don't paint new coverage cells (they're not on a sweep mission anymore).
+function renderL2Nodes(alphaProgress, bravoProgress, advanceOffset = 0) {
+    let s = '';
+    for (const n of L2_NODES) {
+        const prog = (n.sweepKey === 'alpha') ? alphaProgress : bravoProgress;
+        const path = (n.sweepKey === 'alpha') ? ALPHA_DRONES[0].waypoints : BRAVO_DRONES[0].waypoints;
+        const base = (prog > 0) ? positionAlongPath(path, prog) : n.home;
+        const cx = base.x;
+        const cy = base.y - advanceOffset;     // travel forward with the convoy
+        s += `<g class="l2-node">
+                <circle cx="${cx}" cy="${cy}" r="20"
+                        fill="#1a0e05" stroke="${n.color}" stroke-width="2"/>
+                <text x="${cx}" y="${cy + 4}" text-anchor="middle"
+                      font-family="Consolas,monospace" font-size="10"
+                      font-weight="700" fill="${n.color}">${n.id}</text>
+              </g>`;
+    }
+    return s;
 }
 
 // Render drones at a given progress (0..1) along their sweep path
+// Trail of where the L2 drone has been so far. The drone itself is rendered
+// as the orange L2 node in renderL2Nodes (it sits on top of this trail).
 function renderDrones(swarm, progress) {
     if (progress <= 0) return '';
     let s = '';
     for (const d of swarm) {
         const wp = d.waypoints;
-        // total path length to interpolate along
         const segCount = wp.length - 1;
         const t = progress * segCount;
         const segIdx = Math.min(Math.floor(t), segCount - 1);
@@ -215,94 +290,208 @@ function renderDrones(swarm, progress) {
         const x = p0.x + segT * (p1.x - p0.x);
         const y = p0.y + segT * (p1.y - p0.y);
 
-        // trail (visited waypoints up to current progress)
         let trail = `M ${wp[0].x},${wp[0].y}`;
         for (let i = 1; i <= segIdx; i++) trail += ` L ${wp[i].x},${wp[i].y}`;
         trail += ` L ${x},${y}`;
 
-        s += `<path d="${trail}" stroke="${d.color}" stroke-width="1.2" fill="none" opacity="0.7"/>`;
-        s += `<circle cx="${x}" cy="${y}" r="3.5" fill="${d.color}"/>`;
-        s += `<circle cx="${x}" cy="${y}" r="7"   fill="${d.color}" opacity="0.25"/>`;
+        s += `<path d="${trail}" stroke="${d.color}" stroke-width="1.5" fill="none" opacity="0.7"/>`;
     }
     return s;
 }
 
-// Coverage cell heatmap during sweep
+// Coverage cell heatmap during sweep — paints the 40×40 grid square the
+// drone is sweeping as it traverses each segment. Makes "area cleared"
+// visually unambiguous.
+// Paints coverage cells as the drone passes through. Sensor reach is a
+// RADIUS — at each grid step the drone visits, every cell within `radius`
+// in any direction (square footprint of (2r+1)×(2r+1)) is marked covered.
+// Cells are drawn EVERYWHERE the drone passes; the assigned `area` is what
+// gets cryptographically validated, but the sensor shadow is drawn freely.
 function renderCoverageCells(swarm, progress, colorWith) {
     if (progress <= 0) return '';
     let s = '';
-    const totalCells = swarm.length * (swarm[0].waypoints.length - 1);
-    const visitedCells = Math.floor(progress * totalCells);
-    let cellCount = 0;
     for (const d of swarm) {
-        for (let i = 0; i < d.waypoints.length - 1; i++) {
-            if (cellCount >= visitedCells) break;
-            const p0 = d.waypoints[i], p1 = d.waypoints[i+1];
-            const cx = (p0.x + p1.x) / 2, cy = (p0.y + p1.y) / 2;
-            s += `<rect x="${cx-7}" y="${cy-7}" width="14" height="14" fill="${colorWith}" opacity="0.18" rx="2"/>`;
-            cellCount++;
+        const sensor = d.sensor || GRID;          // sensor radius in pixels
+        const radius = Math.round(sensor / GRID); // sensor radius in grid units
+        const wp     = d.waypoints;
+        const segCount = wp.length - 1;
+        const t = progress * segCount;
+        const upToSeg = Math.floor(t);
+        const segT = t - upToSeg;
+
+        // Set of `${gx},${gy}` grid cells covered so far.
+        const visited = new Set();
+
+        for (let i = 0; i <= Math.min(upToSeg, segCount - 1); i++) {
+            const p0 = wp[i], p1 = wp[i+1];
+            const segProg = (i < upToSeg) ? 1 : segT;
+            const dx = p1.x - p0.x, dy = p1.y - p0.y;
+            const segLen = Math.max(Math.abs(dx), Math.abs(dy));
+            const steps = Math.max(1, Math.round(segLen / GRID));
+            const visitedSteps = Math.max(1, Math.round(segProg * steps));
+
+            for (let si = 0; si <= visitedSteps; si++) {
+                const f  = si / steps;
+                const px = p0.x + f * dx;
+                const py = p0.y + f * dy;
+                const gx = Math.round(px / GRID);
+                const gy = Math.round(py / GRID);
+                // Drone is at a vertex. Footprint is the cells *touching* the
+                // vertex extended by `radius`: a (2*radius) × (2*radius) block
+                // symmetric around the vertex.
+                for (let cx = gx - radius; cx < gx + radius; cx++) {
+                    for (let cy = gy - radius; cy < gy + radius; cy++) {
+                        visited.add(`${cx},${cy}`);
+                    }
+                }
+            }
+        }
+
+        // Render every covered cell. No area filter — the shadow follows
+        // wherever the drone has been.
+        for (const key of visited) {
+            const [gx, gy] = key.split(',').map(Number);
+            const cellX = gx * GRID;
+            const cellY = gy * GRID;
+            s += `<rect x="${cellX}" y="${cellY}" width="${GRID}" height="${GRID}"
+                        fill="${colorWith}" opacity="0.22" stroke="${colorWith}"
+                        stroke-width="0.5" stroke-opacity="0.4"/>`;
         }
     }
     return s;
 }
 
-// Animated proof packet line from L2 to a ship to L1
+// Animated proof packet: area → relay ship → peer fan-out to the other
+// 5 ships. The fan-out represents the proof being recorded on L1, where
+// every ship's validator independently checks it.
+//
+// Stage A (0..0.6): packet travels from area centre down to the relay ship.
+// Stage B (0.6..1): packet replicates from relay ship out to all peers.
 function renderProofRelay(fromX, fromY, toShip, color, progress) {
     if (progress <= 0) return '';
     const ship = SHIPS[toShip];
-    const midX = (fromX + ship.x) / 2;
-    const midY = (fromY + ship.y) / 2;
-
-    // Stage A: from L2 (above the area) to the ship — progress 0..0.5
-    // Stage B: from ship to L1 — progress 0.5..1
+    const markerEnd = color === '#ef4444' ? 'url(#arrow-red)'
+                    : color === '#3b82f6' ? 'url(#arrow-blue)'
+                    : color === '#22c55e' ? 'url(#arrow-green)'
+                    : color === '#8b5cf6' ? 'url(#arrow-purple)'
+                    : 'url(#arrow)';
     let s = '';
-    if (progress < 0.5) {
-        const t = progress / 0.5;
+
+    if (progress < 0.6) {
+        const t = progress / 0.6;
         const px = fromX + t * (ship.x - fromX);
         const py = fromY + t * (ship.y - fromY);
         s += `<line x1="${fromX}" y1="${fromY}" x2="${px}" y2="${py}"
                     stroke="${color}" stroke-width="2" stroke-dasharray="6,4"
-                    opacity="0.7"/>`;
+                    opacity="0.75" marker-end="${markerEnd}"/>`;
         s += `<circle cx="${px}" cy="${py}" r="6" fill="${color}"/>`;
         s += `<circle cx="${px}" cy="${py}" r="11" fill="${color}" opacity="0.3"/>`;
     } else {
-        const t = (progress - 0.5) / 0.5;
-        // full line L2 -> ship
+        const t = (progress - 0.6) / 0.4;
+        // full line area → relay ship (faded, established)
         s += `<line x1="${fromX}" y1="${fromY}" x2="${ship.x}" y2="${ship.y}"
-                    stroke="${color}" stroke-width="2" stroke-dasharray="6,4" opacity="0.5"/>`;
-        // line ship -> L1 with packet
-        const px = ship.x + t * (L1_NODE.x - ship.x);
-        const py = ship.y + t * (L1_NODE.y - ship.y);
-        s += `<line x1="${ship.x}" y1="${ship.y}" x2="${px}" y2="${py}"
-                    stroke="${color}" stroke-width="2.5" opacity="0.85"
-                    marker-end="url(#arrow${color === '#22c55e' ? '-green' : color === '#8b5cf6' ? '' : ''})"/>`;
-        s += `<circle cx="${px}" cy="${py}" r="6" fill="${color}"/>`;
-        s += `<circle cx="${px}" cy="${py}" r="11" fill="${color}" opacity="0.3"/>`;
+                    stroke="${color}" stroke-width="2" stroke-dasharray="6,4"
+                    opacity="0.45"/>`;
+        // peer fan-out from relay ship to each other ship
+        for (const [id, peer] of Object.entries(SHIPS)) {
+            if (id === toShip) continue;
+            const px = ship.x + t * (peer.x - ship.x);
+            const py = ship.y + t * (peer.y - ship.y);
+            s += `<line x1="${ship.x}" y1="${ship.y}" x2="${px}" y2="${py}"
+                        stroke="${color}" stroke-width="1.5" opacity="0.8"/>`;
+            // small packet head
+            s += `<circle cx="${px}" cy="${py}" r="3.5" fill="${color}"/>`;
+        }
     }
     return s;
 }
 
-// Mission deployment lines from L1 to L2-Alpha and L2-Bravo cluster centres
+// Mission deployment — commander D writes a tx on L1; because the L1 chain
+// is the collective of all six ships, every other ship sees it (peer fan-out).
+// Then the two relay ships pass the mission spec to their L2 sequencer.
+//
+// Stage A (0..0.55): D → A, B, C, E, F      (L1 propagation)
+// Stage B (0.55..1):  F → L2-A (EX-010)
+//                    B → L2-B (EX-011)      (relay-to-sequencer)
 function renderMissionDeploy(progress) {
     if (progress <= 0) return '';
-    const t = progress;
-    const aTarget = { x: ALPHA_AREA.x + ALPHA_AREA.w/2, y: ALPHA_AREA.y + ALPHA_AREA.h/2 };
-    const bTarget = { x: BRAVO_AREA.x + BRAVO_AREA.w/2, y: BRAVO_AREA.y + BRAVO_AREA.h/2 };
-    const apx = L1_NODE.x + t * (aTarget.x - L1_NODE.x);
-    const apy = L1_NODE.y + t * (aTarget.y - L1_NODE.y);
-    const bpx = L1_NODE.x + t * (bTarget.x - L1_NODE.x);
-    const bpy = L1_NODE.y + t * (bTarget.y - L1_NODE.y);
-    return `
-      <line x1="${L1_NODE.x}" y1="${L1_NODE.y}" x2="${apx}" y2="${apy}"
-            stroke="#22c55e" stroke-width="1.5" stroke-dasharray="3,3" opacity="0.6"/>
-      <circle cx="${apx}" cy="${apy}" r="5" fill="#22c55e"/>
-      <text x="${apx + 12}" y="${apy + 4}" font-family="Consolas,monospace" font-size="10" fill="#22c55e">EX-010</text>
+    const D    = SHIPS.D;
+    const F    = SHIPS.F;
+    const B    = SHIPS.B;
+    const L2A  = L2_NODES[0].home;
+    const L2B  = L2_NODES[1].home;
+    const peers = ['A', 'B', 'C', 'E', 'F'];
+    let s = '';
 
-      <line x1="${L1_NODE.x}" y1="${L1_NODE.y}" x2="${bpx}" y2="${bpy}"
-            stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="3,3" opacity="0.6"/>
-      <circle cx="${bpx}" cy="${bpy}" r="5" fill="#8b5cf6"/>
-      <text x="${bpx + 12}" y="${bpy + 4}" font-family="Consolas,monospace" font-size="10" fill="#c4b5fd">EX-011</text>
-    `;
+    if (progress < 0.55) {
+        // Stage A — packets travel from D to each L1 peer simultaneously.
+        const t = progress / 0.55;
+        for (const id of peers) {
+            const p = SHIPS[id];
+            const px = D.x + t * (p.x - D.x);
+            const py = D.y + t * (p.y - D.y);
+            s += `<line x1="${D.x}" y1="${D.y}" x2="${px}" y2="${py}"
+                        stroke="#4fc3f7" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.75"/>`;
+            s += `<circle cx="${px}" cy="${py}" r="4" fill="#4fc3f7"/>`;
+        }
+    } else {
+        // Stage A complete — show faint static lines from D to all peers.
+        for (const id of peers) {
+            const p = SHIPS[id];
+            s += `<line x1="${D.x}" y1="${D.y}" x2="${p.x}" y2="${p.y}"
+                        stroke="#4fc3f7" stroke-width="1" stroke-dasharray="4,3" opacity="0.35"/>`;
+        }
+        // Stage B — F dispatches EX-010 to L2-A; B dispatches EX-011 to L2-B.
+        const t = (progress - 0.55) / 0.45;
+        const apx = F.x + t * (L2A.x - F.x);
+        const apy = F.y + t * (L2A.y - F.y);
+        const bpx = B.x + t * (L2B.x - B.x);
+        const bpy = B.y + t * (L2B.y - B.y);
+
+        s += `<line x1="${F.x}" y1="${F.y}" x2="${apx}" y2="${apy}"
+                    stroke="#ef4444" stroke-width="2" stroke-dasharray="3,3" opacity="0.85"/>`;
+        s += `<circle cx="${apx}" cy="${apy}" r="5" fill="#ef4444"/>`;
+        s += `<text x="${apx}" y="${apy - 10}" text-anchor="middle"
+                    font-family="Consolas,monospace" font-size="10"
+                    font-weight="700" fill="#ef4444">EX-010</text>`;
+
+        s += `<line x1="${B.x}" y1="${B.y}" x2="${bpx}" y2="${bpy}"
+                    stroke="#3b82f6" stroke-width="2" stroke-dasharray="3,3" opacity="0.85"/>`;
+        s += `<circle cx="${bpx}" cy="${bpy}" r="5" fill="#3b82f6"/>`;
+        s += `<text x="${bpx}" y="${bpy - 10}" text-anchor="middle"
+                    font-family="Consolas,monospace" font-size="10"
+                    font-weight="700" fill="#3b82f6">EX-011</text>`;
+    }
+    return s;
+}
+
+// Convoy advance broadcast — D fans yellow dashed lines to every other
+// node (5 ships + 2 L2 sequencers + 3 HVUs) to relay the advance command.
+// Stage 0..1 animates packets travelling outward.
+function renderAdvanceBroadcast(progress) {
+    if (progress <= 0) return '';
+    const D = SHIPS.D;
+    const targets = [
+        { x: SHIPS.A.x, y: SHIPS.A.y },
+        { x: SHIPS.B.x, y: SHIPS.B.y },
+        { x: SHIPS.C.x, y: SHIPS.C.y },
+        { x: SHIPS.E.x, y: SHIPS.E.y },
+        { x: SHIPS.F.x, y: SHIPS.F.y },
+        { x: L2_NODES[0].home.x, y: L2_NODES[0].home.y },
+        { x: L2_NODES[1].home.x, y: L2_NODES[1].home.y },
+        ...PROTECTED_SHIPS.map(p => ({ x: p.x, y: p.y })),
+    ];
+    const t = Math.min(1, progress);
+    let s = '';
+    for (const tgt of targets) {
+        const px = D.x + t * (tgt.x - D.x);
+        const py = D.y + t * (tgt.y - D.y);
+        s += `<line x1="${D.x}" y1="${D.y}" x2="${px}" y2="${py}"
+                    stroke="#ffd600" stroke-width="1.5" stroke-dasharray="4,3"
+                    opacity="0.8"/>`;
+        s += `<circle cx="${px}" cy="${py}" r="4" fill="#ffd600"/>`;
+    }
+    return s;
 }
 
 // Convoy advance — translate ships forward
@@ -319,10 +508,12 @@ function renderConvoyAdvanced(forwardOffset) {
         s += `<circle cx="${sh.x}" cy="${sh.y - forwardOffset}" r="22" fill="${fill}" stroke="${stroke}" stroke-width="2"/>
               <text x="${sh.x}" y="${sh.y - forwardOffset + 5}" text-anchor="middle" font-family="Consolas,monospace" font-size="16" font-weight="700" fill="${stroke}">${id}</text>`;
     }
-    // forward speed wake
+    // forward speed wake from the commander's column
     s += `<g opacity="0.6">`;
+    const wakeX = SHIPS.D.x;
+    const wakeBottom = VIEW_H;
     for (let i = 0; i < 5; i++) {
-        s += `<line x1="500" y1="${600 - i*8}" x2="500" y2="${600 - i*8 + 6}" stroke="#4fc3f7" stroke-width="1"/>`;
+        s += `<line x1="${wakeX}" y1="${wakeBottom - i*8}" x2="${wakeX}" y2="${wakeBottom - i*8 + 6}" stroke="#4fc3f7" stroke-width="1"/>`;
     }
     s += `</g>`;
     return s;
@@ -334,25 +525,29 @@ function renderScene(cfg) {
     // wrap content inside the SVG
     let inner = '';
     inner += renderAreas(cfg.highlightAlpha, cfg.highlightBravo);
-    inner += renderMissionDeploy(cfg.deployProgress || 0);
-    inner += renderCoverageCells(ALPHA_DRONES, cfg.alphaSweep || 0, '#22c55e');
-    inner += renderCoverageCells(BRAVO_DRONES, cfg.bravoSweep || 0, '#8b5cf6');
+    // Deploy lines only render while the deploy phase is in progress; once we
+    // move on to sweep/proof/etc. the canvas should be clean of those lines.
+    if (cfg.showDeploy) inner += renderMissionDeploy(cfg.deployProgress || 0);
+    inner += renderCoverageCells(ALPHA_DRONES, cfg.alphaSweep || 0, '#ef4444');
+    inner += renderCoverageCells(BRAVO_DRONES, cfg.bravoSweep || 0, '#3b82f6');
     inner += renderDrones(ALPHA_DRONES, cfg.alphaSweep || 0);
     inner += renderDrones(BRAVO_DRONES, cfg.bravoSweep || 0);
     if (cfg.alphaProof) {
-        const start = { x: ALPHA_AREA.x + ALPHA_AREA.w/2, y: ALPHA_AREA.y + ALPHA_AREA.h/2 };
-        inner += renderProofRelay(start.x, start.y, cfg.alphaProof.viaShip, '#22c55e', cfg.alphaProof.progress);
+        // Proof originates from the L2-A sequencer node (drone's home position).
+        inner += renderProofRelay(L2_NODES[0].home.x, L2_NODES[0].home.y, cfg.alphaProof.viaShip, '#ef4444', cfg.alphaProof.progress);
     }
     if (cfg.bravoProof) {
-        const start = { x: BRAVO_AREA.x + BRAVO_AREA.w/2, y: BRAVO_AREA.y + BRAVO_AREA.h/2 };
-        inner += renderProofRelay(start.x, start.y, cfg.bravoProof.viaShip, '#8b5cf6', cfg.bravoProof.progress);
+        inner += renderProofRelay(L2_NODES[1].home.x, L2_NODES[1].home.y, cfg.bravoProof.viaShip, '#3b82f6', cfg.bravoProof.progress);
+    }
+    if (cfg.advanceBroadcast) {
+        inner += renderAdvanceBroadcast(cfg.advanceBroadcast);
     }
     if (cfg.advancedOffset > 0) {
         inner += renderConvoyAdvanced(cfg.advancedOffset);
     } else {
         inner += renderConvoy();
     }
-    inner += renderL1Node(cfg.l1Highlight);
+    inner += renderL2Nodes(cfg.alphaSweep || 0, cfg.bravoSweep || 0, cfg.advancedOffset || 0);
     if (cfg.commanderActive) {
         // pulse on ship D
         inner += `<circle cx="${SHIPS.D.x}" cy="${SHIPS.D.y}" r="32" fill="none"
@@ -375,21 +570,32 @@ function buildFrames() {
     });
 
     // Phase 1 — Mission deployment
+    // 1.a Ship D writes the deploy tx on L1
     F.push({
         phase: '1/8 — mission deployment',
-        cfg: { deployProgress: 0, l1Highlight: true },
+        cfg: { showDeploy: true, deployProgress: 0, commanderActive: true },
         badge: 'Deploy', badgeClass: 'deploy',
-        text: `Ship D issues two parallel L1 transactions: <code>EX-010</code> &rarr; L2-Alpha and <code>EX-011</code> &rarr; L2-Bravo.`,
-        registry: reg('PENDING', 'PENDING', 'idle'),
-        dwell: 1500,
+        text: `Commander D submits an L1 transaction: <code>deploy(EX-010, EX-011)</code> with area, coverage &ge; 95&thinsp;%, time &le; 6 min, detection p &ge; 0.7.`,
+        registry: reg('PENDING', 'PENDING', 'issuing deploy'),
+        dwell: 1700,
     });
+    // 1.b L1 propagation — every ship sees the tx (Clique PoA shared chain)
     F.push({
-        phase: '1/8 — mission deployment',
-        cfg: { deployProgress: 1, l1Highlight: true },
+        phase: '1/8 — L1 propagation',
+        cfg: { showDeploy: true, deployProgress: 0.55 },
         badge: 'Deploy', badgeClass: 'deploy',
-        text: `Mission specs broadcast to both L2 chains. Each carries area, coverage threshold &ge; 95&thinsp;%, time window 6 min, detection threshold p &ge; 0.7.`,
+        text: `L1 is the collective of all six ships' validators &mdash; the deploy tx propagates to A, B, C, E, F via PoA peer fan-out.`,
+        registry: reg('ON L1', 'ON L1', 'idle'),
+        dwell: 1700,
+    });
+    // 1.c Relay ships dispatch the spec to their L2 sequencer
+    F.push({
+        phase: '1/8 — L2 dispatch',
+        cfg: { showDeploy: true, deployProgress: 1 },
+        badge: 'Deploy', badgeClass: 'deploy',
+        text: `F forwards <code>EX-010</code> to <code>L2-A</code> (Alpha). B forwards <code>EX-011</code> to <code>L2-B</code> (Bravo). Drones now have their mission spec.`,
         registry: reg('DISPATCHED', 'DISPATCHED', 'idle'),
-        dwell: 2200,
+        dwell: 2000,
     });
 
     // Phase 2 — Drone sweeps (Alpha + Bravo simultaneously)
@@ -484,26 +690,46 @@ function buildFrames() {
         phase: '7/8 — convoy advance command',
         cfg: { deployProgress: 1, alphaSweep: 1, bravoSweep: 1, commanderActive: true, l1Highlight: true },
         badge: 'Cmd',    badgeClass: 'cmd',
-        text: `Ship D submits L1 transaction: <code>convoyAdvance(maxSpeed = true)</code>. Event broadcast to all six ships' validators.`,
+        text: `Ship D submits L1 transaction: <code>convoyAdvance(maxSpeed = true)</code>. Preparing broadcast to all nodes.`,
         registry: reg('SAFE ✓ (by F)', 'SAFE ✓ (by B)', 'gate met', 'BROADCAST'),
-        dwell: 2400,
+        dwell: 1800,
+    });
+    // 7.b — D fans the advance command to every node (5 ships + 2 L2 + 3 HVUs)
+    F.push({
+        phase: '7/8 — broadcast advance',
+        cfg: { deployProgress: 1, alphaSweep: 1, bravoSweep: 1, commanderActive: true, advanceBroadcast: 0.55 },
+        badge: 'Cmd',    badgeClass: 'cmd',
+        text: `Dashed yellow lines travel from D to every node — A, B, C, E, F, L2-A, L2-B and the three HVUs — carrying <code>convoyAdvance</code>.`,
+        registry: reg('SAFE ✓ (by F)', 'SAFE ✓ (by B)', 'broadcasting', 'BROADCAST'),
+        dwell: 1400,
+    });
+    F.push({
+        phase: '7/8 — broadcast advance',
+        cfg: { deployProgress: 1, alphaSweep: 1, bravoSweep: 1, commanderActive: true, advanceBroadcast: 1 },
+        badge: 'Cmd',    badgeClass: 'cmd',
+        text: `Every node has received the advance command. Convoy aligned and ready to move at maximum speed.`,
+        registry: reg('SAFE ✓ (by F)', 'SAFE ✓ (by B)', 'broadcast complete', 'BROADCAST'),
+        dwell: 1600,
     });
 
-    // Phase 8 — Convoy advances
-    const advSteps = 12;
+    // Phase 8 — Convoy advances through and past the swept area
+    // Lead ship A starts at y=520; area's north edge is y=120. The fleet
+    // must traverse ~520 px to fully cross to the other side of the cleared zone.
+    const advSteps = 30;
+    const advStepSize = 18;          // 30 × 18 = 540 px total travel
     for (let i = 1; i <= advSteps; i++) {
         F.push({
             phase: '8/8 — convoy advance',
-            cfg: { deployProgress: 1, alphaSweep: 1, bravoSweep: 1, advancedOffset: i * 8 },
+            cfg: { deployProgress: 1, alphaSweep: 1, bravoSweep: 1, advancedOffset: i * advStepSize },
             badge: 'Advance', badgeClass: 'advance',
-            text: `Convoy moves forward at maximum speed through the cleared frontal area. Mission cycle complete.`,
+            text: `Convoy moves forward at maximum speed through the cleared frontal area to the other side. Mission cycle complete.`,
             registry: reg('SAFE ✓ (by F)', 'SAFE ✓ (by B)', 'advance issued', 'EXECUTING'),
-            dwell: 200,
+            dwell: 90,
         });
     }
     F.push({
         phase: '8/8 — cycle complete',
-        cfg: { deployProgress: 1, alphaSweep: 1, bravoSweep: 1, advancedOffset: advSteps * 8 },
+        cfg: { deployProgress: 1, alphaSweep: 1, bravoSweep: 1, advancedOffset: advSteps * advStepSize },
         badge: 'Advance', badgeClass: 'advance',
         text: `All eight phases complete. Both proofs cryptographically anchored on L1; convoy now advancing through verified-safe waters.`,
         registry: reg('SAFE ✓ (by F)', 'SAFE ✓ (by B)', 'advance issued', 'COMPLETE'),
@@ -518,39 +744,91 @@ class ConvoySim {
     constructor(root) {
         root.innerHTML = `
           <div class="cs-frame">
-            <div class="cs-header">
-              <div>
-                <div class="cs-title">Convoy Mission — End-to-End Simulation</div>
-                <div class="cs-subtitle">Two parallel L2 chains · 6-ship PoA · proof relay · two-of-two governance</div>
+            <aside class="cs-status-panel">
+              <div class="cs-status-header">
+                <h3>Mission status</h3>
+                <p>Per-node state and message log — 6 ships + 2 L2 sequencers.</p>
               </div>
-              <div class="cs-phase-badge">— ready —</div>
-            </div>
-            <div class="cs-canvas">
-              <div class="cs-canvas-inner"></div>
-            </div>
-            <div class="cs-status">
-              <div class="cs-status-badge idle">idle</div>
-              <div class="cs-status-text">Click ▶ Play to begin the eight-phase walkthrough.</div>
-            </div>
-            <div class="cs-side">
-              <div class="cs-registry">
-                <div class="cs-registry-title">L1 mission registry</div>
-                <div class="cs-registry-row pending"><span class="k">EX-010 (left)</span><span class="v" id="reg-ex010">—</span></div>
-                <div class="cs-registry-row pending"><span class="k">EX-011 (right)</span><span class="v" id="reg-ex011">—</span></div>
+
+              <div class="cs-nodes" id="cs-nodes">
+                <div class="cs-node" data-node="A">
+                  <div class="cs-node-head"><span class="cs-node-id node-A">A</span><span class="cs-node-role">forward · α+β relay</span><span class="cs-node-state">idle</span></div>
+                  <ul class="cs-node-log"></ul>
+                  <pre class="cs-node-terminal" data-source="geth-A · ship-A">$ geth-A     | clique PoA · validator key loaded
+$ geth-A     | block height: 0 · pending tx: 0
+$ ship-A     | orchestrator up · watching L1 events</pre>
+                </div>
+                <div class="cs-node" data-node="B">
+                  <div class="cs-node-head"><span class="cs-node-id node-B">B</span><span class="cs-node-role">forward-right · β relay</span><span class="cs-node-state">idle</span></div>
+                  <ul class="cs-node-log"></ul>
+                  <pre class="cs-node-terminal" data-source="geth-B · ship-B">$ geth-B     | clique PoA · validator key loaded
+$ ship-B     | orchestrator up · L2-B link nominal</pre>
+                </div>
+                <div class="cs-node" data-node="C">
+                  <div class="cs-node-head"><span class="cs-node-id node-C">C</span><span class="cs-node-role">mid-right</span><span class="cs-node-state">idle</span></div>
+                  <ul class="cs-node-log"></ul>
+                  <pre class="cs-node-terminal" data-source="geth-C · ship-C">$ geth-C     | clique PoA · validator key loaded
+$ ship-C     | orchestrator up · idle</pre>
+                </div>
+                <div class="cs-node" data-node="D">
+                  <div class="cs-node-head"><span class="cs-node-id node-D">D</span><span class="cs-node-role">commander</span><span class="cs-node-state">idle</span></div>
+                  <ul class="cs-node-log"></ul>
+                  <pre class="cs-node-terminal" data-source="geth-D · ship-D">$ geth-D     | clique PoA · validator key loaded
+$ ship-D     | commander mode · waiting for SAFE × 2
+$ ship-D     | advance gate: armed</pre>
+                </div>
+                <div class="cs-node" data-node="E">
+                  <div class="cs-node-head"><span class="cs-node-id node-E">E</span><span class="cs-node-role">mid-left</span><span class="cs-node-state">idle</span></div>
+                  <ul class="cs-node-log"></ul>
+                  <pre class="cs-node-terminal" data-source="geth-E · ship-E">$ geth-E     | clique PoA · validator key loaded
+$ ship-E     | orchestrator up · idle</pre>
+                </div>
+                <div class="cs-node" data-node="F">
+                  <div class="cs-node-head"><span class="cs-node-id node-F">F</span><span class="cs-node-role">rear-left · α relay</span><span class="cs-node-state">idle</span></div>
+                  <ul class="cs-node-log"></ul>
+                  <pre class="cs-node-terminal" data-source="geth-F · ship-F">$ geth-F     | clique PoA · validator key loaded
+$ ship-F     | orchestrator up · L2-A link nominal</pre>
+                </div>
+                <div class="cs-node" data-node="L2-A">
+                  <div class="cs-node-head"><span class="cs-node-id node-L2A">L2-A</span><span class="cs-node-role">Madara α sequencer</span><span class="cs-node-state">idle</span></div>
+                  <ul class="cs-node-log"></ul>
+                  <pre class="cs-node-terminal" data-source="madara-α · pathfinder-α · snos-α · stone-α">$ madara-α      | sequencer up · chain_id convoy_alpha_v1
+$ pathfinder-α  | indexed block #0
+$ snos-α        | awaiting L2 trace
+$ stone-α       | prover idle · 0 jobs queued</pre>
+                </div>
+                <div class="cs-node" data-node="L2-B">
+                  <div class="cs-node-head"><span class="cs-node-id node-L2B">L2-B</span><span class="cs-node-role">Madara β sequencer</span><span class="cs-node-state">idle</span></div>
+                  <ul class="cs-node-log"></ul>
+                  <pre class="cs-node-terminal" data-source="madara-β · pathfinder-β · snos-β · stone-β">$ madara-β      | sequencer up · chain_id convoy_bravo_v1
+$ pathfinder-β  | indexed block #0
+$ snos-β        | awaiting L2 trace
+$ stone-β       | prover idle · 0 jobs queued</pre>
+                </div>
               </div>
-              <div class="cs-registry">
-                <div class="cs-registry-title">Commander &amp; convoy state</div>
-                <div class="cs-registry-row pending"><span class="k">Ship D status</span><span class="v" id="reg-cmdr">idle</span></div>
-                <div class="cs-registry-row pending"><span class="k">Advance command</span><span class="v" id="reg-adv">—</span></div>
+            </aside>
+
+            <div class="cs-stage">
+              <div class="cs-canvas">
+                <div class="cs-zoom">
+                  <button class="cs-zoom-btn cs-zoom-in"  title="Zoom in">+</button>
+                  <button class="cs-zoom-btn cs-zoom-out" title="Zoom out">−</button>
+                  <button class="cs-zoom-btn cs-zoom-fit" title="Reset view">⌂</button>
+                </div>
+                <div class="cs-canvas-inner"></div>
               </div>
-            </div>
-            <div class="cs-controls">
-              <button class="cs-btn cs-prev">◀ Prev</button>
-              <button class="cs-btn primary cs-play">▶ Play Demonstration</button>
-              <button class="cs-btn cs-next">Next ▶</button>
-              <button class="cs-btn cs-reset">⏮ Reset</button>
-              <div class="cs-progress"><div class="cs-progress-fill"></div></div>
-              <div class="cs-progress-text">— / —</div>
+              <div class="cs-status">
+                <div class="cs-status-badge idle">idle</div>
+                <div class="cs-status-text">Click ▶ Play to begin the eight-phase walkthrough.</div>
+              </div>
+              <div class="cs-controls">
+                <button class="cs-btn cs-prev">◀</button>
+                <button class="cs-btn primary cs-play">▶ Play</button>
+                <button class="cs-btn cs-next">▶</button>
+                <button class="cs-btn cs-reset">⏮</button>
+                <div class="cs-progress"><div class="cs-progress-fill"></div></div>
+                <div class="cs-progress-text">— / —</div>
+              </div>
             </div>
           </div>
         `;
@@ -565,10 +843,15 @@ class ConvoySim {
         this.btnPrev     = root.querySelector('.cs-prev');
         this.btnNext     = root.querySelector('.cs-next');
         this.btnReset    = root.querySelector('.cs-reset');
-        this.regEx010    = root.querySelector('#reg-ex010');
-        this.regEx011    = root.querySelector('#reg-ex011');
-        this.regCmdr     = root.querySelector('#reg-cmdr');
-        this.regAdv      = root.querySelector('#reg-adv');
+        this.nodes       = {};   // map node-id → { stateEl, logEl, rowEl }
+        for (const el of root.querySelectorAll('.cs-node')) {
+            this.nodes[el.dataset.node] = {
+                rowEl:   el,
+                stateEl: el.querySelector('.cs-node-state'),
+                logEl:   el.querySelector('.cs-node-log'),
+            };
+        }
+        this._lastLoggedPhase = null;
 
         this.frames = buildFrames();
         this.idx = -1;
@@ -580,28 +863,129 @@ class ConvoySim {
         this.btnNext .addEventListener('click', () => this._step(+1));
         this.btnReset.addEventListener('click', () => this.reset());
 
+        // ── Zoom & pan ────────────────────────────────────────
+        this.zoom = 1;
+        this.panX = 0;
+        this.panY = 0;
+        this.canvasFrame = root.querySelector('.cs-canvas');
+        root.querySelector('.cs-zoom-in') .addEventListener('click', () => this._zoomBy(1.25));
+        root.querySelector('.cs-zoom-out').addEventListener('click', () => this._zoomBy(1/1.25));
+        root.querySelector('.cs-zoom-fit').addEventListener('click', () => this._zoomReset());
+        // Wheel zoom centred on cursor
+        this.canvasFrame.addEventListener('wheel', (e) => {
+            if (!e.ctrlKey && Math.abs(e.deltaY) < 1) return;
+            e.preventDefault();
+            const rect = this.canvasFrame.getBoundingClientRect();
+            const cx = e.clientX - rect.left;
+            const cy = e.clientY - rect.top;
+            const factor = e.deltaY < 0 ? 1.15 : 1/1.15;
+            this._zoomBy(factor, cx, cy);
+        }, { passive: false });
+        // Drag to pan — works at any zoom level (use ⌂ to recentre).
+        let drag = null;
+        this.canvasFrame.addEventListener('mousedown', (e) => {
+            // Ignore clicks on the zoom buttons themselves.
+            if (e.target.closest('.cs-zoom')) return;
+            drag = { x: e.clientX, y: e.clientY, panX: this.panX, panY: this.panY };
+            this.canvasFrame.classList.add('dragging');
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (!drag) return;
+            this.panX = drag.panX + (e.clientX - drag.x);
+            this.panY = drag.panY + (e.clientY - drag.y);
+            this._applyTransform();
+        });
+        window.addEventListener('mouseup', () => {
+            drag = null;
+            this.canvasFrame.classList.remove('dragging');
+        });
+
         this.reset();
+
+        // Lock the glossary's height to the simulation widget so they end at
+        // the same vertical line. ResizeObserver tracks any layout change.
+        const sim = root.closest('.convoy-sim') || root;
+        requestAnimationFrame(() => this._syncGlossaryHeight());
+        if (typeof ResizeObserver !== 'undefined') {
+            const ro = new ResizeObserver(() => this._syncGlossaryHeight());
+            ro.observe(sim);
+        }
+        window.addEventListener('resize', () => this._syncGlossaryHeight());
     }
 
-    _renderRegistry(reg) {
-        const setRow = (el, val, isSafe = false, isAdvance = false) => {
-            el.textContent = val;
-            const row = el.closest('.cs-registry-row');
-            row.classList.remove('safe', 'pending', 'advance');
-            if (isAdvance)               row.classList.add('advance');
-            else if (isSafe || (typeof val === 'string' && val.startsWith('SAFE'))) row.classList.add('safe');
-            else if (val === '—' || val === 'idle') row.classList.add('pending');
-        };
-        setRow(this.regEx010, reg.ex010);
-        setRow(this.regEx011, reg.ex011);
-        setRow(this.regCmdr,  reg.commander, false, reg.commander === 'advance issued');
-        setRow(this.regAdv,   reg.advance, false, reg.advance && reg.advance !== '—');
+    _applyTransform() {
+        this.canvas.style.transform =
+            `translate(${this.panX}px, ${this.panY}px) scale(${this.zoom})`;
+    }
+    _zoomBy(factor, cx, cy) {
+        const newZoom = Math.max(0.6, Math.min(4, this.zoom * factor));
+        if (cx === undefined) {
+            // Zoom around viewport centre
+            const rect = this.canvasFrame.getBoundingClientRect();
+            cx = rect.width / 2;
+            cy = rect.height / 2;
+        }
+        // Keep the cursor point stationary in canvas coords.
+        const k = newZoom / this.zoom;
+        this.panX = cx - k * (cx - this.panX);
+        this.panY = cy - k * (cy - this.panY);
+        this.zoom = newZoom;
+        this._applyTransform();
+    }
+    _zoomReset() {
+        this.zoom = 1; this.panX = 0; this.panY = 0;
+        this._applyTransform();
+    }
+
+    _renderRegistry(/* reg */) { /* state per-node now lives in node sections */ }
+
+    // Which nodes are active (and should log) for a given frame.
+    // Uses phase string for finer-grained routing within a badgeClass.
+    _nodesForFrame(f) {
+        const phase = f.phase || '';
+        if (phase.includes('L1 propagation')) return ['D', 'A', 'B', 'C', 'E', 'F'];
+        if (phase.includes('L2 dispatch'))    return ['F', 'B', 'L2-A', 'L2-B'];
+        switch (f.badgeClass) {
+            case 'deploy':  return ['D'];
+            case 'sweep':
+            case 'commit':
+            case 'proof':   return ['L2-A', 'L2-B'];
+            case 'relay':   return ['F', 'B', 'A', 'C', 'D', 'E', 'L2-A', 'L2-B'];
+            case 'verify':
+            case 'safe':    return ['A', 'B', 'C', 'D', 'E', 'F'];
+            case 'advance': return ['D', 'A', 'B', 'C', 'E', 'F'];
+            default:        return Object.keys(this.nodes);
+        }
+    }
+
+    _setNodeState(id, state, badgeClass) {
+        const n = this.nodes[id];
+        if (!n) return;
+        n.stateEl.textContent = state;
+        n.stateEl.className = 'cs-node-state ' + (badgeClass || '');
+        n.rowEl.classList.toggle('active', state !== 'idle' && state !== '—');
+    }
+    _appendNodeLog(id, badge, badgeClass, text) {
+        const n = this.nodes[id];
+        if (!n) return;
+        const li = document.createElement('li');
+        li.className = 'cs-node-event ' + (badgeClass || '');
+        li.innerHTML = `<span class="cs-node-event-tag">${badge}</span><span class="cs-node-event-text">${text}</span>`;
+        n.logEl.appendChild(li);
+        n.logEl.scrollTop = n.logEl.scrollHeight;
+    }
+    _resetNodes() {
+        for (const id of Object.keys(this.nodes)) {
+            this._setNodeState(id, 'idle', '');
+            this.nodes[id].logEl.innerHTML = '';
+        }
+        this._lastLoggedPhase = null;
     }
 
     _renderCurrent() {
         if (this.idx < 0) {
             this.canvas.innerHTML = renderScene({});
-            this.phaseBadge.textContent = '— ready —';
+            if (this.phaseBadge) this.phaseBadge.textContent = '— ready —';
             this.statusBadge.className = 'cs-status-badge idle';
             this.statusBadge.textContent = 'idle';
             this.statusText.innerHTML = 'Click ▶ Play to begin the eight-phase walkthrough.';
@@ -609,12 +993,12 @@ class ConvoySim {
             this.progressTxt.textContent = `— / ${this.frames.length}`;
             this.btnPrev.disabled = true;
             this.btnNext.disabled = false;
-            this._renderRegistry({ ex010: '—', ex011: '—', commander: 'idle', advance: '—' });
+            this._resetNodes();
             return;
         }
         const f = this.frames[this.idx];
         this.canvas.innerHTML = renderScene(f.cfg);
-        this.phaseBadge.textContent = f.phase;
+        if (this.phaseBadge) this.phaseBadge.textContent = f.phase;
         this.statusBadge.className = 'cs-status-badge ' + f.badgeClass;
         this.statusBadge.textContent = f.badge;
         this.statusText.innerHTML = f.text;
@@ -623,7 +1007,18 @@ class ConvoySim {
         this.progressTxt.textContent = `${this.idx + 1} / ${this.frames.length}`;
         this.btnPrev.disabled = this.idx <= 0;
         this.btnNext.disabled = this.idx >= this.frames.length - 1;
-        this._renderRegistry(f.registry);
+        this._maybeLogEvent(f);
+    }
+
+    _maybeLogEvent(f) {
+        if (f.phase === this._lastLoggedPhase) return;
+        this._lastLoggedPhase = f.phase;
+        const targets = this._nodesForFrame(f);
+        const stripped = (f.text || '').replace(/<[^>]+>/g, '');  // drop HTML tags for log
+        for (const id of targets) {
+            this._setNodeState(id, f.badge, f.badgeClass);
+            this._appendNodeLog(id, f.badge, f.badgeClass, stripped);
+        }
     }
 
     _togglePlay() {
@@ -664,6 +1059,12 @@ class ConvoySim {
         this.btnPlay.textContent = '▶ Play Demonstration';
         this.btnPlay.classList.add('primary');
         this._renderCurrent();
+    }
+    _syncGlossaryHeight() {
+        const sim = document.querySelector('.convoy-sim');
+        const glossary = document.querySelector('.sim-glossary');
+        if (!sim || !glossary) return;
+        glossary.style.maxHeight = sim.offsetHeight + 'px';
     }
 }
 

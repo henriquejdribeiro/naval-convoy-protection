@@ -49,11 +49,12 @@ em { color: var(--accent-2); font-style: normal; font-weight: 600; }
 .hero {
   background: linear-gradient(135deg, #0a0e17 0%, #0e1a33 50%, #1e2a4a 100%);
   border-bottom: 1px solid var(--border);
-  padding: 70px 24px 60px;
+  padding: 28px 24px 24px;
 }
 .hero-inner {
   max-width: 1200px;
   margin: 0 auto;
+  text-align: center;
 }
 .badge {
   display: inline-block;
@@ -68,9 +69,9 @@ em { color: var(--accent-2); font-style: normal; font-weight: 600; }
   margin-bottom: 20px;
 }
 .hero h1 {
-  font-size: 44px;
+  font-size: 34px;
   font-weight: 700;
-  margin: 0 0 14px;
+  margin: 0 0 10px;
   letter-spacing: -0.5px;
   color: #fff;
 }
@@ -80,7 +81,7 @@ em { color: var(--accent-2); font-style: normal; font-weight: 600; }
   max-width: 720px;
   margin: 0 0 24px;
 }
-.hero-meta { display: flex; flex-wrap: wrap; gap: 8px; }
+.hero-meta { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .chip {
   padding: 5px 14px;
   background: rgba(79,195,247,0.08);
@@ -92,23 +93,23 @@ em { color: var(--accent-2); font-style: normal; font-weight: 600; }
 }
 
 /* ── Sections ──────────────────────────────────────────── */
-main { padding: 30px 0 60px; }
+main { padding: 14px 0 40px; }
 section.container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 30px 24px;
+  padding: 16px 24px;
 }
 section.container h2 {
-  font-size: 26px;
-  margin: 0 0 8px;
+  font-size: 22px;
+  margin: 0 0 6px;
   color: #fff;
 }
 section.container .subtitle {
   color: var(--text-muted);
   margin-top: 0;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
   max-width: 800px;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 /* ── Cards ─────────────────────────────────────────────── */
@@ -256,12 +257,94 @@ footer {
 }
 
 /* ============================================================================
+   Simulation + glossary side-by-side layout
+   ============================================================================ */
+section.container.container-wide {
+  max-width: 1600px;
+  padding: 16px 48px;
+}
+section.container.container-wide .subtitle {
+  max-width: none;
+}
+/* Fill the viewport below the hero so Mission brief stays off-screen
+   until the user scrolls. */
+#simulation {
+  min-height: calc(100vh - 170px);
+}
+
+.sim-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 14px;
+  align-items: start;
+}
+.sim-main { min-width: 0; }
+
+.sim-glossary {
+  position: sticky;
+  top: 16px;
+  height: 620px;              /* exact match with .cs-frame */
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+.sim-glossary::-webkit-scrollbar { width: 8px; }
+.sim-glossary::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+.sim-glossary::-webkit-scrollbar-track { background: transparent; }
+
+.sim-glossary .glossary-header h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: #fff;
+  letter-spacing: .3px;
+}
+.sim-glossary .glossary-header p {
+  margin: 0 0 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.glossary-card { padding: 10px 12px; }
+.glossary-card h4 {
+  margin: 0 0 7px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: #4fc3f7;
+}
+.glossary-card .spec { font-size: 11px; line-height: 1.45; }
+.glossary-card .spec li { margin-bottom: 6px; }
+.glossary-card .spec code {
+  font-size: 10px;
+  padding: 1px 4px;
+}
+
+@media (max-width: 880px) {
+  .sim-layout { grid-template-columns: 1fr; }
+  .sim-glossary {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
+}
+
+/* ============================================================================
    The convoy simulation widget
    ============================================================================ */
 .convoy-sim { width: 100%; max-width: 1200px; margin: 0 auto; }
 .cs-frame {
   width: 100%;
-  display: flex; flex-direction: column;
+  height: 620px;                 /* compact — minimum margin at widget edges */
+  display: grid;
+  /* status panel flexes to take the unused space; stage is just wide enough
+     for the canvas plus the zoom controls. */
+  grid-template-columns: minmax(360px, 1fr) 480px;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -303,14 +386,307 @@ footer {
   text-align: center;
 }
 
+/* Stage = right column inside cs-frame: canvas + status strip + controls */
+.cs-stage {
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  min-width: 0;
+}
+
+/* Status panel = left column. Holds registry, commander, event log. */
+.cs-status-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--bg-card);
+  font-family: 'Consolas', monospace;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;          /* event log scrolls inside, panel doesn't */
+}
+.cs-status-header h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: #fff;
+  font-family: inherit;
+  letter-spacing: 0.3px;
+}
+.cs-status-header p {
+  margin: 0;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+.cs-status-section h4 {
+  margin: 0 0 6px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.cs-status-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 11px;
+  padding: 3px 0;
+  border-bottom: 1px dotted var(--border);
+}
+.cs-status-row:last-child { border-bottom: none; }
+.cs-status-row .k { color: var(--text-muted); }
+.cs-status-row .v { color: var(--text); }
+.cs-status-row.safe .v { color: var(--safe); font-weight: 700; }
+.cs-status-row.pending .v { color: var(--text-dim); font-style: italic; }
+.cs-status-row.advance .v { color: var(--accent-2); font-weight: 700; }
+
+.cs-event-section {
+  flex: 1 1 auto;
+  display: flex; flex-direction: column;
+  min-height: 0;
+}
+.cs-event-log {
+  list-style: none;
+  margin: 0; padding: 0;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  font-family: 'Consolas', monospace;
+  font-size: 10.5px;
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+
+/* ── Per-node sections (8 nodes: A–F + L2-A, L2-B) ───────────────── */
+.cs-nodes {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+.cs-nodes::-webkit-scrollbar { width: 6px; }
+.cs-nodes::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+.cs-node {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: rgba(15,23,42,0.5);
+  padding: 3px 6px;
+}
+.cs-node.active {
+  border-color: var(--accent);
+  background: rgba(79,195,247,0.06);
+}
+.cs-node-head {
+  display: flex; align-items: center; gap: 8px;
+  font-family: 'Consolas', monospace;
+  font-size: 10.5px;
+}
+.cs-node-id {
+  font-weight: 700;
+  color: #4fc3f7;
+  min-width: 32px;
+}
+.cs-node-id.node-D     { color: #ffd600; }
+.cs-node-id.node-L2A,
+.cs-node-id.node-L2B   { color: #fb923c; }
+.cs-node-role {
+  flex: 1;
+  color: var(--text-muted);
+  font-size: 9.5px;
+}
+.cs-node-state {
+  color: var(--text-dim);
+  font-size: 9px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(0,0,0,0.25);
+}
+.cs-node-state.deploy  { color: #4fc3f7; background: rgba(79,195,247,0.15); }
+.cs-node-state.sweep   { color: #22c55e; background: rgba(34,197,94,0.12); }
+.cs-node-state.commit  { color: #22c55e; background: rgba(34,197,94,0.12); }
+.cs-node-state.proof   { color: #22c55e; background: rgba(34,197,94,0.18); }
+.cs-node-state.relay   { color: #4fc3f7; background: rgba(79,195,247,0.15); }
+.cs-node-state.verify  { color: #22c55e; background: rgba(34,197,94,0.18); }
+.cs-node-state.safe    { color: #22c55e; background: rgba(34,197,94,0.22); }
+.cs-node-state.advance { color: #ffd600; background: rgba(255,214,0,0.18); }
+
+.cs-node-log {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  max-height: 60px;
+  overflow-y: auto;
+  font-family: 'Consolas', monospace;
+  font-size: 9.5px;
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+.cs-node-log::-webkit-scrollbar { width: 4px; }
+.cs-node-log::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+.cs-node-log:empty { display: none; }
+.cs-node-event {
+  padding: 2px 0;
+  border-top: 1px dotted rgba(148,163,184,0.18);
+  display: flex; gap: 6px;
+  line-height: 1.35;
+}
+.cs-node-event:first-child { border-top: none; }
+.cs-node-event-tag {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.cs-node-event.safe    .cs-node-event-tag { color: #22c55e; }
+.cs-node-event.advance .cs-node-event-tag { color: #ffd600; }
+.cs-node-event-text {
+  color: var(--text);
+}
+
+/* Terminal log — placeholder for live container output (geth, madara, etc.) */
+.cs-node-terminal {
+  position: relative;
+  margin: 4px 0 0;
+  padding: 12px 6px 3px;
+  background: #000;
+  color: #4ade80;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 8.5px;
+  line-height: 1.4;
+  max-height: 36px;
+  overflow-y: auto;
+  border: 1px solid #1a2c1a;
+  border-radius: 3px;
+  white-space: pre;
+  scrollbar-width: thin;
+  scrollbar-color: #2a4a2a transparent;
+}
+.cs-node-terminal::-webkit-scrollbar { width: 4px; }
+.cs-node-terminal::-webkit-scrollbar-thumb { background: #2a4a2a; border-radius: 2px; }
+.cs-node-terminal::before {
+  content: attr(data-source);
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  padding: 1px 6px;
+  font-size: 8px;
+  letter-spacing: 0.4px;
+  color: #94a3b8;
+  background: #0a1a0a;
+  border-bottom: 1px solid #1a2c1a;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.cs-node-terminal:empty::after {
+  content: '$ awaiting connection...';
+  color: #4a5568;
+}
+.cs-event-log::-webkit-scrollbar { width: 6px; }
+.cs-event-log::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+.cs-event-empty {
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 6px 4px;
+}
+.cs-event {
+  padding: 5px 7px;
+  margin-bottom: 4px;
+  border-left: 2px solid var(--accent);
+  background: rgba(79,195,247,0.05);
+  border-radius: 0 4px 4px 0;
+  line-height: 1.35;
+}
+.cs-event-tag {
+  display: inline-block;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-right: 5px;
+}
+.cs-event-phase {
+  font-size: 9.5px;
+  color: var(--text-muted);
+}
+.cs-event-text {
+  display: block;
+  margin-top: 3px;
+  color: var(--text);
+  font-size: 10.5px;
+}
+.cs-event.safe    { border-left-color: var(--safe);     background: rgba(34,197,94,0.06); }
+.cs-event.safe .cs-event-tag    { color: var(--safe); }
+.cs-event.advance { border-left-color: var(--accent-2); background: rgba(255,214,0,0.07); }
+.cs-event.advance .cs-event-tag { color: var(--accent-2); }
+.cs-event.proof   { border-left-color: #22c55e; }
+.cs-event.deploy  { border-left-color: #4fc3f7; }
+
 /* canvas — the SVG map */
 .cs-canvas {
-  flex: 1 1 auto;
   position: relative;
   background: #050810;
-  min-height: 540px;
+  aspect-ratio: 1 / 1;
+  max-width: 460px;
+  max-height: 460px;
+  align-self: center;
+  margin: 8px auto 4px;
+  overflow: hidden;
+  cursor: grab;
+  width: 100%;
+  flex: 0 0 auto;
 }
-.cs-canvas svg { display: block; width: 100%; height: 540px; }
+.cs-canvas.dragging { cursor: grabbing; }
+.cs-canvas-inner {
+  width: 100%;
+  height: 100%;
+  transform-origin: 0 0;
+  transition: transform 0.05s linear;
+}
+.cs-canvas svg { display: block; width: 100%; height: 100%; }
+
+/* Zoom controls — floating top-right */
+.cs-zoom {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 5;
+}
+.cs-zoom-btn {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  background: rgba(10,14,23,0.85);
+  color: var(--text);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.cs-zoom-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(79,195,247,0.12);
+}
 
 /* status strip */
 .cs-status {
@@ -353,7 +729,13 @@ footer {
   background: var(--bg-card);
   display: flex; align-items: center; gap: 10px;
 }
+.cs-controls {
+  padding: 14px 18px 36px !important;
+  gap: 10px !important;
+}
 .cs-btn {
+  padding: 5px 11px !important;
+  font-size: 11px !important;
   background: rgba(79,195,247,0.10);
   border: 1px solid var(--border-2);
   color: var(--text);
@@ -375,8 +757,9 @@ footer {
   background: rgba(255,214,0,0.15);
   border-color: var(--accent-2);
   color: var(--accent-2);
-  padding: 8px 22px;
-  font-size: 13px;
+  padding: 7px 22px !important;
+  font-size: 12px !important;
+  margin: 0 8px !important;
 }
 .cs-btn.primary:hover:not(:disabled) {
   background: rgba(255,214,0,0.25);
