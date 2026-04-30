@@ -343,6 +343,8 @@ section.container .subtitle {
   stroke: var(--border);
   stroke-width: 1;
 }
+.arch-container .svc-card.stage-exec  { stroke: rgba(249,115,22,0.55); fill: rgba(249,115,22,0.06); }
+.arch-container .svc-card.stage-prove { stroke: rgba(139,92,246,0.55); fill: rgba(139,92,246,0.07); }
 .arch-container .svc-name {
   fill: var(--text);
   font-family: 'Consolas', monospace;
@@ -355,6 +357,23 @@ section.container .subtitle {
   font-family: 'Consolas', monospace;
   font-size: 10px;
   pointer-events: none;
+}
+/* Step-number badge on each L2 service card */
+.arch-container .svc-step              { fill: var(--bg-soft); stroke: var(--border-2); stroke-width: 1.5; }
+.arch-container .svc-step.stage-exec   { stroke: var(--warn); }
+.arch-container .svc-step.stage-prove  { stroke: var(--bravo); }
+.arch-container .svc-step-num {
+  fill: var(--text);
+  font-family: 'Consolas', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  pointer-events: none;
+}
+/* Downward chevron between consecutive L2 service cards */
+.arch-container .svc-flow-arrow {
+  fill: var(--text-dim);
+  pointer-events: none;
+  opacity: 0.7;
 }
 
 /* Side panel */
@@ -389,9 +408,17 @@ section.container .subtitle {
 .arch-panel-kind.kind-l2-bravo  { background: rgba(139,92,246,0.18); color: var(--bravo);    border: 1px solid var(--bravo); }
 
 .arch-panel h4 { margin: 4px 0 8px; font-size: 14px; color: var(--text); }
+.arch-panel-flow {
+  margin: 8px 0 4px;
+  font-size: 11px;
+  font-family: 'Consolas', monospace;
+  color: var(--text-dim);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
 .arch-panel-services {
   list-style: none;
-  margin: 8px 0 0;
+  margin: 4px 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -401,7 +428,7 @@ section.container .subtitle {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 8px;
+  padding: 5px 8px;
   background: var(--bg-soft);
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -409,12 +436,30 @@ section.container .subtitle {
   color: var(--text-muted);
   line-height: 1.3;
 }
+.arch-panel-services li.stage-exec  { border-color: rgba(249,115,22,0.45); }
+.arch-panel-services li.stage-prove { border-color: rgba(139,92,246,0.45); }
 .arch-panel-services .svc-icon {
   width: 18px;
   height: 18px;
   object-fit: contain;
   flex-shrink: 0;
 }
+.arch-panel-services .svc-step-pill {
+  flex-shrink: 0;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-2);
+  font-family: 'Consolas', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.arch-panel-services .svc-step-pill.stage-exec  { border-color: var(--warn); color: var(--warn); }
+.arch-panel-services .svc-step-pill.stage-prove { border-color: var(--bravo); color: var(--bravo); }
 .arch-panel-services strong { color: var(--text); font-weight: 600; }
 
 .arch-panel-files {

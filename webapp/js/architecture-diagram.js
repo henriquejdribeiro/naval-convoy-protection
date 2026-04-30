@@ -8,7 +8,7 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const XLINK_NS = 'http://www.w3.org/1999/xlink';
 
 const VB_W = 1240;
-const VB_H = 660;
+const VB_H = 640;
 
 // ---------------------------------------------------------------------------
 // Layout — mirrors the convoy formation: A top, D commander bottom,
@@ -17,20 +17,22 @@ const VB_H = 660;
 
 const SHIP_W = 170, SHIP_H = 90;
 const CMDR_W = 170, CMDR_H = 130;
-const L2_W   = 230, L2_H   = 250;
+const L2_W   = 230, L2_H   = 295;
 
 const CONTAINERS = [
   { id: 'A',   kind: 'ship',      name: 'Ship A — Forward',          x: 535, y: 20,  w: SHIP_W, h: SHIP_H },
-  { id: 'L2A', kind: 'l2-alpha',  name: 'L2-Alpha — Madara α swarm',  x: 10,  y: 195, w: L2_W,   h: L2_H   },
+  { id: 'L2A', kind: 'l2-alpha',  name: 'L2-Alpha — Madara α swarm',  x: 10,  y: 175, w: L2_W,   h: L2_H   },
   { id: 'F',   kind: 'ship',      name: 'Ship F — Rear-left',        x: 290, y: 200, w: SHIP_W, h: SHIP_H },
   { id: 'B',   kind: 'ship',      name: 'Ship B — Forward-right',    x: 780, y: 200, w: SHIP_W, h: SHIP_H },
-  { id: 'L2B', kind: 'l2-bravo',  name: 'L2-Bravo — Madara β swarm',  x: 1000, y: 195, w: L2_W,   h: L2_H   },
+  { id: 'L2B', kind: 'l2-bravo',  name: 'L2-Bravo — Madara β swarm',  x: 1000, y: 175, w: L2_W,   h: L2_H   },
   { id: 'E',   kind: 'ship',      name: 'Ship E — Mid-left',         x: 290, y: 340, w: SHIP_W, h: SHIP_H },
   { id: 'C',   kind: 'ship',      name: 'Ship C — Mid-right',        x: 780, y: 340, w: SHIP_W, h: SHIP_H },
   { id: 'D',   kind: 'ship-cmdr', name: 'Ship D — Commander',        x: 535, y: 480, w: CMDR_W, h: CMDR_H }
 ];
 
-// Each service has a logo, a bold name, and a small subtitle (function).
+// L2 services are ordered by *proof generation flow*:
+// Madara executes → Pathfinder indexes → Orchestrator coordinates →
+// SNOS replays trace → Stone produces the STARK.
 const SERVICES = {
   'ship': [
     { icon: 'images/ethereum.png', name: 'Geth (Clique PoA)', sub: 'L1 Ethereum node — validator key' }
@@ -40,18 +42,18 @@ const SERVICES = {
     { icon: 'images/nodejs.png',   name: 'Commander watcher', sub: 'fires advance() on dual SAFE'    }
   ],
   'l2-alpha': [
-    { icon: 'images/madara.png',       name: 'Madara α',     sub: 'Starknet sequencer — Cairo VM'    },
-    { icon: 'images/pathfinder.png',   name: 'Pathfinder',   sub: 'Indexer · JSON-RPC for drones'    },
-    { icon: 'images/snos.jpg',         name: 'SNOS',         sub: 'Starknet OS — feeds prover'       },
-    { icon: 'images/stone-prover.svg', name: 'Stone prover', sub: 'STARK prover (FRI commitments)'   },
-    { icon: 'images/docker.png',       name: 'Orchestrator', sub: 'Picks relay ship · L1 settlement' }
+    { icon: 'images/madara.png',       name: 'Madara α',     sub: 'Execution layer (Cairo VM)',    stage: 'exec'  },
+    { icon: 'images/pathfinder.png',   name: 'Pathfinder',   sub: 'Indexer · Starknet RPC',        stage: 'exec'  },
+    { icon: 'images/madara.png',       name: 'Orchestrator', sub: 'Coordinates proving → L1',      stage: 'exec'  },
+    { icon: 'images/snos.jpg',         name: 'SNOS',         sub: 'Replays trace · prover input',  stage: 'prove' },
+    { icon: 'images/stone-prover.svg', name: 'Stone prover', sub: 'Generates STARK proof π_α',     stage: 'prove' }
   ],
   'l2-bravo': [
-    { icon: 'images/madara.png',       name: 'Madara β',     sub: 'Starknet sequencer — Cairo VM'    },
-    { icon: 'images/pathfinder.png',   name: 'Pathfinder',   sub: 'Indexer · JSON-RPC for drones'    },
-    { icon: 'images/snos.jpg',         name: 'SNOS',         sub: 'Starknet OS — feeds prover'       },
-    { icon: 'images/stone-prover.svg', name: 'Stone prover', sub: 'STARK prover (FRI commitments)'   },
-    { icon: 'images/docker.png',       name: 'Orchestrator', sub: 'Picks relay ship · L1 settlement' }
+    { icon: 'images/madara.png',       name: 'Madara β',     sub: 'Execution layer (Cairo VM)',    stage: 'exec'  },
+    { icon: 'images/pathfinder.png',   name: 'Pathfinder',   sub: 'Indexer · Starknet RPC',        stage: 'exec'  },
+    { icon: 'images/madara.png',       name: 'Orchestrator', sub: 'Coordinates proving → L1',      stage: 'exec'  },
+    { icon: 'images/snos.jpg',         name: 'SNOS',         sub: 'Replays trace · prover input',  stage: 'prove' },
+    { icon: 'images/stone-prover.svg', name: 'Stone prover', sub: 'Generates STARK proof π_β',     stage: 'prove' }
   ]
 };
 
@@ -115,9 +117,11 @@ function image(href, x, y, w, h) {
 
 const CARD_PAD = 8;          // horizontal padding from container edge
 const HEADER_H = 30;
-const CARD_H   = 40;         // each service card height
-const CARD_GAP = 4;
-const ICON_SIZE = 22;
+const CARD_H   = 38;         // each service card height
+const CARD_GAP = 4;          // gap between cards (no flow arrow)
+const FLOW_GAP = 14;         // gap between cards when a flow arrow goes between
+const ICON_SIZE = 20;
+const STEP_R   = 8;          // step-number badge radius
 
 function buildContainer(c) {
   const g = el('g', {
@@ -155,43 +159,79 @@ function buildContainer(c) {
   dockerText.textContent = 'DOCKER';
   g.appendChild(dockerText);
 
-  // Service cards stacked vertically
+  // Service cards stacked vertically — for L2s, the order is the proof flow
   const services = SERVICES[c.kind] || [];
+  const isL2 = c.kind.startsWith('l2-');
   let yOff = HEADER_H + 6;
-  for (const s of services) {
-    // Card rect
+
+  for (let i = 0; i < services.length; i++) {
+    const s = services[i];
+    const isLast = i === services.length - 1;
+
+    // Card rect — tinted by stage (exec = warm, prove = cool)
     g.appendChild(el('rect', {
       x: CARD_PAD, y: yOff,
       width: c.w - 2 * CARD_PAD, height: CARD_H,
-      rx: 4, ry: 4, class: 'svc-card'
+      rx: 4, ry: 4,
+      class: `svc-card stage-${s.stage || 'plain'}`
     }));
 
-    // Icon
-    g.appendChild(image(
-      s.icon,
-      CARD_PAD + 8,
-      yOff + (CARD_H - ICON_SIZE) / 2,
-      ICON_SIZE, ICON_SIZE
-    ));
+    // Step-number badge on the left (L2 only — ships have just 1 service)
+    let textX;
+    if (isL2) {
+      g.appendChild(el('circle', {
+        cx: CARD_PAD + STEP_R + 4, cy: yOff + CARD_H / 2,
+        r: STEP_R, class: `svc-step stage-${s.stage || 'plain'}`
+      }));
+      const num = el('text', {
+        x: CARD_PAD + STEP_R + 4, y: yOff + CARD_H / 2 + 3.5,
+        'text-anchor': 'middle', class: 'svc-step-num'
+      });
+      num.textContent = String(i + 1);
+      g.appendChild(num);
+
+      // Icon shifted right of the badge
+      g.appendChild(image(
+        s.icon,
+        CARD_PAD + STEP_R * 2 + 12,
+        yOff + (CARD_H - ICON_SIZE) / 2,
+        ICON_SIZE, ICON_SIZE
+      ));
+      textX = CARD_PAD + STEP_R * 2 + 12 + ICON_SIZE + 8;
+    } else {
+      g.appendChild(image(
+        s.icon,
+        CARD_PAD + 8,
+        yOff + (CARD_H - ICON_SIZE) / 2,
+        ICON_SIZE, ICON_SIZE
+      ));
+      textX = CARD_PAD + 8 + ICON_SIZE + 8;
+    }
 
     // Name + subtitle
-    const nm = el('text', {
-      x: CARD_PAD + 8 + ICON_SIZE + 8,
-      y: yOff + 16,
-      class: 'svc-name'
-    });
+    const nm = el('text', { x: textX, y: yOff + 15, class: 'svc-name' });
     nm.textContent = s.name;
     g.appendChild(nm);
 
-    const sb = el('text', {
-      x: CARD_PAD + 8 + ICON_SIZE + 8,
-      y: yOff + 30,
-      class: 'svc-sub'
-    });
+    const sb = el('text', { x: textX, y: yOff + 28, class: 'svc-sub' });
     sb.textContent = s.sub;
     g.appendChild(sb);
 
-    yOff += CARD_H + CARD_GAP;
+    yOff += CARD_H;
+
+    // Flow arrow between consecutive L2 cards
+    if (isL2 && !isLast) {
+      const ax = c.w / 2;
+      const ay = yOff + 4;
+      const path = el('path', {
+        d: `M ${ax - 5} ${ay} L ${ax + 5} ${ay} L ${ax} ${ay + 6} Z`,
+        class: 'svc-flow-arrow'
+      });
+      g.appendChild(path);
+      yOff += FLOW_GAP;
+    } else {
+      yOff += CARD_GAP;
+    }
   }
 
   return g;
@@ -453,16 +493,21 @@ function selectContainer(id) {
 
   const files = FILES[c.kind] || [];
   const isShip = c.kind === 'ship' || c.kind === 'ship-cmdr';
+  const isL2 = c.kind.startsWith('l2-');
   const services = SERVICES[c.kind] || [];
 
   panel.innerHTML = `
     <div class="arch-panel-header">
       <span class="arch-panel-kind kind-${c.kind}">${KIND_LABEL[c.kind] || ''}</span>
       <h4>${escape(c.name)}</h4>
+      ${isL2 ? '<p class="arch-panel-flow">Proof generation flow ↓</p>' : ''}
       <ul class="arch-panel-services">
-        ${services.map(s => `
-          <li><img src="${escape(s.icon)}" alt="" class="svc-icon"/>
-              <span><strong>${escape(s.name)}</strong> &mdash; ${escape(s.sub)}</span></li>
+        ${services.map((s, i) => `
+          <li class="stage-${s.stage || 'plain'}">
+            ${isL2 ? `<span class="svc-step-pill stage-${s.stage || 'plain'}">${i + 1}</span>` : ''}
+            <img src="${escape(s.icon)}" alt="" class="svc-icon"/>
+            <span><strong>${escape(s.name)}</strong> &mdash; ${escape(s.sub)}</span>
+          </li>
         `).join('')}
       </ul>
     </div>
