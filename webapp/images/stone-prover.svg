@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 130">
+  <!-- Base/pedestal -->
+  <path d="M30 108 L90 108 L85 118 Q60 126 35 118 Z" fill="#29296E"/>
+  <rect x="38" y="116" width="44" height="8" rx="3" fill="#29296E"/>
+  <!-- Outer dark blue ring -->
+  <circle cx="60" cy="58" r="48" fill="#29296E"/>
+  <!-- White gap ring -->
+  <circle cx="60" cy="58" r="40" fill="#fff"/>
+  <!-- Orange inner circle -->
+  <circle cx="60" cy="58" r="36" fill="#E8632B"/>
+  <!-- White diamond (rotated square) -->
+  <rect x="46" y="44" width="28" height="28" rx="2" fill="#fff" transform="rotate(45 60 58)"/>
+</svg>

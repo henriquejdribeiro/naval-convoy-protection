@@ -56,7 +56,7 @@
           <li><strong><code>HVU</code></strong> — <em>High-Value Unit</em>. The three protected ships in the centre of the convoy. Their survival is the reason the mission runs.</li>
           <li><strong><code>L2-Alpha box (green)</code></strong> — Madara α sequencer running 5 Alpha drones. Sweeps the left frontal area.</li>
           <li><strong><code>L2-Bravo box (purple)</code></strong> — Madara β sequencer running 5 Bravo drones. Sweeps the right frontal corridor.</li>
-          <li><strong><code>L1 PoA Verifier</code></strong> — Geth Clique chain (6 validators) holding the Solidity contracts: <code>ConvoyProofVerifier</code>, <code>ConvoyMissionRegistry</code>, <code>ConvoyCommandLog</code>.</li>
+          <li><strong><code>L1 PoA Verifier</code></strong> — Geth Clique chain (6 validators) hosting the Solidity contracts for STARK proof verification, mission registry, and commander logging.</li>
           <li><strong><code>EX-010 · EX-011</code></strong> — mission IDs. EX-010 = left area (Alpha). EX-011 = right corridor (Bravo).</li>
         </ul>
       </div>
@@ -65,13 +65,13 @@
       <div class="card glossary-card">
         <h4>Messages — what moves</h4>
         <ul class="spec">
-          <li><strong><code>deploy(EX-0xx)</code></strong> — L1 tx by ship D registering a mission spec (area, thresholds, window) on <code>ConvoyMissionRegistry</code>. <em>Phase 1.</em></li>
+          <li><strong><code>deploy(EX-0xx)</code></strong> — L1 tx by ship D registering a mission spec (area, thresholds, window) on the Solidity registry contract. <em>Phase 1.</em></li>
           <li><strong><code>submitTelemetry(cell, x, y, t)</code></strong> — L2 tx from a drone after sweeping a cell. Sequenced into L2 blocks by Madara. <em>Phase 2.</em></li>
           <li><strong><code>H_α · H_β</code></strong> — Poseidon hash chain over all per-cell telemetry felts. Public commitment to the swarm's full sweep. <em>Phase 3.</em></li>
-          <li><strong><code>π_α · π_β</code></strong> — STARK proofs produced by Stone over the Cairo program <code>convoy_alpha_verify</code> / <code>_bravo_</code>. Attest the SAFE conditions held without revealing telemetry. <em>Phase 4.</em></li>
+          <li><strong><code>π_α · π_β</code></strong> — STARK proofs produced by Stone over a Cairo verification program (one per L2). Attest the SAFE conditions held without revealing telemetry. <em>Phase 4.</em></li>
           <li><strong><code>relay(π, public_inputs)</code></strong> — best-signal ship picks up the proof from L2 and submits it as an L1 tx. Ship signs envelope only; the proof's truth is checked on-chain. <em>Phase 5.</em></li>
-          <li><strong><code>verifyProof(π)</code></strong> — Solidity STARK verifier in <code>ConvoyProofVerifier</code> re-runs FRI queries. On success: sets <code>safe_outcome = true</code>, emits <code>MissionVerified</code>. <em>Phase 6.</em></li>
-          <li><strong><code>advance(MAX_SPEED)</code></strong> — L1 tx by ship D, gated by both <code>EX-010 SAFE</code> and <code>EX-011 SAFE</code>. Emits <code>ConvoyAdvance</code> event. <em>Phase 7.</em></li>
+          <li><strong><code>verifyProof(π)</code></strong> — the Solidity verifier contract re-runs FRI queries on L1. On success: sets <code>safe_outcome = true</code> and emits a mission-verified event. <em>Phase 6.</em></li>
+          <li><strong><code>advance(MAX_SPEED)</code></strong> — L1 tx by ship D, gated by both <code>EX-010 SAFE</code> and <code>EX-011 SAFE</code>. Emits a convoy-advance event. <em>Phase 7.</em></li>
         </ul>
       </div>
 
@@ -79,9 +79,9 @@
       <div class="card glossary-card">
         <h4>Outcomes — what is decided</h4>
         <ul class="spec">
-          <li><strong><code>SAFE</code></strong> — verdict for one mission. True iff <em>coverage ≥ 95 %</em> AND <em>time ≤ 360 s</em> AND <em>no contact ≥ 0.7</em>. Enforced in Cairo, re-checked on L1.</li>
-          <li><strong><code>MissionVerified(id, relay, block)</code></strong> — L1 event when <code>verifyProof</code> succeeds. Records which ship relayed and at what block.</li>
-          <li><strong><code>ConvoyAdvance(window, time, MAX_SPEED)</code></strong> — L1 event broadcast to all six ships, authorising the formation to move. Only ship D, only when both missions SAFE.</li>
+          <li><strong><code>SAFE</code></strong> — verdict for one mission. True iff <em>coverage ≥ 95 %</em> AND <em>time ≤ 360 s</em> AND <em>no contact ≥ 0.7</em>. Enforced inside the Cairo program, re-checked by the Solidity verifier on L1.</li>
+          <li><strong>Mission-verified event</strong> — L1 event emitted when proof verification succeeds. Records mission id, which ship relayed, and at what block.</li>
+          <li><strong>Convoy-advance event</strong> — L1 event broadcast to all six ships, authorising the formation to move. Only ship D, only when both missions SAFE.</li>
           <li><strong><code>ADVANCE</code> (canvas state)</strong> — terminal state. Both proofs anchored on L1, command issued, convoy moves through verified-safe waters. <em>Phase 8.</em></li>
         </ul>
       </div>
@@ -133,56 +133,182 @@
       <li>Total execution time &le; window, AND</li>
       <li>No contacts detected above the probability threshold.</li>
     </ol>
-    <p>The Cairo program <code>convoy_alpha_verify.cairo</code> (resp. <code>convoy_bravo_verify.cairo</code>) encodes these constraints. The STARK proof attests that all three conditions held without revealing the drone telemetry that produced them.</p>
+    <p>A Cairo verification program (one per L2) will encode these constraints. The STARK proof will attest that all three conditions held without revealing the drone telemetry that produced them.</p>
+  </div>
+
+  <!-- ── Transparency vs privacy ─────────────────────────── -->
+  <h3 class="subsection-title">Transparency <em>and</em> privacy</h3>
+  <p class="subtitle">Plain logging is all-or-nothing: public means leaking tradecraft, secret means losing accountability. ZK&#8209;STARKs split it &mdash; the verdict is public on L1, the telemetry that earned it stays on L2.</p>
+
+  <div class="card-grid tp-grid">
+    <div class="card public-card">
+      <div class="card-tag">PUBLIC &middot; L1</div>
+      <ul class="param-list">
+        <li><code>area</code></li>
+        <li><code>coverage_threshold</code> &ge; 95&thinsp;%</li>
+        <li><code>detection_threshold</code> &nbsp;<em>p</em> &ge; 0.7</li>
+        <li><code>time_window</code> &le; 360&thinsp;s</li>
+        <li><code>H_&alpha;</code>, <code>H_&beta;</code> &nbsp;<span class="dim">(Poseidon commitments)</span></li>
+        <li><code>&pi;_&alpha;</code>, <code>&pi;_&beta;</code> &nbsp;<span class="dim">(proof bytes)</span></li>
+        <li><code>safe_outcome</code></li>
+        <li><code>relay_ship</code>, <code>block_number</code></li>
+      </ul>
+    </div>
+
+    <div class="card private-card">
+      <div class="card-tag">PRIVATE &middot; L2</div>
+      <ul class="param-list">
+        <li><code>cell_id</code>, <code>x</code>, <code>y</code>, <code>t</code></li>
+        <li><code>p_contact</code>, <code>bearing</code></li>
+        <li><code>waypoints</code>, <code>heading</code></li>
+        <li><code>signal_strength</code></li>
+        <li><code>resweep_flag</code></li>
+        <li><code>execution_trace</code> &nbsp;<span class="dim">(Cairo VM)</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="asymmetry-line"><strong>Public</strong> = what was promised and whether it was kept. <strong>Private</strong> = how it was kept.</p>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════
+     SECTION 3 — ARCHITECTURE DIAGRAM (the "how")
+     ════════════════════════════════════════════════════════════ -->
+<section class="container container-wide" id="architecture">
+  <h2>Architecture at a glance</h2>
+  <p class="subtitle">If the simulation above shows <em>what</em> the system does, this diagram shows <em>how</em> &mdash; every Docker container, the services running inside it, and the files that will live there. Drag to pan, scroll to zoom, click any container for its file list.</p>
+
+  <div class="arch-layout">
+
+    <!-- LEFT: zoomable SVG diagram -->
+    <div class="arch-stage-wrap">
+      <div class="arch-stage" id="arch-stage"></div>
+      <div class="arch-controls">
+        <button class="arch-btn" data-act="zoom-in"  title="Zoom in">+</button>
+        <button class="arch-btn" data-act="zoom-out" title="Zoom out">&minus;</button>
+        <button class="arch-btn" data-act="reset"    title="Fit to view">&#x2302;</button>
+      </div>
+      <div class="arch-legend">
+        <span><i class="dot dot-ship"></i> L1 validator</span>
+        <span><i class="dot dot-cmdr"></i> Commander</span>
+        <span><i class="dot dot-alpha"></i> L2-Alpha</span>
+        <span><i class="dot dot-bravo"></i> L2-Bravo</span>
+      </div>
+    </div>
+
+    <!-- RIGHT: per-container file list -->
+    <aside class="arch-panel" id="arch-panel">
+      <div class="arch-panel-empty">
+        <h4>Container files</h4>
+        <p>Click any Docker container in the diagram to see the configs and contracts it will hold. Files coming in Phase 2&ndash;4 are placeholders for now &mdash; the directory layout finalises as each phase is built.</p>
+      </div>
+    </aside>
+
   </div>
 </section>
 
 <!-- ════════════════════════════════════════════════════════════
-     SECTION 3 — ARCHITECTURE SUMMARY
+     SECTION 4 — CODE COMPONENTS
      ════════════════════════════════════════════════════════════ -->
-<section class="container" id="architecture">
-  <h2>Architecture at a glance</h2>
-  <p class="subtitle">One Layer 1 settlement chain coordinates two parallel Layer 2 proving stacks. Six PoA validator ships act as proof relays; the cryptographic ground truth lives in the L1 verifier contract.</p>
+<section class="container" id="files">
+  <h2>Code components</h2>
+  <p class="subtitle">A conceptual map of what gets built per layer. Setup, build commands, and the full directory tree live in the GitHub README &mdash; this page is the architecture story, not the operational manual.</p>
 
   <div class="card-grid">
-    <div class="card">
-      <h3>Layer 1 — Geth Clique PoA</h3>
-      <p>Six validator ships (A&ndash;F) sign blocks with their PoA keys. Three Solidity contracts: <code>ConvoyProofVerifier</code> (deployed twice, one per L2), <code>ConvoyMissionRegistry</code> (per-mission status), and <code>ConvoyCommandLog</code> (the commander's advance commands).</p>
+
+    <div class="card code-card code-l1">
+      <div class="card-tag">PHASE 2</div>
+      <h3>Solidity contracts &mdash; L1</h3>
+      <p>Three contracts on the Geth Clique chain: a <strong>STARK proof verifier</strong> that re-runs FRI queries, a <strong>mission registry</strong> that anchors the spec for each <code>EX-0xx</code>, and a <strong>commander event log</strong> that records the convoy-advance signal.</p>
+      <a class="gh-link" href="https://github.com/henriquejdribeiro/naval-convoy-protection" target="_blank" rel="noopener">View on GitHub &rarr;</a>
     </div>
-    <div class="card">
-      <h3>Layer 2 — Madara &times; 2</h3>
-      <p>One Madara sequencer per drone swarm. Each runs the Cairo VM, executes drone telemetry transactions, produces blocks plus an execution trace, and feeds the trace into its own SNOS &rarr; Stone proving pipeline.</p>
+
+    <div class="card code-card code-l2">
+      <div class="card-tag">PHASE 3</div>
+      <h3>Cairo programs &mdash; L2</h3>
+      <p>One verification program per swarm. Each consumes the per-cell telemetry as private input, enforces the SAFE_AREA criterion (coverage, time, contact threshold), and produces the witness the Stone prover turns into <code>&pi;</code>.</p>
+      <a class="gh-link" href="https://github.com/henriquejdribeiro/naval-convoy-protection" target="_blank" rel="noopener">View on GitHub &rarr;</a>
     </div>
-    <div class="card">
-      <h3>Proof relay model</h3>
-      <p>The orchestrator does <em>not</em> submit proofs to L1 directly. The closest reachable ship (best radio signal) collects the proof bytes from L2 and submits them in an L1 transaction, where the verifier contract performs the cryptographic check.</p>
+
+    <div class="card code-card code-infra">
+      <div class="card-tag">PHASE 2&ndash;3</div>
+      <h3>Docker infrastructure</h3>
+      <p>Compose stack for the full pipeline: six-validator Geth Clique chain, two Madara sequencers, two Pathfinder indexers, the Stone proving service, and the orchestrator that wires L2 traces into proofs and proofs into L1 transactions.</p>
+      <a class="gh-link" href="https://github.com/henriquejdribeiro/naval-convoy-protection" target="_blank" rel="noopener">View on GitHub &rarr;</a>
     </div>
-    <div class="card">
-      <h3>Two-of-two governance</h3>
-      <p>Ship D (commander) issues the convoy advance command only after <em>both</em> <code>EX-010 SAFE</code> and <code>EX-011 SAFE</code> events appear on L1. A single advance command transaction is broadcast as an L1 event to all six ships.</p>
+
+    <div class="card code-card code-sitl">
+      <div class="card-tag">PHASE 4</div>
+      <h3>Hardware-in-the-loop</h3>
+      <p>ArduPilot SITL gives every drone a real autopilot stack; <code>tc/netem</code> profiles inject radio-link latency, jitter, and loss to stress the relay model; a WebSocket bridge feeds live mission state into this same page.</p>
+      <a class="gh-link" href="https://github.com/henriquejdribeiro/naval-convoy-protection" target="_blank" rel="noopener">View on GitHub &rarr;</a>
     </div>
+
   </div>
 </section>
 
 <!-- ════════════════════════════════════════════════════════════
-     SECTION 4 — SHIP ROLES
+     SECTION 5 — REFERENCES
      ════════════════════════════════════════════════════════════ -->
-<section class="container" id="ships">
-  <h2>Ship roles in the convoy</h2>
-  <p class="subtitle">All six ships are L1 validators. They differ in their relay assignments and in the special role of ship D as commander.</p>
+<section class="container" id="references">
+  <h2>References</h2>
+  <p class="subtitle">The software, specifications, and foundational papers behind every component named on this page.</p>
 
-  <div class="ship-roles">
-    <div class="ship-role"><span class="ship-letter A">A</span><div><strong>Forward</strong><br/>Primary relay for both L2-Alpha and L2-Bravo (closest to both frontal areas).</div></div>
-    <div class="ship-role"><span class="ship-letter B">B</span><div><strong>Forward-right</strong><br/>Primary relay for L2-Bravo (right corridor).</div></div>
-    <div class="ship-role"><span class="ship-letter C">C</span><div><strong>Mid-right</strong><br/>Secondary relay for L2-Bravo. Maintains right-flank radio coverage.</div></div>
-    <div class="ship-role"><span class="ship-letter D">D</span><div><strong>Commander (rear)</strong><br/>Watches L1 for both SAFE confirmations and issues the convoy advance command.</div></div>
-    <div class="ship-role"><span class="ship-letter E">E</span><div><strong>Mid-left</strong><br/>Secondary relay for L2-Alpha. Maintains left-flank radio coverage.</div></div>
-    <div class="ship-role"><span class="ship-letter F">F</span><div><strong>Rear-left</strong><br/>Primary relay for L2-Alpha (left zig-zag area).</div></div>
+  <div class="card-grid">
+
+    <div class="card ref-card">
+      <h3>Layer 1 — settlement</h3>
+      <ul class="ref-list">
+        <li><a href="https://ethereum.org/" target="_blank" rel="noopener">Ethereum</a> &mdash; base protocol</li>
+        <li><a href="https://geth.ethereum.org/" target="_blank" rel="noopener">go-ethereum (Geth)</a> &mdash; execution client used for the local PoA chain</li>
+        <li><a href="https://eips.ethereum.org/EIPS/eip-225" target="_blank" rel="noopener">EIP-225 — Clique PoA</a> &mdash; the consensus engine used by the six ship validators</li>
+        <li><a href="https://soliditylang.org/" target="_blank" rel="noopener">Solidity</a> &mdash; language for the verifier, registry, and command-log contracts</li>
+      </ul>
+    </div>
+
+    <div class="card ref-card">
+      <h3>Layer 2 — execution &amp; indexing</h3>
+      <ul class="ref-list">
+        <li><a href="https://www.starknet.io/" target="_blank" rel="noopener">Starknet</a> &mdash; STARK-based L2 the stack is modelled on</li>
+        <li><a href="https://github.com/madara-alliance/madara" target="_blank" rel="noopener">Madara</a> &mdash; Substrate-based Starknet sequencer (one per drone swarm)</li>
+        <li><a href="https://github.com/eqlabs/pathfinder" target="_blank" rel="noopener">Pathfinder</a> &mdash; Starknet full-node / indexer</li>
+        <li><a href="https://www.cairo-lang.org/" target="_blank" rel="noopener">Cairo</a> &mdash; provable language for the SAFE-criterion program</li>
+        <li><a href="https://book.cairo-lang.org/" target="_blank" rel="noopener">The Cairo Book</a> &mdash; official language reference</li>
+      </ul>
+    </div>
+
+    <div class="card ref-card">
+      <h3>Proving pipeline</h3>
+      <ul class="ref-list">
+        <li><a href="https://github.com/starkware-libs/stone-prover" target="_blank" rel="noopener">Stone prover</a> &mdash; STARK prover over Cairo execution traces</li>
+        <li><a href="https://github.com/keep-starknet-strange/snos" target="_blank" rel="noopener">SNOS</a> &mdash; Starknet OS, bridges the L2 trace into the prover</li>
+      </ul>
+    </div>
+
+    <div class="card ref-card">
+      <h3>Cryptographic foundations</h3>
+      <ul class="ref-list">
+        <li><a href="https://eprint.iacr.org/2018/046" target="_blank" rel="noopener">ZK-STARKs &mdash; Ben-Sasson, Bentov, Horesh, Riabzev (2018)</a> &mdash; <em>Scalable, transparent, and post-quantum secure computational integrity</em></li>
+        <li><a href="https://eprint.iacr.org/2019/458" target="_blank" rel="noopener">Poseidon &mdash; Grassi, Khovratovich, Rechberger, Roy, Schofnegger (2019)</a> &mdash; <em>A new hash function for zero-knowledge proof systems</em></li>
+        <li><a href="https://eccc.weizmann.ac.il/report/2017/134/" target="_blank" rel="noopener">FRI &mdash; Ben-Sasson, Bentov, Horesh, Riabzev (2017)</a> &mdash; <em>Fast Reed-Solomon Interactive Oracle Proofs of Proximity</em></li>
+      </ul>
+    </div>
+
+    <div class="card ref-card">
+      <h3>Hardware-in-the-loop &amp; network</h3>
+      <ul class="ref-list">
+        <li><a href="https://ardupilot.org/" target="_blank" rel="noopener">ArduPilot</a> &mdash; autopilot stack for SITL drone simulation (Phase 4)</li>
+        <li><a href="https://ardupilot.org/dev/docs/sitl-simulator-software-in-the-loop.html" target="_blank" rel="noopener">ArduPilot SITL</a> &mdash; software-in-the-loop simulator</li>
+        <li><a href="https://man7.org/linux/man-pages/man8/tc-netem.8.html" target="_blank" rel="noopener">tc / netem</a> &mdash; Linux network-emulation for radio-link chaos</li>
+        <li><a href="https://docs.docker.com/" target="_blank" rel="noopener">Docker</a> &mdash; container runtime for Phases 2–4</li>
+      </ul>
+    </div>
+
   </div>
 </section>
 
 <!-- ════════════════════════════════════════════════════════════
-     SECTION 5 — PROJECT STATUS
+     SECTION 6 — PROJECT STATUS
      ════════════════════════════════════════════════════════════ -->
 <section class="container" id="status">
   <h2>Project status</h2>
@@ -230,5 +356,6 @@
 </footer>
 
 <script type="module" src="js/convoy-sim.js"></script>
+<script type="module" src="js/architecture-diagram.js"></script>
 </body>
 </html>
