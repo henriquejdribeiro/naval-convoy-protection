@@ -8,26 +8,30 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const XLINK_NS = 'http://www.w3.org/1999/xlink';
 
 const VB_W = 1240;
-const VB_H = 640;
+const VB_H = 680;
 
 // ---------------------------------------------------------------------------
-// Layout — mirrors the convoy formation: A top, D commander bottom,
-// L2 swarms on the flanks, validator ring connects all six ships.
+// Layout — L2 banners at the top show the proof generation pipeline as a
+// row of column headers (Madara → Pathfinder → Orchestrator → SNOS → Stone),
+// the convoy formation sits below, and π_α / π_β arrows drop from the
+// banner bottoms into their primary relay ships (F and B).
 // ---------------------------------------------------------------------------
 
 const SHIP_W = 170, SHIP_H = 90;
 const CMDR_W = 170, CMDR_H = 130;
-const L2_W   = 230, L2_H   = 295;
+const L2_W   = 580, L2_H   = 140;
 
 const CONTAINERS = [
-  { id: 'A',   kind: 'ship',      name: 'Ship A — Forward',          x: 535, y: 20,  w: SHIP_W, h: SHIP_H },
-  { id: 'L2A', kind: 'l2-alpha',  name: 'L2-Alpha — Madara α swarm',  x: 10,  y: 175, w: L2_W,   h: L2_H   },
-  { id: 'F',   kind: 'ship',      name: 'Ship F — Rear-left',        x: 290, y: 200, w: SHIP_W, h: SHIP_H },
-  { id: 'B',   kind: 'ship',      name: 'Ship B — Forward-right',    x: 780, y: 200, w: SHIP_W, h: SHIP_H },
-  { id: 'L2B', kind: 'l2-bravo',  name: 'L2-Bravo — Madara β swarm',  x: 1000, y: 175, w: L2_W,   h: L2_H   },
-  { id: 'E',   kind: 'ship',      name: 'Ship E — Mid-left',         x: 290, y: 340, w: SHIP_W, h: SHIP_H },
-  { id: 'C',   kind: 'ship',      name: 'Ship C — Mid-right',        x: 780, y: 340, w: SHIP_W, h: SHIP_H },
-  { id: 'D',   kind: 'ship-cmdr', name: 'Ship D — Commander',        x: 535, y: 480, w: CMDR_W, h: CMDR_H }
+  // L2 banners at the top — each is a horizontal pipeline of 5 services
+  { id: 'L2A', kind: 'l2-alpha',  name: 'L2-Alpha — Madara α swarm',  x: 20,  y: 20,  w: L2_W,   h: L2_H   },
+  { id: 'L2B', kind: 'l2-bravo',  name: 'L2-Bravo — Madara β swarm',  x: 640, y: 20,  w: L2_W,   h: L2_H   },
+  // Ship convoy below
+  { id: 'A',   kind: 'ship',      name: 'Ship A — Forward',          x: 535, y: 200, w: SHIP_W, h: SHIP_H },
+  { id: 'F',   kind: 'ship',      name: 'Ship F — Rear-left',        x: 290, y: 320, w: SHIP_W, h: SHIP_H },
+  { id: 'B',   kind: 'ship',      name: 'Ship B — Forward-right',    x: 780, y: 320, w: SHIP_W, h: SHIP_H },
+  { id: 'E',   kind: 'ship',      name: 'Ship E — Mid-left',         x: 290, y: 440, w: SHIP_W, h: SHIP_H },
+  { id: 'C',   kind: 'ship',      name: 'Ship C — Mid-right',        x: 780, y: 440, w: SHIP_W, h: SHIP_H },
+  { id: 'D',   kind: 'ship-cmdr', name: 'Ship D — Commander',        x: 535, y: 540, w: CMDR_W, h: CMDR_H }
 ];
 
 // L2 services are ordered by *proof generation flow*:
@@ -115,13 +119,14 @@ function image(href, x, y, w, h) {
   return img;
 }
 
-const CARD_PAD = 8;          // horizontal padding from container edge
-const HEADER_H = 30;
-const CARD_H   = 38;         // each service card height
-const CARD_GAP = 4;          // gap between cards (no flow arrow)
-const FLOW_GAP = 14;         // gap between cards when a flow arrow goes between
-const ICON_SIZE = 20;
-const STEP_R   = 8;          // step-number badge radius
+const HEADER_H   = 30;
+const CARD_PAD   = 8;
+// Vertical (ship) layout
+const V_CARD_H   = 38, V_CARD_GAP = 4, V_ICON = 20;
+// Horizontal (L2) layout — sequence-diagram-style column headers
+const H_CARD_W   = 100, H_CARD_H = 92, H_CARD_GAP = 16;
+const H_ICON     = 26;
+const STEP_R     = 8;
 
 function buildContainer(c) {
   const g = el('g', {
@@ -144,7 +149,7 @@ function buildContainer(c) {
     x: 0, y: HEADER_H - 8, width: c.w, height: 8, class: 'arch-header'
   }));
 
-  // Header — name + docker badge (logo + text)
+  // Header — name + docker badge
   const nameText = el('text', { x: 12, y: 20, class: 'arch-name' });
   nameText.textContent = c.id.startsWith('L2') ? c.id.replace('L2', 'L2-') : `Ship ${c.id}`;
   g.appendChild(nameText);
@@ -159,56 +164,105 @@ function buildContainer(c) {
   dockerText.textContent = 'DOCKER';
   g.appendChild(dockerText);
 
-  // Service cards stacked vertically — for L2s, the order is the proof flow
   const services = SERVICES[c.kind] || [];
   const isL2 = c.kind.startsWith('l2-');
-  let yOff = HEADER_H + 6;
+
+  if (isL2) renderHorizontalServices(g, c, services);
+  else      renderVerticalServices(g, c, services);
+
+  return g;
+}
+
+// Horizontal pipeline: 5 column-header cards in a row, with right-pointing
+// chevrons between consecutive cards (Madara → Pathfinder → ... → Stone).
+function renderHorizontalServices(g, c, services) {
+  const innerY = HEADER_H + 8;
+  const totalW = services.length * H_CARD_W + (services.length - 1) * H_CARD_GAP;
+  let xOff = (c.w - totalW) / 2;  // centred horizontally inside the banner
 
   for (let i = 0; i < services.length; i++) {
     const s = services[i];
     const isLast = i === services.length - 1;
 
-    // Card rect — tinted by stage (exec = warm, prove = cool)
+    // Card body
+    g.appendChild(el('rect', {
+      x: xOff, y: innerY,
+      width: H_CARD_W, height: H_CARD_H,
+      rx: 5, ry: 5,
+      class: `svc-card stage-${s.stage || 'plain'}`
+    }));
+
+    // Step-number badge top-left
+    g.appendChild(el('circle', {
+      cx: xOff + STEP_R + 4, cy: innerY + STEP_R + 4,
+      r: STEP_R, class: `svc-step stage-${s.stage || 'plain'}`
+    }));
+    const num = el('text', {
+      x: xOff + STEP_R + 4, y: innerY + STEP_R + 7.5,
+      'text-anchor': 'middle', class: 'svc-step-num'
+    });
+    num.textContent = String(i + 1);
+    g.appendChild(num);
+
+    // Logo centred horizontally near the top
+    g.appendChild(image(
+      s.icon,
+      xOff + (H_CARD_W - H_ICON) / 2,
+      innerY + 22,
+      H_ICON, H_ICON
+    ));
+
+    // Name (centred, bold)
+    const nm = el('text', {
+      x: xOff + H_CARD_W / 2, y: innerY + 64,
+      'text-anchor': 'middle', class: 'svc-name'
+    });
+    nm.textContent = s.name;
+    g.appendChild(nm);
+
+    // Sub (centred, muted)
+    const sb = el('text', {
+      x: xOff + H_CARD_W / 2, y: innerY + 78,
+      'text-anchor': 'middle', class: 'svc-sub'
+    });
+    sb.textContent = s.sub;
+    g.appendChild(sb);
+
+    // Right-pointing chevron between cards
+    if (!isLast) {
+      const ax = xOff + H_CARD_W + H_CARD_GAP / 2;
+      const ay = innerY + H_CARD_H / 2;
+      g.appendChild(el('path', {
+        d: `M ${ax - 5} ${ay - 5} L ${ax + 4} ${ay} L ${ax - 5} ${ay + 5} Z`,
+        class: 'svc-flow-arrow'
+      }));
+    }
+
+    xOff += H_CARD_W + H_CARD_GAP;
+  }
+}
+
+// Vertical layout: single (or two) cards stacked — used by ship containers.
+function renderVerticalServices(g, c, services) {
+  let yOff = HEADER_H + 6;
+  for (let i = 0; i < services.length; i++) {
+    const s = services[i];
+
     g.appendChild(el('rect', {
       x: CARD_PAD, y: yOff,
-      width: c.w - 2 * CARD_PAD, height: CARD_H,
+      width: c.w - 2 * CARD_PAD, height: V_CARD_H,
       rx: 4, ry: 4,
       class: `svc-card stage-${s.stage || 'plain'}`
     }));
 
-    // Step-number badge on the left (L2 only — ships have just 1 service)
-    let textX;
-    if (isL2) {
-      g.appendChild(el('circle', {
-        cx: CARD_PAD + STEP_R + 4, cy: yOff + CARD_H / 2,
-        r: STEP_R, class: `svc-step stage-${s.stage || 'plain'}`
-      }));
-      const num = el('text', {
-        x: CARD_PAD + STEP_R + 4, y: yOff + CARD_H / 2 + 3.5,
-        'text-anchor': 'middle', class: 'svc-step-num'
-      });
-      num.textContent = String(i + 1);
-      g.appendChild(num);
+    g.appendChild(image(
+      s.icon,
+      CARD_PAD + 8,
+      yOff + (V_CARD_H - V_ICON) / 2,
+      V_ICON, V_ICON
+    ));
 
-      // Icon shifted right of the badge
-      g.appendChild(image(
-        s.icon,
-        CARD_PAD + STEP_R * 2 + 12,
-        yOff + (CARD_H - ICON_SIZE) / 2,
-        ICON_SIZE, ICON_SIZE
-      ));
-      textX = CARD_PAD + STEP_R * 2 + 12 + ICON_SIZE + 8;
-    } else {
-      g.appendChild(image(
-        s.icon,
-        CARD_PAD + 8,
-        yOff + (CARD_H - ICON_SIZE) / 2,
-        ICON_SIZE, ICON_SIZE
-      ));
-      textX = CARD_PAD + 8 + ICON_SIZE + 8;
-    }
-
-    // Name + subtitle
+    const textX = CARD_PAD + 8 + V_ICON + 8;
     const nm = el('text', { x: textX, y: yOff + 15, class: 'svc-name' });
     nm.textContent = s.name;
     g.appendChild(nm);
@@ -217,24 +271,8 @@ function buildContainer(c) {
     sb.textContent = s.sub;
     g.appendChild(sb);
 
-    yOff += CARD_H;
-
-    // Flow arrow between consecutive L2 cards
-    if (isL2 && !isLast) {
-      const ax = c.w / 2;
-      const ay = yOff + 4;
-      const path = el('path', {
-        d: `M ${ax - 5} ${ay} L ${ax + 5} ${ay} L ${ax} ${ay + 6} Z`,
-        class: 'svc-flow-arrow'
-      });
-      g.appendChild(path);
-      yOff += FLOW_GAP;
-    } else {
-      yOff += CARD_GAP;
-    }
+    yOff += V_CARD_H + V_CARD_GAP;
   }
-
-  return g;
 }
 
 function buildSvg() {
@@ -291,20 +329,21 @@ function buildSvg() {
     class: 'arch-ring'
   }));
 
-  // Relay arrows: L2-Alpha → F (π_α), L2-Bravo → B (π_β)
+  // Relay arrows: L2-Alpha (top-left banner) drops π_α down into F;
+  //               L2-Bravo (top-right banner) drops π_β down into B.
   function relay(fromId, toId, color, label) {
     const a = CONTAINERS.find(c => c.id === fromId);
     const b = CONTAINERS.find(c => c.id === toId);
-    const x1 = a.x + a.w, y1 = a.y + a.h / 2;
-    const x2 = b.x,        y2 = b.y + b.h / 2;
+    const x1 = a.x + a.w / 2, y1 = a.y + a.h;   // bottom-centre of L2 banner
+    const x2 = b.x + b.w / 2, y2 = b.y;         // top-centre of relay ship
     root.appendChild(el('line', {
-      x1, y1, x2: x2 - 2, y2,
+      x1, y1, x2, y2: y2 - 2,
       stroke: color, 'stroke-width': 2.5, 'stroke-dasharray': '7 5',
-      'marker-end': 'url(#arch-arrow)', opacity: 0.75
+      'marker-end': 'url(#arch-arrow)', opacity: 0.8
     }));
     const lbl = el('text', {
-      x: (x1 + x2) / 2, y: (y1 + y2) / 2 - 8,
-      'text-anchor': 'middle', class: 'arch-edge-label', fill: color
+      x: (x1 + x2) / 2 + 10, y: (y1 + y2) / 2,
+      class: 'arch-edge-label', fill: color
     });
     lbl.textContent = label;
     root.appendChild(lbl);
