@@ -25,73 +25,7 @@
 <main>
 
 <!-- ════════════════════════════════════════════════════════════
-     SECTION 1 — INTERACTIVE SIMULATION + GLOSSARY (centrepiece)
-     ════════════════════════════════════════════════════════════ -->
-<section class="container container-wide" id="simulation">
-  <h2>Interactive end-to-end mission simulation</h2>
-  <p class="subtitle">Click <strong>▶ Play Demonstration</strong> to watch the phases of the convoy mission play out, from L1 mission deployment to convoy advance. Use Prev / Next to scrub at your own pace. The glossary on the right explains every label and message you'll see.</p>
-
-  <div class="sim-layout">
-
-    <!-- LEFT: the live simulation -->
-    <div class="sim-main">
-      <div class="convoy-sim">
-        <div style="padding:14px;color:#94a3b8;font-size:.8rem;font-style:italic;background:#0a0e17;border:1px solid #1e293b;border-radius:8px">Loading convoy simulation&hellip;</div>
-      </div>
-    </div>
-
-    <!-- RIGHT: scrollable, sticky glossary -->
-    <aside class="sim-glossary">
-      <div class="glossary-header">
-        <h3>Variables &amp; glossary</h3>
-        <p>Reference for the labels, nodes, and messages drawn on the canvas. Three groups: <em>what you see</em>, <em>what moves</em>, <em>what is decided</em>.</p>
-      </div>
-
-      <!-- ── NODES ── -->
-      <div class="card glossary-card">
-        <h4>Nodes — what you see</h4>
-        <ul class="spec">
-          <li><strong><code>A · B · C · E · F</code></strong> — five convoy ships acting as L1 Clique-PoA validators and proof relays. Position determines which L2 they have best signal to.</li>
-          <li><strong><code>D</code></strong> — commander ship (yellow ring). Only ship authorised to issue the convoy advance command.</li>
-          <li><strong><code>HVU</code></strong> — <em>High-Value Unit</em>. The three protected ships in the centre of the convoy. Their survival is the reason the mission runs.</li>
-          <li><strong><code>L2-Alpha box (green)</code></strong> — Madara α sequencer running 5 Alpha drones. Sweeps the left frontal area.</li>
-          <li><strong><code>L2-Bravo box (purple)</code></strong> — Madara β sequencer running 5 Bravo drones. Sweeps the right frontal corridor.</li>
-          <li><strong><code>L1 PoA Verifier</code></strong> — Geth Clique chain (6 validators) hosting the Solidity contracts for STARK proof verification, mission registry, and commander logging.</li>
-          <li><strong><code>EX-010 · EX-011</code></strong> — mission IDs. EX-010 = left area (Alpha). EX-011 = right corridor (Bravo).</li>
-        </ul>
-      </div>
-
-      <!-- ── MESSAGES ── -->
-      <div class="card glossary-card">
-        <h4>Messages — what moves</h4>
-        <ul class="spec">
-          <li><strong><code>deploy(EX-0xx)</code></strong> — L1 tx by ship D registering a mission spec (area, thresholds, window) on the Solidity registry contract. <em>Phase 1.</em></li>
-          <li><strong><code>submitTelemetry(cell, x, y, t)</code></strong> — L2 tx from a drone after sweeping a cell. Sequenced into L2 blocks by Madara. <em>Phase 2.</em></li>
-          <li><strong><code>H_α · H_β</code></strong> — Poseidon hash chain over all per-cell telemetry felts. Public commitment to the swarm's full sweep. <em>Phase 3.</em></li>
-          <li><strong><code>π_α · π_β</code></strong> — STARK proofs produced by Stone over a Cairo verification program (one per L2). Attest the SAFE conditions held without revealing telemetry. <em>Phase 4.</em></li>
-          <li><strong><code>relay(π, public_inputs)</code></strong> — best-signal ship picks up the proof from L2 and submits it as an L1 tx. Ship signs envelope only; the proof's truth is checked on-chain. <em>Phase 5.</em></li>
-          <li><strong><code>verifyProof(π)</code></strong> — the Solidity verifier contract re-runs FRI queries on L1. On success: sets <code>safe_outcome = true</code> and emits a mission-verified event. <em>Phase 6.</em></li>
-          <li><strong><code>advance(MAX_SPEED)</code></strong> — L1 tx by ship D, gated by both <code>EX-010 SAFE</code> and <code>EX-011 SAFE</code>. Emits a convoy-advance event. <em>Phase 7.</em></li>
-        </ul>
-      </div>
-
-      <!-- ── OUTCOMES ── -->
-      <div class="card glossary-card">
-        <h4>Outcomes — what is decided</h4>
-        <ul class="spec">
-          <li><strong><code>SAFE</code></strong> — verdict for one mission. True iff <em>coverage ≥ 95 %</em> AND <em>time ≤ 360 s</em> AND <em>no contact ≥ 0.7</em>. Enforced inside the Cairo program, re-checked by the Solidity verifier on L1.</li>
-          <li><strong>Mission-verified event</strong> — L1 event emitted when proof verification succeeds. Records mission id, which ship relayed, and at what block.</li>
-          <li><strong>Convoy-advance event</strong> — L1 event broadcast to all six ships, authorising the formation to move. Only ship D, only when both missions SAFE.</li>
-          <li><strong><code>ADVANCE</code> (canvas state)</strong> — terminal state. Both proofs anchored on L1, command issued, convoy moves through verified-safe waters. <em>Phase 8.</em></li>
-        </ul>
-      </div>
-    </aside>
-
-  </div>
-</section>
-
-<!-- ════════════════════════════════════════════════════════════
-     SECTION 2 — THE MISSION BRIEF
+     SECTION 1 — THE MISSION BRIEF
      ════════════════════════════════════════════════════════════ -->
 <section class="container" id="mission-brief">
   <h2>Mission brief</h2>
@@ -171,6 +105,72 @@
     <a href="https://github.com/henriquejdribeiro/naval-convoy-protection/blob/main/versions.md"                  target="_blank" rel="noopener">pinned versions</a>
     &mdash; live in <code>docs/specs/</code> on GitHub.
   </p>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════
+     SECTION 2 — INTERACTIVE SIMULATION + GLOSSARY
+     ════════════════════════════════════════════════════════════ -->
+<section class="container container-wide" id="simulation">
+  <h2>Interactive end-to-end mission simulation</h2>
+  <p class="subtitle">Click <strong>▶ Play Demonstration</strong> to watch the phases of the convoy mission play out, from L1 mission deployment to convoy advance. Use Prev / Next to scrub at your own pace. The glossary on the right explains every label and message you'll see.</p>
+
+  <div class="sim-layout">
+
+    <!-- LEFT: the live simulation -->
+    <div class="sim-main">
+      <div class="convoy-sim">
+        <div style="padding:14px;color:#94a3b8;font-size:.8rem;font-style:italic;background:#0a0e17;border:1px solid #1e293b;border-radius:8px">Loading convoy simulation&hellip;</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: scrollable, sticky glossary -->
+    <aside class="sim-glossary">
+      <div class="glossary-header">
+        <h3>Variables &amp; glossary</h3>
+        <p>Reference for the labels, nodes, and messages drawn on the canvas. Three groups: <em>what you see</em>, <em>what moves</em>, <em>what is decided</em>.</p>
+      </div>
+
+      <!-- ── NODES ── -->
+      <div class="card glossary-card">
+        <h4>Nodes — what you see</h4>
+        <ul class="spec">
+          <li><strong><code>A · B · C · E · F</code></strong> — five convoy ships acting as L1 Clique-PoA validators and proof relays. Position determines which L2 they have best signal to.</li>
+          <li><strong><code>D</code></strong> — commander ship (yellow ring). Only ship authorised to issue the convoy advance command.</li>
+          <li><strong><code>HVU</code></strong> — <em>High-Value Unit</em>. The three protected ships in the centre of the convoy. Their survival is the reason the mission runs.</li>
+          <li><strong><code>L2-Alpha box (green)</code></strong> — Madara α sequencer running 5 Alpha drones. Sweeps the left frontal area.</li>
+          <li><strong><code>L2-Bravo box (purple)</code></strong> — Madara β sequencer running 5 Bravo drones. Sweeps the right frontal corridor.</li>
+          <li><strong><code>L1 PoA Verifier</code></strong> — Geth Clique chain (6 validators) hosting the Solidity contracts for STARK proof verification, mission registry, and commander logging.</li>
+          <li><strong><code>EX-010 · EX-011</code></strong> — mission IDs. EX-010 = left area (Alpha). EX-011 = right corridor (Bravo).</li>
+        </ul>
+      </div>
+
+      <!-- ── MESSAGES ── -->
+      <div class="card glossary-card">
+        <h4>Messages — what moves</h4>
+        <ul class="spec">
+          <li><strong><code>deploy(EX-0xx)</code></strong> — L1 tx by ship D registering a mission spec (area, thresholds, window) on the Solidity registry contract. <em>Phase 1.</em></li>
+          <li><strong><code>submitTelemetry(cell, x, y, t)</code></strong> — L2 tx from a drone after sweeping a cell. Sequenced into L2 blocks by Madara. <em>Phase 2.</em></li>
+          <li><strong><code>H_α · H_β</code></strong> — Poseidon hash chain over all per-cell telemetry felts. Public commitment to the swarm's full sweep. <em>Phase 3.</em></li>
+          <li><strong><code>π_α · π_β</code></strong> — STARK proofs produced by Stone over a Cairo verification program (one per L2). Attest the SAFE conditions held without revealing telemetry. <em>Phase 4.</em></li>
+          <li><strong><code>relay(π, public_inputs)</code></strong> — best-signal ship picks up the proof from L2 and submits it as an L1 tx. Ship signs envelope only; the proof's truth is checked on-chain. <em>Phase 5.</em></li>
+          <li><strong><code>verifyProof(π)</code></strong> — the Solidity verifier contract re-runs FRI queries on L1. On success: sets <code>safe_outcome = true</code> and emits a mission-verified event. <em>Phase 6.</em></li>
+          <li><strong><code>advance(MAX_SPEED)</code></strong> — L1 tx by ship D, gated by both <code>EX-010 SAFE</code> and <code>EX-011 SAFE</code>. Emits a convoy-advance event. <em>Phase 7.</em></li>
+        </ul>
+      </div>
+
+      <!-- ── OUTCOMES ── -->
+      <div class="card glossary-card">
+        <h4>Outcomes — what is decided</h4>
+        <ul class="spec">
+          <li><strong><code>SAFE</code></strong> — verdict for one mission. True iff <em>coverage ≥ 95 %</em> AND <em>time ≤ 360 s</em> AND <em>no contact ≥ 0.7</em>. Enforced inside the Cairo program, re-checked by the Solidity verifier on L1.</li>
+          <li><strong>Mission-verified event</strong> — L1 event emitted when proof verification succeeds. Records mission id, which ship relayed, and at what block.</li>
+          <li><strong>Convoy-advance event</strong> — L1 event broadcast to all six ships, authorising the formation to move. Only ship D, only when both missions SAFE.</li>
+          <li><strong><code>ADVANCE</code> (canvas state)</strong> — terminal state. Both proofs anchored on L1, command issued, convoy moves through verified-safe waters. <em>Phase 8.</em></li>
+        </ul>
+      </div>
+    </aside>
+
+  </div>
 </section>
 
 <!-- ════════════════════════════════════════════════════════════
