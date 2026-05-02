@@ -232,11 +232,6 @@ function renderAreas(highlightAlpha = false, highlightBravo = false) {
       <rect x="${BRAVO_AREA.x}" y="${BRAVO_AREA.y}" width="${BRAVO_AREA.w}" height="${BRAVO_AREA.h}"
             fill="${bFill}" stroke="${bStroke}" stroke-width="1.5" stroke-dasharray="4,3" rx="6"/>
       <text x="${BRAVO_AREA.x + 8}" y="${BRAVO_AREA.y + 18}" font-family="Consolas,monospace" font-size="11" font-weight="600" fill="#ffffff">EX-011 · RIGHT FRONTAL · BRAVO</text>
-
-      <!-- Bravo inner corridor (the 2a band where the actual sweep happens) -->
-      <rect x="${BRAVO_CORRIDOR.x}" y="${BRAVO_CORRIDOR.y}" width="${BRAVO_CORRIDOR.w}" height="${BRAVO_CORRIDOR.h}"
-            fill="rgba(59,130,246,0.05)" stroke="${bStroke}" stroke-width="1" stroke-dasharray="2,2" rx="3" opacity="0.7"/>
-      <text x="${BRAVO_CORRIDOR.x + 8}" y="${BRAVO_CORRIDOR.y - 4}" font-family="Consolas,monospace" font-size="9" fill="${bStroke}" opacity="0.7">corridor 2a</text>
     `;
 }
 
