@@ -125,20 +125,12 @@
     </div>
   </div>
 
-  <div class="card success-card">
-    <h3>SAFE_AREA criterion</h3>
-    <p>A mission concludes with <code>SAFE_AREA</code> if and only if:</p>
-    <ol>
-      <li>Total coverage &ge; threshold percentage of the assigned area, AND</li>
-      <li>Total execution time &le; window, AND</li>
-      <li>No contacts detected above the probability threshold.</li>
-    </ol>
-    <p>A Cairo verification program (one per L2) will encode these constraints. The STARK proof will attest that all three conditions held without revealing the drone telemetry that produced them.</p>
+  <div class="card success-card compact-criterion">
+    <p><strong class="crit-title">SAFE_AREA criterion &mdash;</strong> a mission concludes with <code>SAFE_AREA</code> if and only if <strong>(1)</strong> total coverage &ge; threshold percentage of the assigned area, <strong>(2)</strong> total execution time &le; window, AND <strong>(3)</strong> no contacts detected above the probability threshold. A Cairo verification program (one per L2) will encode these constraints; the STARK proof will attest all three conditions held without revealing the drone telemetry that produced them.</p>
   </div>
 
   <!-- ── Transparency vs privacy ─────────────────────────── -->
-  <h3 class="subsection-title">Transparency <em>and</em> privacy</h3>
-  <p class="subtitle">Plain logging is all-or-nothing: public means leaking tradecraft, secret means losing accountability. ZK&#8209;STARKs split it &mdash; the verdict is public on L1, the telemetry that earned it stays on L2.</p>
+  <p class="subsection-inline"><strong>Transparency <em>and</em> privacy &mdash;</strong> plain logging is all-or-nothing: public means leaking tradecraft, secret means losing accountability. ZK&#8209;STARKs split it &mdash; the verdict is public on L1, the telemetry that earned it stays on L2.</p>
 
   <div class="card-grid tp-grid">
     <div class="card public-card">
