@@ -212,8 +212,8 @@ section.container .subtitle {
 /* ── Architecture diagram ──────────────────────────────── */
 .arch-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 40px;
   margin-top: 4px;
   align-items: start;
 }
@@ -223,7 +223,13 @@ section.container .subtitle {
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
-  height: 700px;
+  aspect-ratio: 2580 / 760;
+  min-height: 460px;
+  max-height: 800px;
+  max-width: 1200px;     /* hard cap on the diagram window — keeps L2-B
+                             clear of the right-hand panel without
+                             leaving a huge empty gap */
+  width: 100%;
 }
 .arch-stage {
   width: 100%;
@@ -239,11 +245,11 @@ section.container .subtitle {
 }
 .arch-svg:active { cursor: grabbing; }
 
-/* Stage controls */
+/* Stage controls — top-left of the stage */
 .arch-controls {
   position: absolute;
   top: 12px;
-  right: 12px;
+  left: 12px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -290,6 +296,30 @@ section.container .subtitle {
 .arch-legend .dot-cmdr  { background: var(--accent-2); }
 .arch-legend .dot-alpha { background: var(--alpha); }
 .arch-legend .dot-bravo { background: var(--bravo); }
+.arch-legend .dot-hvu   { background: rgba(148,163,184,0.25); border: 1px dashed #94a3b8; }
+
+/* HVUs — small dashed-bordered tiles inside the escort ring. Visual
+   shorthand for "protected, but NOT on the cryptographic network". */
+.arch-hvu-body {
+  fill: rgba(148, 163, 184, 0.08);
+  stroke: #94a3b8;
+  stroke-width: 1.2;
+  stroke-dasharray: 4 3;
+}
+.arch-hvu-label {
+  fill: var(--text);
+  font-family: 'Consolas', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  pointer-events: none;
+}
+.arch-hvu-sub {
+  fill: var(--text-dim);
+  font-family: 'Consolas', monospace;
+  font-size: 11px;
+  font-style: italic;
+  pointer-events: none;
+}
 
 /* Container shapes */
 .arch-container .arch-body {
@@ -376,6 +406,43 @@ section.container .subtitle {
   opacity: 0.7;
 }
 
+/* In-banner sequence diagram (lifelines + step messages, mirrors layers.html) */
+.arch-container .arch-lifeline {
+  stroke: rgba(148, 163, 184, 0.35);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+  pointer-events: none;
+}
+.arch-container .arch-flow-line {
+  stroke: #cbd5e1;
+  stroke-width: 1.2;
+  fill: none;
+  opacity: 0.85;
+  pointer-events: none;
+}
+.arch-container .arch-flow-step {
+  fill: rgba(15, 23, 42, 0.95);
+  stroke: rgba(203, 213, 225, 0.7);
+  stroke-width: 0.8;
+}
+.arch-container .arch-flow-step-num {
+  fill: #e0e6ed;
+  font-family: 'Consolas', monospace;
+  font-size: 8.5px;
+  font-weight: 700;
+  pointer-events: none;
+}
+.arch-container .arch-flow-label {
+  fill: var(--text-muted);
+  font-family: 'Consolas', monospace;
+  font-size: 9px;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: rgba(15, 23, 42, 0.85);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
 /* Side panel */
 .arch-panel {
   background: var(--bg-card);
@@ -385,7 +452,7 @@ section.container .subtitle {
   align-self: start;
   position: sticky;
   top: 16px;
-  max-height: 700px;
+  max-height: calc(100vh - 32px);
   overflow-y: auto;
 }
 .arch-panel-empty h4 { margin: 0 0 8px; color: var(--text); font-size: 14px; }
@@ -637,6 +704,61 @@ section.container .subtitle {
   border: 1px solid var(--border-2); border-radius: 12px;
   font-size: 11px; font-weight: 600; letter-spacing: 0.5px;
 }
+.phases-foot {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+/* ── Specifications cards ──────────────────────────────── */
+.spec-card {
+  position: relative;
+  padding-top: 36px;
+  border-left: 3px solid var(--accent-2);
+}
+.spec-card .card-tag {
+  position: absolute;
+  top: 14px; right: 14px;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-family: 'Consolas', monospace;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  background: rgba(255,214,0,0.15);
+  color: var(--accent-2);
+  border: 1px solid var(--accent-2);
+}
+.spec-card h3 {
+  color: var(--accent-2);
+}
+.spec-card p {
+  font-size: 13px;
+  line-height: 1.55;
+}
+.spec-code {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin: 6px 0 0;
+  overflow-x: auto;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.spec-code code {
+  font-family: 'Consolas', monospace;
+  color: var(--text);
+  background: transparent;
+  padding: 0;
+  white-space: pre;
+}
+.spec-link {
+  margin-top: 14px !important;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.spec-link a:hover { color: var(--accent-2); }
 
 /* ── Footer ────────────────────────────────────────────── */
 footer {

@@ -172,6 +172,84 @@
 </section>
 
 <!-- ════════════════════════════════════════════════════════════
+     SECTION 2.5 — SPECIFICATIONS (threat model, interfaces, pseudocode)
+     ════════════════════════════════════════════════════════════ -->
+<section class="container" id="specifications">
+  <h2>Specifications</h2>
+  <p class="subtitle">The contract between layers, written down before any code. Full detail in <a href="https://github.com/henriquejdribeiro/naval-convoy-protection/tree/main/docs/specs" target="_blank" rel="noopener"><code>docs/specs/</code></a>; the cards below are the public-facing summary.</p>
+
+  <div class="card-grid">
+
+    <!-- Threat model -->
+    <div class="card spec-card">
+      <div class="card-tag">THREAT MODEL</div>
+      <h3>What we're claiming</h3>
+      <p>The convoy advances <strong>iff</strong> L1 has recorded SAFE for both <code>EX-010</code> and <code>EX-011</code>, where each verdict is the result of a STARK proof passing on-chain FRI verification against the published mission spec.</p>
+      <p>An attacker who wants to advance the convoy into unswept water must either <em>forge a STARK</em>, <em>compromise ≥ 3 of 6 ships</em>, or <em>break the cryptographic primitives</em>. Up to 2 byzantine ships → safe failure (chain halts, convoy holds). secp256k1 ECDSA is acknowledged as <em>not</em> post-quantum; STARK / Poseidon layer is.</p>
+      <p class="spec-link"><a href="https://github.com/henriquejdribeiro/naval-convoy-protection/blob/main/docs/specs/threat-model.md" target="_blank" rel="noopener">Full threat model →</a></p>
+    </div>
+
+    <!-- Public interfaces -->
+    <div class="card spec-card">
+      <div class="card-tag">PUBLIC INTERFACES</div>
+      <h3>Solidity contracts (L1)</h3>
+      <pre class="spec-code"><code>// ConvoyMissionRegistry.sol  (onlyCommander)
+function deploy(uint256 missionId, MissionSpec spec) external;
+event   MissionDeployed(uint256 indexed missionId, MissionSpec spec, uint256 block);
+
+// ConvoyProofVerifier.sol  (FactRegistry + Ownable)
+function registerSafeProof(bytes32 programHash, bytes32 outputHash,
+                            ConvoySafeProof meta) external;
+event   MissionVerified(uint256 indexed proofId, uint256 indexed missionId,
+                         bytes32 indexed factHash, address relay,
+                         uint256 coveragePermille, uint256 maxContact,
+                         uint256 elapsedSeconds);
+
+// ConvoyCommandLog.sol  (verifier OR commander)
+function advance() external;
+event   ConvoyAdvance(uint256 timestamp, uint256 indexed blockNumber,
+                       address indexed firedBy);
+</code></pre>
+      <h3 style="margin-top:14px">Cairo programs (L2)</h3>
+      <pre class="spec-code"><code>// convoy_protocol.cairo (Cairo 1, on Madara)
+fn submit_telemetry(drone_id, cell_id, x, y, t, p_contact,
+                    bearing, signal, resweep);
+fn submit_sweep_commitment(mission_id, commitment, n_cells);
+
+// safe_area_verify.cairo (Cairo 0, prover input)
+PUBLIC : mission_id, area_polygon_hash, coverage_threshold,
+         contact_threshold, time_window, telemetry_commitment,
+         n_cells &rarr; coverage, max_contact, elapsed, safe
+PRIVATE: cells[], total_cells_in_area, area_polygon[]
+</code></pre>
+      <p class="spec-link"><a href="https://github.com/henriquejdribeiro/naval-convoy-protection/blob/main/docs/specs/interfaces.md" target="_blank" rel="noopener">Full interface spec →</a></p>
+    </div>
+
+    <!-- SAFE_AREA in Cairo -->
+    <div class="card spec-card">
+      <div class="card-tag">SAFE_AREA</div>
+      <h3>The five assertions</h3>
+      <p>Cairo 0 program proven by Stone, verified on L1 via <code>FactRegistry</code>. Each step is a separate function, in the same recursive-with-<code>range_check</code> style as <code>verifiable_grid/drone_verify.cairo</code>.</p>
+      <pre class="spec-code"><code>1. bind_witness(cells, n, telemetry_commitment)
+   ─ Poseidon-chain over cells must equal the commitment
+2. bind_polygon(corners, area_polygon_hash)
+   ─ Poseidon-chain over corners must equal the hash
+3. check_coverage(cells, polygon, total_in_area)
+   ─ ray-cast each cell; covered/total ≥ threshold (permille)
+4. check_time(cells, window)
+   ─ max(t) − min(t) ≤ window  (assert_le aborts on violation)
+5. check_contacts(cells, threshold)
+   ─ max(p_contact) &lt; threshold (assert_lt aborts on violation)
+
+safe = coverage_ok ∧ time_ok ∧ contact_ok    // emitted to output
+</code></pre>
+      <p class="spec-link"><a href="https://github.com/henriquejdribeiro/naval-convoy-protection/blob/main/docs/specs/cairo-safe-area.md" target="_blank" rel="noopener">Full pseudocode + edge cases →</a></p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════
      SECTION 3 — ARCHITECTURE DIAGRAM (the "how")
      ════════════════════════════════════════════════════════════ -->
 <section class="container container-wide" id="architecture">
@@ -193,6 +271,7 @@
         <span><i class="dot dot-cmdr"></i> Commander</span>
         <span><i class="dot dot-alpha"></i> L2-Alpha</span>
         <span><i class="dot dot-bravo"></i> L2-Bravo</span>
+        <span><i class="dot dot-hvu"></i> HVU (off-network)</span>
       </div>
     </div>
 
@@ -316,35 +395,40 @@
 
   <table class="phases">
     <thead>
-      <tr><th>Phase</th><th>Scope</th><th>Containers</th><th>Status</th></tr>
+      <tr><th>Phase</th><th>Scope</th><th>Containers</th><th>Done when&hellip;</th><th>Status</th></tr>
     </thead>
     <tbody>
       <tr class="phase-current">
         <td><strong>1</strong> — Visualization-first</td>
         <td>Single-page interactive simulation, no Docker required</td>
         <td>0</td>
+        <td>This page renders end-to-end with simulation, architecture diagram, mission brief, threat model, and interfaces &mdash; with no console errors.</td>
         <td><span class="status-active">Active</span></td>
       </tr>
       <tr>
         <td><strong>2</strong> — L1 mechanics</td>
-        <td>6 Geth Clique-PoA validators, 4 Solidity contracts, ship-D commander logic</td>
+        <td>6 Geth Clique-PoA validators, 3 Solidity contracts (Verifier + Registry + CommandLog), commander key for D</td>
         <td>~10</td>
+        <td>Hard-coded valid fact for both <code>EX-010</code> and <code>EX-011</code> registers on L1; the <strong>second</strong> <code>registerSafeProof</code> tx atomically fires <code>ConvoyAdvance(firedBy=verifier)</code> in the same block.</td>
         <td><span class="status-pending">Pending</span></td>
       </tr>
       <tr>
-        <td><strong>3</strong> — L2 stacks + drones</td>
-        <td>Madara α + β, Pathfinder, SNOS, Stone, orchestrators, 10 drone agents</td>
+        <td><strong>3</strong> — L2 stacks + real proofs</td>
+        <td>Madara α + β, Pathfinder × 2, SNOS × 2, Stone × 2, orchestrator × 2, 10 simulated drones</td>
         <td>~31</td>
+        <td>One full pipeline run captured into <code>mission-replay.json</code> &mdash; from <code>docker compose build</code> through to <code>ConvoyAdvance</code>, with every step timestamped (proof size, prover ms, gas, tx hashes). The simulation panel on this page replays it instead of the hand-authored 68 frames. Bad telemetry (coverage &lt; 95 %) <strong>never</strong> reaches L1.</td>
         <td><span class="status-pending">Pending</span></td>
       </tr>
       <tr>
         <td><strong>4</strong> — Polish</td>
-        <td>ArduPilot SITL, network chaos (<code>tc</code>/<code>netem</code>), live WebSocket bridge to this page</td>
+        <td>ArduPilot SITL × 10, <code>tc</code>/<code>netem</code> chaos, live WebSocket bridge</td>
         <td>~31 + SITL</td>
+        <td>SITL drones complete the mission under 5 % packet loss and 100 ms latency; under 30 % loss the mission <strong>fails gracefully</strong> (no false <code>MissionVerified</code>). Webapp simulation replays a real run.</td>
         <td><span class="status-pending">Pending</span></td>
       </tr>
     </tbody>
   </table>
+  <p class="phases-foot">Per-phase pass/fail scenarios in detail: <a href="https://github.com/henriquejdribeiro/naval-convoy-protection/blob/main/docs/specs/acceptance.md" target="_blank" rel="noopener"><code>docs/specs/acceptance.md</code></a>. Pinned tool versions for the entire stack: <a href="https://github.com/henriquejdribeiro/naval-convoy-protection/blob/main/versions.md" target="_blank" rel="noopener"><code>versions.md</code></a>.</p>
 </section>
 
 </main>

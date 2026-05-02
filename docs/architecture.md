@@ -72,7 +72,7 @@ The diagram tracks one cycle of the system, from the convoy commander issuing mi
    The Cairo program enforces all SAFE conditions inside the proof (coverage ≥ threshold, no contacts above probability, time within window). If any condition fails, the proof cannot be produced.
 
 5. **Best-signal proof relay (Phase 5).** The orchestrator does **not** submit to L1 directly. Instead, it publishes the proof to a queue that ship-orchestrator agents poll. Each ship agent decides whether it has best signal for the originating L2:
-   - Ship F or A relays Alpha proofs (rear-left and forward positions cover the left area)
+   - Ship F or A relays Alpha proofs (forward-left and forward positions cover the left area)
    - Ship A or B relays Bravo proofs (forward and forward-right positions cover the right area)
    
    The selected ship submits an L1 transaction:

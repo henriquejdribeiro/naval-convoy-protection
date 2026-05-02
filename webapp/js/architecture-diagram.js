@@ -7,31 +7,70 @@ const REPO = 'https://github.com/henriquejdribeiro/naval-convoy-protection';
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const XLINK_NS = 'http://www.w3.org/1999/xlink';
 
-const VB_W = 1240;
-const VB_H = 680;
+const VB_W = 2580;
+const VB_H = 760;
 
 // ---------------------------------------------------------------------------
-// Layout — L2 banners at the top show the proof generation pipeline as a
-// row of column headers (Madara → Pathfinder → Orchestrator → SNOS → Stone),
-// the convoy formation sits below, and π_α / π_β arrows drop from the
-// banner bottoms into their primary relay ships (F and B).
+// Layout — L2-Alpha sits on the LEFT flank at the same y as ship F, and
+// L2-Bravo sits on the RIGHT flank at the same y as ship B, so the proof
+// flows directly sideways from each L2 pipeline into its primary relay ship.
+// The six-ship convoy keeps a hexagonal formation in the middle.
 // ---------------------------------------------------------------------------
 
-const SHIP_W = 170, SHIP_H = 90;
-const CMDR_W = 170, CMDR_H = 130;
-const L2_W   = 580, L2_H   = 140;
+const SHIP_W = 200, SHIP_H = 90;
+const CMDR_W = 200, CMDR_H = 90;       // same as SHIP_H — D no longer runs a
+                                        // watcher daemon, only the Geth node
+const L2_W   = 720, L2_H   = 380;   // tall — actor row at top + lifelines
+                                     // with 10 step-arrows below (steps 9-18
+                                     // of the proof generation flow)
 
 const CONTAINERS = [
-  // L2 banners at the top — each is a horizontal pipeline of 5 services
-  { id: 'L2A', kind: 'l2-alpha',  name: 'L2-Alpha — Madara α swarm',  x: 20,  y: 20,  w: L2_W,   h: L2_H   },
-  { id: 'L2B', kind: 'l2-bravo',  name: 'L2-Bravo — Madara β swarm',  x: 640, y: 20,  w: L2_W,   h: L2_H   },
-  // Ship convoy below
-  { id: 'A',   kind: 'ship',      name: 'Ship A — Forward',          x: 535, y: 200, w: SHIP_W, h: SHIP_H },
-  { id: 'F',   kind: 'ship',      name: 'Ship F — Rear-left',        x: 290, y: 320, w: SHIP_W, h: SHIP_H },
-  { id: 'B',   kind: 'ship',      name: 'Ship B — Forward-right',    x: 780, y: 320, w: SHIP_W, h: SHIP_H },
-  { id: 'E',   kind: 'ship',      name: 'Ship E — Mid-left',         x: 290, y: 440, w: SHIP_W, h: SHIP_H },
-  { id: 'C',   kind: 'ship',      name: 'Ship C — Mid-right',        x: 780, y: 440, w: SHIP_W, h: SHIP_H },
-  { id: 'D',   kind: 'ship-cmdr', name: 'Ship D — Commander',        x: 535, y: 540, w: CMDR_W, h: CMDR_H }
+  // Top of the convoy. Layout: 100 left margin, 720 L2A, 80 corridor, 200 F,
+  // 80 ship-HVU gap, 200 HVU, 80 ship-HVU gap, 200 B, 80 corridor, 720 L2B,
+  // 100 right margin = VB_W 2580. The 80 ship-HVU gap is the visible
+  // breathing room around each HVU at the rendered scale.
+  { id: 'A',   kind: 'ship',      name: 'Ship A — Forward',           x: 1200, y: 40,  w: SHIP_W, h: SHIP_H },
+  // L2 banners — vertical centre aligns with F / B vertical centre
+  { id: 'L2A', kind: 'l2-alpha',  name: 'L2-Alpha — Madara α swarm',   x: 120,  y: 55,  w: L2_W,   h: L2_H   },
+  { id: 'F',   kind: 'ship',      name: 'Ship F — Forward-left',      x: 920,  y: 200, w: SHIP_W, h: SHIP_H },
+  { id: 'B',   kind: 'ship',      name: 'Ship B — Forward-right',     x: 1480, y: 200, w: SHIP_W, h: SHIP_H },
+  { id: 'L2B', kind: 'l2-bravo',  name: 'L2-Bravo — Madara β swarm',   x: 1760, y: 55,  w: L2_W,   h: L2_H   },
+  // Lower row of the convoy
+  { id: 'E',   kind: 'ship',      name: 'Ship E — Mid-left',          x: 920,  y: 440, w: SHIP_W, h: SHIP_H },
+  { id: 'C',   kind: 'ship',      name: 'Ship C — Mid-right',         x: 1480, y: 440, w: SHIP_W, h: SHIP_H },
+  // Commander at the bottom
+  { id: 'D',   kind: 'ship-cmdr', name: 'Ship D — Commander',         x: 1200, y: 600, w: CMDR_W, h: CMDR_H }
+];
+
+// HVUs — High-Value Units. NOT part of the network: no L1 validator key,
+// no L2 sequencer, no Docker container. Same physical size as escort
+// ships (200×90) so they read as comparable assets in the formation,
+// but a dashed border + "off-network" sub-label flags that they sit
+// outside the cryptographic perimeter. Centre column, between F and B
+// (HVU-1), formation centre (HVU-2), between E and C (HVU-3).
+const HVU_W = 200, HVU_H = 90;
+const HVUS = [
+  { id: 'HVU-1', x: 1200, y: 200 },   // same row as F & B, dead-centre between
+  { id: 'HVU-2', x: 1200, y: 320 },   // formation centre, between F/B and E/C rows
+  { id: 'HVU-3', x: 1200, y: 440 }    // same row as E & C, dead-centre between
+];
+
+// Proof-generation flow inside an L2 swarm — mirrors steps 9–18 of the
+// sequence diagram in verifiable_grid/architecture/layers.html.
+// `from` and `to` are indices into the L2 service array:
+//   0 = Madara, 1 = Pathfinder, 2 = Orchestrator, 3 = SNOS, 4 = Stone Prover
+// `kind: 'self'` draws a small loop on the actor's own lifeline.
+const L2_FLOW = [
+  { step: 9,  kind: 'msg',  from: 0, to: 1, label: 'Feeder Gateway sync' },
+  { step: 10, kind: 'msg',  from: 2, to: 0, label: 'getBlockWithTxs' },
+  { step: 11, kind: 'msg',  from: 0, to: 2, label: 'block + state diff' },
+  { step: 12, kind: 'msg',  from: 2, to: 3, label: 'request proof input' },
+  { step: 13, kind: 'msg',  from: 3, to: 1, label: 'query block data' },
+  { step: 14, kind: 'msg',  from: 1, to: 3, label: 'state + receipts' },
+  { step: 15, kind: 'self', from: 3, to: 3, label: 'replay (Cairo VM)' },
+  { step: 16, kind: 'msg',  from: 3, to: 2, label: 'PIE trace' },
+  { step: 17, kind: 'msg',  from: 2, to: 4, label: 'send PIE + config' },
+  { step: 18, kind: 'self', from: 4, to: 4, label: 'run FRI → π' }
 ];
 
 // L2 services are ordered by *proof generation flow*:
@@ -39,25 +78,24 @@ const CONTAINERS = [
 // SNOS replays trace → Stone produces the STARK.
 const SERVICES = {
   'ship': [
-    { icon: 'images/ethereum.png', name: 'Geth (Clique PoA)', sub: 'L1 Ethereum node — validator key' }
+    { icon: 'images/ethereum.png', name: 'Geth (Clique PoA)', sub: 'L1 validator node' }
   ],
   'ship-cmdr': [
-    { icon: 'images/ethereum.png', name: 'Geth (Clique PoA)', sub: 'L1 Ethereum node — validator key' },
-    { icon: 'images/nodejs.png',   name: 'Commander watcher', sub: 'fires advance() on dual SAFE'    }
+    { icon: 'images/ethereum.png', name: 'Geth (Clique PoA)', sub: 'L1 validator node' }
   ],
   'l2-alpha': [
-    { icon: 'images/madara.png',       name: 'Madara α',     sub: 'Execution layer (Cairo VM)',    stage: 'exec'  },
-    { icon: 'images/pathfinder.png',   name: 'Pathfinder',   sub: 'Indexer · Starknet RPC',        stage: 'exec'  },
-    { icon: 'images/madara.png',       name: 'Orchestrator', sub: 'Coordinates proving → L1',      stage: 'exec'  },
-    { icon: 'images/snos.jpg',         name: 'SNOS',         sub: 'Replays trace · prover input',  stage: 'prove' },
-    { icon: 'images/stone-prover.svg', name: 'Stone prover', sub: 'Generates STARK proof π_α',     stage: 'prove' }
+    { icon: 'images/madara.png',       name: 'Madara α',     sub: 'Execution Layer',  stage: 'exec'  },
+    { icon: 'images/pathfinder.png',   name: 'Starknet Node', sub: 'Pathfinder',      stage: 'exec'  },
+    { icon: 'images/madara.png',       name: 'Orchestrator', sub: 'Settlement orch.', stage: 'exec'  },
+    { icon: 'images/snos.jpg',         name: 'SNOS',         sub: 'StarkNet OS',      stage: 'prove' },
+    { icon: 'images/stone-prover.svg', name: 'Stone Prover', sub: 'STARK Prover',     stage: 'prove' }
   ],
   'l2-bravo': [
-    { icon: 'images/madara.png',       name: 'Madara β',     sub: 'Execution layer (Cairo VM)',    stage: 'exec'  },
-    { icon: 'images/pathfinder.png',   name: 'Pathfinder',   sub: 'Indexer · Starknet RPC',        stage: 'exec'  },
-    { icon: 'images/madara.png',       name: 'Orchestrator', sub: 'Coordinates proving → L1',      stage: 'exec'  },
-    { icon: 'images/snos.jpg',         name: 'SNOS',         sub: 'Replays trace · prover input',  stage: 'prove' },
-    { icon: 'images/stone-prover.svg', name: 'Stone prover', sub: 'Generates STARK proof π_β',     stage: 'prove' }
+    { icon: 'images/madara.png',       name: 'Madara β',     sub: 'Execution Layer',  stage: 'exec'  },
+    { icon: 'images/pathfinder.png',   name: 'Starknet Node', sub: 'Pathfinder',      stage: 'exec'  },
+    { icon: 'images/madara.png',       name: 'Orchestrator', sub: 'Settlement orch.', stage: 'exec'  },
+    { icon: 'images/snos.jpg',         name: 'SNOS',         sub: 'StarkNet OS',      stage: 'prove' },
+    { icon: 'images/stone-prover.svg', name: 'Stone Prover', sub: 'STARK Prover',     stage: 'prove' }
   ]
 };
 
@@ -79,7 +117,7 @@ const FILES = {
     { p: 'docker/ship/docker-compose.yml',     d: 'Geth validator service definition',                 phase: 2 },
     { p: 'docker/ship/geth/genesis.json',      d: 'Clique PoA genesis (6 validators)',                 phase: 2 },
     { p: 'docker/ship/geth/config.toml',       d: 'sealing key, peer list, RPC ports',                 phase: 2 },
-    { p: 'docker/commander/watch.js',          d: 'watches L1 for both SAFE events, fires advance tx', phase: 2 }
+    { p: 'docker/ship/commander.key',          d: 'D holds this key; lets D send a manual advance()',  phase: 2 }
   ],
   'l2-alpha': [
     { p: 'docker/l2-alpha/docker-compose.yml',     d: 'Madara α + Pathfinder + SNOS + Stone + orchestrator', phase: 3 },
@@ -98,9 +136,9 @@ const FILES = {
 };
 
 const SHARED_L1_CONTRACTS = [
-  { p: 'contracts/Verifier.sol',    d: 're-runs FRI on submitted STARK proofs',  phase: 2 },
+  { p: 'contracts/Verifier.sol',    d: 're-runs FRI on submitted STARK proofs; on dual SAFE auto-calls CommandLog.advance()', phase: 2 },
   { p: 'contracts/Registry.sol',    d: 'mission spec + verdict per EX-0xx',      phase: 2 },
-  { p: 'contracts/CommandLog.sol',  d: 'commander advance events',               phase: 2 }
+  { p: 'contracts/CommandLog.sol',  d: 'records the advance event; only the Verifier (or D for manual override) may call', phase: 2 }
 ];
 
 // ---------------------------------------------------------------------------
@@ -123,8 +161,9 @@ const HEADER_H   = 30;
 const CARD_PAD   = 8;
 // Vertical (ship) layout
 const V_CARD_H   = 38, V_CARD_GAP = 4, V_ICON = 20;
-// Horizontal (L2) layout — sequence-diagram-style column headers
-const H_CARD_W   = 100, H_CARD_H = 92, H_CARD_GAP = 16;
+// Horizontal (L2) layout — sequence-diagram-style column headers,
+// matching the actor row from the verifiable_grid layers.html.
+const H_CARD_W   = 110, H_CARD_H = 100, H_CARD_GAP = 14;
 const H_ICON     = 26;
 const STEP_R     = 8;
 
@@ -173,16 +212,20 @@ function buildContainer(c) {
   return g;
 }
 
-// Horizontal pipeline: 5 column-header cards in a row, with right-pointing
-// chevrons between consecutive cards (Madara → Pathfinder → ... → Stone).
+// Horizontal pipeline: 5 column-header cards in a row, then a mini
+// sequence diagram (lifelines + step-arrows) below — mirrors layers.html
+// in the verifiable_grid project.
 function renderHorizontalServices(g, c, services) {
   const innerY = HEADER_H + 8;
   const totalW = services.length * H_CARD_W + (services.length - 1) * H_CARD_GAP;
-  let xOff = (c.w - totalW) / 2;  // centred horizontally inside the banner
+  const xStart = (c.w - totalW) / 2;
+  let xOff = xStart;
+
+  // Collect each actor's lifeline x-position so we can draw arrows after.
+  const lifelineX = [];
 
   for (let i = 0; i < services.length; i++) {
     const s = services[i];
-    const isLast = i === services.length - 1;
 
     // Card body
     g.appendChild(el('rect', {
@@ -228,18 +271,91 @@ function renderHorizontalServices(g, c, services) {
     sb.textContent = s.sub;
     g.appendChild(sb);
 
-    // Right-pointing chevron between cards
-    if (!isLast) {
-      const ax = xOff + H_CARD_W + H_CARD_GAP / 2;
-      const ay = innerY + H_CARD_H / 2;
-      g.appendChild(el('path', {
-        d: `M ${ax - 5} ${ay - 5} L ${ax + 4} ${ay} L ${ax - 5} ${ay + 5} Z`,
-        class: 'svc-flow-arrow'
-      }));
-    }
-
+    lifelineX.push(xOff + H_CARD_W / 2);
     xOff += H_CARD_W + H_CARD_GAP;
   }
+
+  // ── Mini sequence diagram below the actor row ─────────────
+  const cardsBottom = innerY + H_CARD_H;
+  const flowTop     = cardsBottom + 14;
+  const flowBottom  = c.h - 12;
+  const stepRows    = L2_FLOW.length;
+  const rowGap      = (flowBottom - flowTop) / (stepRows + 0.5);
+
+  // Vertical lifelines descending from each actor card
+  for (const x of lifelineX) {
+    g.appendChild(el('line', {
+      x1: x, y1: cardsBottom + 2,
+      x2: x, y2: flowBottom,
+      class: 'arch-lifeline'
+    }));
+  }
+
+  // Step arrows
+  for (let i = 0; i < L2_FLOW.length; i++) {
+    const ev = L2_FLOW[i];
+    const rowY = flowTop + (i + 0.5) * rowGap;
+    const fromX = lifelineX[ev.from];
+    const toX   = lifelineX[ev.to];
+
+    if (ev.kind === 'self') {
+      // Self-loop on the actor's own lifeline. Default to drawing it on the
+      // RIGHT side, but flip LEFT when the actor sits near the banner's
+      // right edge and there isn't room — keeps the loop + label inside the
+      // green / purple container.
+      const loopW = 26, loopH = Math.min(10, rowGap * 0.7);
+      const labelEstW  = (ev.label || '').length * 5.6;
+      const rightSpace = (c.w - CARD_PAD) - fromX;
+      const goLeft = rightSpace < (loopW + 10 + labelEstW);
+      const dir = goLeft ? -1 : 1;
+
+      g.appendChild(el('path', {
+        d: `M ${fromX} ${rowY} L ${fromX + dir * loopW} ${rowY} ` +
+           `L ${fromX + dir * loopW} ${rowY + loopH} ` +
+           `L ${fromX + dir * 4} ${rowY + loopH}`,
+        class: 'arch-flow-line',
+        'marker-end': 'url(#arch-flow-arrow)'
+      }));
+      drawStepBadge(g, fromX, rowY, ev.step);
+      const lbl = el('text', {
+        x: fromX + dir * (loopW + 6), y: rowY + loopH / 2 + 3,
+        'text-anchor': goLeft ? 'end' : 'start',
+        class: 'arch-flow-label'
+      });
+      lbl.textContent = ev.label;
+      g.appendChild(lbl);
+    } else {
+      // Horizontal message arrow between two lifelines
+      const dir = toX > fromX ? 1 : -1;
+      const x1 = fromX + dir * 4;   // small offset off the source lifeline
+      const x2 = toX   - dir * 2;   // arrow tip just before target lifeline
+      g.appendChild(el('line', {
+        x1, y1: rowY, x2, y2: rowY,
+        class: 'arch-flow-line',
+        'marker-end': 'url(#arch-flow-arrow)'
+      }));
+      drawStepBadge(g, fromX, rowY, ev.step);
+      const lbl = el('text', {
+        x: (fromX + toX) / 2, y: rowY - 4,
+        'text-anchor': 'middle', class: 'arch-flow-label'
+      });
+      lbl.textContent = ev.label;
+      g.appendChild(lbl);
+    }
+  }
+}
+
+// Small numbered circle (white text on dark fill) anchored at (x, y).
+function drawStepBadge(g, x, y, n) {
+  g.appendChild(el('circle', {
+    cx: x, cy: y, r: 7, class: 'arch-flow-step'
+  }));
+  const t = el('text', {
+    x: x, y: y + 2.5, 'text-anchor': 'middle',
+    class: 'arch-flow-step-num'
+  });
+  t.textContent = String(n);
+  g.appendChild(t);
 }
 
 // Vertical layout: single (or two) cards stacked — used by ship containers.
@@ -304,6 +420,14 @@ function buildSvg() {
   marker.appendChild(el('path', { d: 'M 0 -4 L 8 0 L 0 4 z', fill: '#94a3b8' }));
   defs.appendChild(marker);
 
+  // Smaller arrowhead for the in-banner sequence-diagram step messages
+  const flowMarker = el('marker', {
+    id: 'arch-flow-arrow', viewBox: '0 -4 8 8', refX: 7, refY: 0,
+    markerWidth: 5, markerHeight: 5, orient: 'auto'
+  });
+  flowMarker.appendChild(el('path', { d: 'M 0 -3 L 7 0 L 0 3 z', fill: '#cbd5e1' }));
+  defs.appendChild(flowMarker);
+
   svg.appendChild(defs);
 
   // Pan/zoom group
@@ -329,20 +453,39 @@ function buildSvg() {
     class: 'arch-ring'
   }));
 
-  // Relay arrows: L2-Alpha (top-left banner) drops π_α down into F;
-  //               L2-Bravo (top-right banner) drops π_β down into B.
+  // Relay arrows: L2-Alpha hands π_α sideways into F;
+  //               L2-Bravo hands π_β sideways into B.
+  // Picks the closest edges based on relative container position so the
+  // arrow stays clean whether L2 sits on a flank or above the convoy.
   function relay(fromId, toId, color, label) {
     const a = CONTAINERS.find(c => c.id === fromId);
     const b = CONTAINERS.find(c => c.id === toId);
-    const x1 = a.x + a.w / 2, y1 = a.y + a.h;   // bottom-centre of L2 banner
-    const x2 = b.x + b.w / 2, y2 = b.y;         // top-centre of relay ship
+    const aCx = a.x + a.w / 2, aCy = a.y + a.h / 2;
+    const bCx = b.x + b.w / 2, bCy = b.y + b.h / 2;
+
+    let x1, y1, x2, y2, labelDy;
+    if (Math.abs(aCx - bCx) > Math.abs(aCy - bCy)) {
+      // Horizontal flow — connect the facing left/right edges
+      y1 = aCy; y2 = bCy;
+      if (aCx < bCx) { x1 = a.x + a.w; x2 = b.x; }
+      else            { x1 = a.x;       x2 = b.x + b.w; }
+      labelDy = -10;
+    } else {
+      // Vertical flow — connect the facing top/bottom edges
+      x1 = aCx; x2 = bCx;
+      if (aCy < bCy) { y1 = a.y + a.h; y2 = b.y; }
+      else            { y1 = a.y;       y2 = b.y + b.h; }
+      labelDy = 0;
+    }
+
     root.appendChild(el('line', {
-      x1, y1, x2, y2: y2 - 2,
+      x1, y1, x2, y2,
       stroke: color, 'stroke-width': 2.5, 'stroke-dasharray': '7 5',
-      'marker-end': 'url(#arch-arrow)', opacity: 0.8
+      'marker-end': 'url(#arch-arrow)', opacity: 0.85
     }));
     const lbl = el('text', {
-      x: (x1 + x2) / 2 + 10, y: (y1 + y2) / 2,
+      x: (x1 + x2) / 2, y: (y1 + y2) / 2 + labelDy,
+      'text-anchor': 'middle',
       class: 'arch-edge-label', fill: color
     });
     lbl.textContent = label;
@@ -350,6 +493,33 @@ function buildSvg() {
   }
   relay('L2A', 'F', '#22c55e', 'π_α  relay');
   relay('L2B', 'B', '#8b5cf6', 'π_β  relay');
+
+  // HVUs — protected, off-network. Dashed border to signal "outside the
+  // cryptographic perimeter". They receive D's tactical-radio command
+  // (rendered in the simulation), not L1 transactions.
+  for (const h of HVUS) {
+    const hg = el('g', {
+      class: 'arch-hvu',
+      transform: `translate(${h.x} ${h.y})`
+    });
+    hg.appendChild(el('rect', {
+      x: 0, y: 0, width: HVU_W, height: HVU_H,
+      rx: 6, ry: 6, class: 'arch-hvu-body'
+    }));
+    const lbl = el('text', {
+      x: HVU_W / 2, y: HVU_H / 2 - 1,
+      'text-anchor': 'middle', class: 'arch-hvu-label'
+    });
+    lbl.textContent = h.id;
+    hg.appendChild(lbl);
+    const sub = el('text', {
+      x: HVU_W / 2, y: HVU_H / 2 + 16,
+      'text-anchor': 'middle', class: 'arch-hvu-sub'
+    });
+    sub.textContent = 'off-network';
+    hg.appendChild(sub);
+    root.appendChild(hg);
+  }
 
   // Containers
   for (const c of CONTAINERS) {

@@ -28,8 +28,16 @@ import { poseidonHashChain, toHex, toHexShort } from './poseidon-core.js';
 // no separate L1 box; verification fans out peer-to-peer across the ring.
 
 const GRID = 40;
-const VIEW_W = 960;    // square world (24 × 40 = 960)
-const VIEW_H = 960;
+const VIEW_W = 960;
+const VIEW_H = 960;                    // bottom-y of the world
+// Zone is at y=120–440 (320 px tall). The convoy starts south of it (y=520+).
+// Original viewBox had only 120 px of visible canvas above the zone — not
+// enough for the convoy to advance THROUGH the zone and finish in clean
+// water on the far side. We extend the viewBox upward by SAFE_BAND so the
+// post-zone "after" margin (520 px) equals the pre-zone "before" margin.
+const SAFE_BAND = 400;
+const VIEW_Y0 = -SAFE_BAND;            // viewBox top (negative = extended)
+const VIEW_BOX_H = VIEW_H - VIEW_Y0;   // 1360 — total visible vertical span
 
 // Ships and HVUs centred on x=440 (area-junction column, on grid).
 // Horizontal margin = 3 grid squares (120) each side. A and D equidistant
@@ -40,7 +48,7 @@ const SHIPS = {
     C: { x: 560, y: 680, role: 'mid-right',       relays: ['bravo']          },
     D: { x: 440, y: 760, role: 'commander',       relays: []                 },
     E: { x: 320, y: 680, role: 'mid-left',        relays: ['alpha']          },
-    F: { x: 320, y: 600, role: 'rear-left',       relays: ['alpha']          },
+    F: { x: 320, y: 600, role: 'forward-left',    relays: ['alpha']          },
 };
 
 const PROTECTED_SHIPS = [
@@ -154,7 +162,7 @@ const COMMITMENTS = computeCommitments();
 
 function renderBaseScene() {
     return `
-      <svg viewBox="0 0 ${VIEW_W} ${VIEW_H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+      <svg viewBox="0 ${VIEW_Y0} ${VIEW_W} ${VIEW_BOX_H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
         <defs>
           <radialGradient id="seaGrad" cx="50%" cy="80%" r="80%">
             <stop offset="0%"  stop-color="#0d1a2f"/>
@@ -184,8 +192,8 @@ function renderBaseScene() {
             <path d="M0,0 L10,5 L0,10 Z" fill="#3b82f6"/>
           </marker>
         </defs>
-        <rect width="${VIEW_W}" height="${VIEW_H}" fill="url(#seaGrad)"/>
-        <rect width="${VIEW_W}" height="${VIEW_H}" fill="url(#grid)"/>
+        <rect x="0" y="${VIEW_Y0}" width="${VIEW_W}" height="${VIEW_BOX_H}" fill="url(#seaGrad)"/>
+        <rect x="0" y="${VIEW_Y0}" width="${VIEW_W}" height="${VIEW_BOX_H}" fill="url(#grid)"/>
       </svg>
     `;
 }
@@ -465,32 +473,67 @@ function renderMissionDeploy(progress) {
     return s;
 }
 
-// Convoy advance broadcast — D fans yellow dashed lines to every other
-// node (5 ships + 2 L2 sequencers + 3 HVUs) to relay the advance command.
-// Stage 0..1 animates packets travelling outward.
+// Convoy advance broadcast — two stages:
+//   Stage 1 (0 → 0.55): D fans the convoyAdvance tx out on L1 to the five
+//                        other validator ships (A, B, C, E, F). Yellow.
+//   Stage 2 (0.55 → 1):  Radio relay layer.
+//                        F → L2-Alpha (green), B → L2-Bravo (purple), and
+//                        D → the three HVUs (yellow) since HVUs aren't L1
+//                        validators and need a direct radio command.
 function renderAdvanceBroadcast(progress) {
     if (progress <= 0) return '';
     const D = SHIPS.D;
-    const targets = [
-        { x: SHIPS.A.x, y: SHIPS.A.y },
-        { x: SHIPS.B.x, y: SHIPS.B.y },
-        { x: SHIPS.C.x, y: SHIPS.C.y },
-        { x: SHIPS.E.x, y: SHIPS.E.y },
-        { x: SHIPS.F.x, y: SHIPS.F.y },
-        { x: L2_NODES[0].home.x, y: L2_NODES[0].home.y },
-        { x: L2_NODES[1].home.x, y: L2_NODES[1].home.y },
-        ...PROTECTED_SHIPS.map(p => ({ x: p.x, y: p.y })),
-    ];
-    const t = Math.min(1, progress);
+    const F = SHIPS.F;
+    const B = SHIPS.B;
+    const STAGE1_END = 0.55;
+
     let s = '';
-    for (const tgt of targets) {
-        const px = D.x + t * (tgt.x - D.x);
-        const py = D.y + t * (tgt.y - D.y);
+
+    // ── Stage 1: D → ships (L1 broadcast) ─────────────────
+    const t1 = Math.min(1, progress / STAGE1_END);
+    const shipTargets = [SHIPS.A, SHIPS.B, SHIPS.C, SHIPS.E, SHIPS.F];
+    for (const tgt of shipTargets) {
+        const px = D.x + t1 * (tgt.x - D.x);
+        const py = D.y + t1 * (tgt.y - D.y);
         s += `<line x1="${D.x}" y1="${D.y}" x2="${px}" y2="${py}"
                     stroke="#ffd600" stroke-width="1.5" stroke-dasharray="4,3"
                     opacity="0.8"/>`;
         s += `<circle cx="${px}" cy="${py}" r="4" fill="#ffd600"/>`;
     }
+
+    // ── Stage 2: radio relay layer ────────────────────────
+    if (progress > STAGE1_END) {
+        const t2 = (progress - STAGE1_END) / (1 - STAGE1_END);
+
+        // F → L2-Alpha (green to match the α swarm)
+        const tgtA = L2_NODES[0].home;
+        const fpx = F.x + t2 * (tgtA.x - F.x);
+        const fpy = F.y + t2 * (tgtA.y - F.y);
+        s += `<line x1="${F.x}" y1="${F.y}" x2="${fpx}" y2="${fpy}"
+                    stroke="#22c55e" stroke-width="1.5" stroke-dasharray="4,3"
+                    opacity="0.85"/>`;
+        s += `<circle cx="${fpx}" cy="${fpy}" r="4" fill="#22c55e"/>`;
+
+        // B → L2-Bravo (purple to match the β swarm)
+        const tgtB = L2_NODES[1].home;
+        const bpx = B.x + t2 * (tgtB.x - B.x);
+        const bpy = B.y + t2 * (tgtB.y - B.y);
+        s += `<line x1="${B.x}" y1="${B.y}" x2="${bpx}" y2="${bpy}"
+                    stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="4,3"
+                    opacity="0.85"/>`;
+        s += `<circle cx="${bpx}" cy="${bpy}" r="4" fill="#8b5cf6"/>`;
+
+        // D → each HVU (tactical radio, same yellow as D's commander signal)
+        for (const hvu of PROTECTED_SHIPS) {
+            const hpx = D.x + t2 * (hvu.x - D.x);
+            const hpy = D.y + t2 * (hvu.y - D.y);
+            s += `<line x1="${D.x}" y1="${D.y}" x2="${hpx}" y2="${hpy}"
+                        stroke="#ffd600" stroke-width="1.2" stroke-dasharray="2,3"
+                        opacity="0.7"/>`;
+            s += `<circle cx="${hpx}" cy="${hpy}" r="3" fill="#ffd600"/>`;
+        }
+    }
+
     return s;
 }
 
@@ -650,7 +693,7 @@ function buildFrames() {
             },
             badge: 'Relay', badgeClass: 'relay',
             text: p < 0.55
-              ? `<code>π_α</code> → ship F (rear-left, primary relay). <code>π_β</code> → ship B (forward-right, primary relay).`
+              ? `<code>π_α</code> → ship F (forward-left, primary relay). <code>π_β</code> → ship B (forward-right, primary relay).`
               : `Ships F and B each submit an L1 transaction carrying the proof bytes for cryptographic verification.`,
             registry: reg(p < 0.55 ? 'RELAYING' : 'L1 PENDING',
                           p < 0.55 ? 'RELAYING' : 'L1 PENDING',
@@ -677,46 +720,45 @@ function buildFrames() {
         dwell: 2600,
     });
 
-    // Phase 7 — Commander gates
+    // Phase 7 — On-chain advance trigger (Pattern A: no commander daemon).
+    // The Verifier contract internally calls CommandLog.advance() the moment
+    // the SECOND verifyProof tx clears FRI — atomic with verification, no
+    // human or off-chain process involved.
     F.push({
-        phase: '7/8 — commander watches',
-        cfg: { deployProgress: 1, alphaSweep: 1, bravoSweep: 1, commanderActive: true },
-        badge: 'Cmd',    badgeClass: 'cmd',
-        text: `Ship D detects both SAFE events on L1. The two-of-two precondition is met. Commander preparing the convoy advance command…`,
-        registry: reg('SAFE ✓ (by F)', 'SAFE ✓ (by B)', 'gate met'),
-        dwell: 2400,
-    });
-    F.push({
-        phase: '7/8 — convoy advance command',
+        phase: '7/8 — verifier auto-fires advance',
         cfg: { deployProgress: 1, alphaSweep: 1, bravoSweep: 1, commanderActive: true, l1Highlight: true },
         badge: 'Cmd',    badgeClass: 'cmd',
-        text: `Ship D submits L1 transaction: <code>convoyAdvance(maxSpeed = true)</code>. Preparing broadcast to all nodes.`,
-        registry: reg('SAFE ✓ (by F)', 'SAFE ✓ (by B)', 'gate met', 'BROADCAST'),
-        dwell: 1800,
+        text: `Inside the same transaction that verifies <code>π_β</code>, the Verifier contract sees <code>verdict[EX-010] = verdict[EX-011] = SAFE</code> and atomically calls <code>CommandLog.advance()</code>. No commander daemon, no off-chain trigger — the chain enforces the two-of-two rule.`,
+        registry: reg('SAFE ✓ (by F)', 'SAFE ✓ (by B)', 'auto-triggered', 'EMITTED'),
+        dwell: 2400,
     });
-    // 7.b — D fans the advance command to every node (5 ships + 2 L2 + 3 HVUs)
+    // 7.b — Stage 1: ConvoyAdvance event gossips through the PoA validator
+    // network. Every ship sees it within the same block.
     F.push({
         phase: '7/8 — broadcast advance',
         cfg: { deployProgress: 1, alphaSweep: 1, bravoSweep: 1, commanderActive: true, advanceBroadcast: 0.55 },
         badge: 'Cmd',    badgeClass: 'cmd',
-        text: `Dashed yellow lines travel from D to every node — A, B, C, E, F, L2-A, L2-B and the three HVUs — carrying <code>convoyAdvance</code>.`,
-        registry: reg('SAFE ✓ (by F)', 'SAFE ✓ (by B)', 'broadcasting', 'BROADCAST'),
+        text: `Stage 1 — the on-chain <code>ConvoyAdvance</code> event gossips through the PoA validator network. Every ship (A, B, C, D, E, F) sees it within the same block.`,
+        registry: reg('SAFE ✓ (by F)', 'SAFE ✓ (by B)', 'event seen on L1', 'BROADCAST'),
         dwell: 1400,
     });
+    // 7.c — Stage 2: F and B push the command over radio into their L2
+    // swarms; D bridges the event to the HVUs over tactical radio.
     F.push({
         phase: '7/8 — broadcast advance',
         cfg: { deployProgress: 1, alphaSweep: 1, bravoSweep: 1, commanderActive: true, advanceBroadcast: 1 },
         badge: 'Cmd',    badgeClass: 'cmd',
-        text: `Every node has received the advance command. Convoy aligned and ready to move at maximum speed.`,
-        registry: reg('SAFE ✓ (by F)', 'SAFE ✓ (by B)', 'broadcast complete', 'BROADCAST'),
+        text: `Stage 2 — radio relay layer. F → L2-Alpha (green); B → L2-Bravo (purple); D → the three HVUs (thin yellow). These are pure event-bridges (L1 event → radio frame), no decision-making — the decision was already enforced on-chain.`,
+        registry: reg('SAFE ✓ (by F)', 'SAFE ✓ (by B)', 'relayed to swarms', 'BROADCAST'),
         dwell: 1600,
     });
 
-    // Phase 8 — Convoy advances through and past the swept area
-    // Lead ship A starts at y=520; area's north edge is y=120. The fleet
-    // must traverse ~520 px to fully cross to the other side of the cleared zone.
+    // Phase 8 — Convoy advances through and past the swept area.
+    // Lead ship A starts at y=520 (80 px south of the zone's bottom edge).
+    // To finish symmetrically — rear ship D ending 80 px NORTH of the zone's
+    // top edge (y=120) — D must travel from y=760 to y=40, i.e. 720 px.
     const advSteps = 30;
-    const advStepSize = 18;          // 30 × 18 = 540 px total travel
+    const advStepSize = 24;          // 30 × 24 = 720 px total travel
     for (let i = 1; i <= advSteps; i++) {
         F.push({
             phase: '8/8 — convoy advance',
@@ -784,7 +826,7 @@ $ ship-D     | advance gate: armed</pre>
 $ ship-E     | orchestrator up · idle</pre>
                 </div>
                 <div class="cs-node" data-node="F">
-                  <div class="cs-node-head"><span class="cs-node-id node-F">F</span><span class="cs-node-role">rear-left · α relay</span><span class="cs-node-state">idle</span></div>
+                  <div class="cs-node-head"><span class="cs-node-id node-F">F</span><span class="cs-node-role">forward-left · α relay</span><span class="cs-node-state">idle</span></div>
                   <ul class="cs-node-log"></ul>
                   <pre class="cs-node-terminal" data-source="geth-F · ship-F">$ geth-F     | clique PoA · validator key loaded
 $ ship-F     | orchestrator up · L2-A link nominal</pre>
@@ -822,10 +864,10 @@ $ stone-β       | prover idle · 0 jobs queued</pre>
                 <div class="cs-status-text">Click ▶ Play to begin the eight-phase walkthrough.</div>
               </div>
               <div class="cs-controls">
-                <button class="cs-btn cs-prev">◀</button>
-                <button class="cs-btn primary cs-play">▶ Play</button>
-                <button class="cs-btn cs-next">▶</button>
-                <button class="cs-btn cs-reset">⏮</button>
+                <button class="cs-btn cs-prev"  title="Previous step (← arrow key)">←</button>
+                <button class="cs-btn primary cs-play" title="Play / Pause (Space)">▶ Play</button>
+                <button class="cs-btn cs-next"  title="Next step (→ arrow key)">→</button>
+                <button class="cs-btn cs-reset" title="Reset to start">⏮</button>
                 <div class="cs-progress"><div class="cs-progress-fill"></div></div>
                 <div class="cs-progress-text">— / —</div>
               </div>
@@ -862,6 +904,23 @@ $ stone-β       | prover idle · 0 jobs queued</pre>
         this.btnPrev .addEventListener('click', () => this._step(-1));
         this.btnNext .addEventListener('click', () => this._step(+1));
         this.btnReset.addEventListener('click', () => this.reset());
+
+        // Keyboard shortcuts — fire when the cursor is over the simulation
+        // area so the rest of the page (scrolling, etc.) keeps its bindings.
+        root.tabIndex = 0;
+        const keyHandler = (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.key === 'ArrowRight') { this._step(+1); e.preventDefault(); }
+            else if (e.key === 'ArrowLeft')  { this._step(-1); e.preventDefault(); }
+            else if (e.key === ' ' || e.key === 'Spacebar') { this._togglePlay(); e.preventDefault(); }
+        };
+        root.addEventListener('keydown', keyHandler);
+        root.addEventListener('mouseenter', () => {
+            window.addEventListener('keydown', keyHandler);
+        });
+        root.addEventListener('mouseleave', () => {
+            window.removeEventListener('keydown', keyHandler);
+        });
 
         // ── Zoom & pan ────────────────────────────────────────
         this.zoom = 1;
