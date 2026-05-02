@@ -480,9 +480,14 @@ section.container .subtitle {
   align-self: start;
   position: sticky;
   top: 16px;
-  max-height: calc(100vh - 32px);
+  height: 460px;             /* matches .arch-stage-wrap min-height for parity */
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
 }
+.arch-panel::-webkit-scrollbar { width: 8px; }
+.arch-panel::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+.arch-panel::-webkit-scrollbar-track { background: transparent; }
 .arch-panel-empty h4 { margin: 0 0 8px; color: var(--text); font-size: 14px; }
 .arch-panel-empty p  { color: var(--text-muted); font-size: 13px; margin: 0; line-height: 1.5; }
 
