@@ -169,84 +169,16 @@
   </div>
 
   <p class="asymmetry-line"><strong>Public</strong> = what was promised and whether it was kept. <strong>Private</strong> = how it was kept.</p>
-</section>
 
-<!-- ════════════════════════════════════════════════════════════
-     SECTION 2.5 — SPECIFICATIONS (threat model, interfaces, pseudocode)
-     ════════════════════════════════════════════════════════════ -->
-<section class="container" id="specifications">
-  <h2>Specifications</h2>
-  <p class="subtitle">The contract between layers, written down before any code. Full detail in <a href="https://github.com/henriquejdribeiro/naval-convoy-protection/tree/main/docs/specs" target="_blank" rel="noopener"><code>docs/specs/</code></a>; the cards below are the public-facing summary.</p>
-
-  <div class="card-grid">
-
-    <!-- Threat model -->
-    <div class="card spec-card">
-      <div class="card-tag">THREAT MODEL</div>
-      <h3>What we're claiming</h3>
-      <p>The convoy advances <strong>iff</strong> L1 has recorded SAFE for both <code>EX-010</code> and <code>EX-011</code>, where each verdict is the result of a STARK proof passing on-chain FRI verification against the published mission spec.</p>
-      <p>An attacker who wants to advance the convoy into unswept water must either <em>forge a STARK</em>, <em>compromise ≥ 3 of 6 ships</em>, or <em>break the cryptographic primitives</em>. Up to 2 byzantine ships → safe failure (chain halts, convoy holds). secp256k1 ECDSA is acknowledged as <em>not</em> post-quantum; STARK / Poseidon layer is.</p>
-      <p class="spec-link"><a href="https://github.com/henriquejdribeiro/naval-convoy-protection/blob/main/docs/specs/threat-model.md" target="_blank" rel="noopener">Full threat model →</a></p>
-    </div>
-
-    <!-- Public interfaces -->
-    <div class="card spec-card">
-      <div class="card-tag">PUBLIC INTERFACES</div>
-      <h3>Solidity contracts (L1)</h3>
-      <pre class="spec-code"><code>// ConvoyMissionRegistry.sol  (onlyCommander)
-function deploy(uint256 missionId, MissionSpec spec) external;
-event   MissionDeployed(uint256 indexed missionId, MissionSpec spec, uint256 block);
-
-// ConvoyProofVerifier.sol  (FactRegistry + Ownable)
-function registerSafeProof(bytes32 programHash, bytes32 outputHash,
-                            ConvoySafeProof meta) external;
-event   MissionVerified(uint256 indexed proofId, uint256 indexed missionId,
-                         bytes32 indexed factHash, address relay,
-                         uint256 coveragePermille, uint256 maxContact,
-                         uint256 elapsedSeconds);
-
-// ConvoyCommandLog.sol  (verifier OR commander)
-function advance() external;
-event   ConvoyAdvance(uint256 timestamp, uint256 indexed blockNumber,
-                       address indexed firedBy);
-</code></pre>
-      <h3 style="margin-top:14px">Cairo programs (L2)</h3>
-      <pre class="spec-code"><code>// convoy_protocol.cairo (Cairo 1, on Madara)
-fn submit_telemetry(drone_id, cell_id, x, y, t, p_contact,
-                    bearing, signal, resweep);
-fn submit_sweep_commitment(mission_id, commitment, n_cells);
-
-// safe_area_verify.cairo (Cairo 0, prover input)
-PUBLIC : mission_id, area_polygon_hash, coverage_threshold,
-         contact_threshold, time_window, telemetry_commitment,
-         n_cells &rarr; coverage, max_contact, elapsed, safe
-PRIVATE: cells[], total_cells_in_area, area_polygon[]
-</code></pre>
-      <p class="spec-link"><a href="https://github.com/henriquejdribeiro/naval-convoy-protection/blob/main/docs/specs/interfaces.md" target="_blank" rel="noopener">Full interface spec →</a></p>
-    </div>
-
-    <!-- SAFE_AREA in Cairo -->
-    <div class="card spec-card">
-      <div class="card-tag">SAFE_AREA</div>
-      <h3>The five assertions</h3>
-      <p>Cairo 0 program proven by Stone, verified on L1 via the StarkWare <a href="https://github.com/starkware-libs/starkex-contracts" target="_blank" rel="noopener"><code>FactRegistry</code></a> pattern. Each step is a separate function in the standard recursive-with-<code>range_check</code> Cairo 0 idiom.</p>
-      <pre class="spec-code"><code>1. bind_witness(cells, n, telemetry_commitment)
-   ─ Poseidon-chain over cells must equal the commitment
-2. bind_polygon(corners, area_polygon_hash)
-   ─ Poseidon-chain over corners must equal the hash
-3. check_coverage(cells, polygon, total_in_area)
-   ─ ray-cast each cell; covered/total ≥ threshold (permille)
-4. check_time(cells, window)
-   ─ max(t) − min(t) ≤ window  (assert_le aborts on violation)
-5. check_contacts(cells, threshold)
-   ─ max(p_contact) &lt; threshold (assert_lt aborts on violation)
-
-safe = coverage_ok ∧ time_ok ∧ contact_ok    // emitted to output
-</code></pre>
-      <p class="spec-link"><a href="https://github.com/henriquejdribeiro/naval-convoy-protection/blob/main/docs/specs/cairo-safe-area.md" target="_blank" rel="noopener">Full pseudocode + edge cases →</a></p>
-    </div>
-
-  </div>
+  <p class="specs-banner">
+    <strong>Detailed specifications &mdash;</strong>
+    <a href="https://github.com/henriquejdribeiro/naval-convoy-protection/blob/main/docs/specs/threat-model.md"   target="_blank" rel="noopener">threat model</a> ·
+    <a href="https://github.com/henriquejdribeiro/naval-convoy-protection/blob/main/docs/specs/interfaces.md"     target="_blank" rel="noopener">interfaces</a> ·
+    <a href="https://github.com/henriquejdribeiro/naval-convoy-protection/blob/main/docs/specs/cairo-safe-area.md" target="_blank" rel="noopener">Cairo&nbsp;SAFE_AREA</a> ·
+    <a href="https://github.com/henriquejdribeiro/naval-convoy-protection/blob/main/docs/specs/acceptance.md"     target="_blank" rel="noopener">acceptance</a> ·
+    <a href="https://github.com/henriquejdribeiro/naval-convoy-protection/blob/main/versions.md"                  target="_blank" rel="noopener">pinned versions</a>
+    &mdash; live in <code>docs/specs/</code> on GitHub.
+  </p>
 </section>
 
 <!-- ════════════════════════════════════════════════════════════
