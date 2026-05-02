@@ -1,10 +1,10 @@
 # Interface contracts (data model)
 
-> All interface choices below adapt the **proven patterns from
-> `verifiable_grid`** — same FactRegistry pattern, same Cairo 0 prover
-> structure, same Starknet protocol v0.14.1 — to the naval convoy mission.
-> Where this doc says "see verifiable_grid/X", that file is the working
-> reference, not a guess.
+> The contract between layers. Solidity follows the StarkWare
+> **FactRegistry** pattern — the same base used by the production
+> GPS Statement Verifier on Ethereum mainnet. Cairo 1 lives on the L2
+> as a Madara contract; Cairo 0 runs once per mission inside the Stone
+> prover. Starknet protocol target throughout: **v0.14.1**.
 
 ## Layer split
 
@@ -41,10 +41,10 @@
 ```
 
 The two Cairo dialects are not interchangeable:
-- **Cairo 1** (Sierra → CASM) — runs on the Madara L2 as a smart contract, holds state, charges fees. Equivalent to `verifiable_grid/contracts/cairo/src/lib.cairo`.
-- **Cairo 0** (legacy, hint-based) — runs once per mission inside the **prover** to produce the STARK. Equivalent to `verifiable_grid/infrastructure/prover-api/drone_verify.cairo`. The output of this program becomes the `outputHash` half of the L1 fact.
+- **Cairo 1** (Sierra → CASM) — runs on the Madara L2 as a smart contract; holds state, charges fees, has the `#[starknet::interface]` ABI machinery.
+- **Cairo 0** (legacy, hint-based) — runs once per mission inside the **prover** to produce the STARK. Its output becomes the `outputHash` half of the L1 fact.
 
-This dual-Cairo layout is forced by the StarkWare prover stack — Stone consumes Cairo-0 PIE traces, while Madara executes Cairo-1 contracts. Don't try to merge them.
+This dual-Cairo layout is forced by the StarkWare prover stack — Stone consumes Cairo 0 PIE traces, while Madara executes Cairo 1 contracts. Don't try to merge them.
 
 ---
 
@@ -52,7 +52,7 @@ This dual-Cairo layout is forced by the StarkWare prover stack — Stone consume
 
 ### `ConvoyProofVerifier.sol`
 
-Adapted from `verifiable_grid/contracts/solidity/madara-l1/src/DroneProofVerifier.sol`. Same FactRegistry inheritance, same Ownable access control, different output schema.
+Inherits StarkWare's `FactRegistry` (the production base for the GPS Statement Verifier on mainnet) and OpenZeppelin's `Ownable` for access control.
 
 ```solidity
 // SPDX-License-Identifier: Apache-2.0
@@ -101,7 +101,8 @@ contract ConvoyProofVerifier is FactRegistry, Ownable {
     }
 
     /// Called by the relay ship after off-chain proof verification + adaptation.
-    /// Mirrors DroneProofVerifier.registerDroneProof() in verifiable_grid.
+    /// Pattern mirrors StarkWare's GPS verifier flow: proof checked off-chain,
+    /// fact registered on-chain.
     function registerSafeProof(
         bytes32 programHash,
         bytes32 outputHash,
@@ -185,7 +186,10 @@ contract ConvoyCommandLog {
 
 ## 2. Cairo 1 contract on L2 — `convoy_protocol.cairo`
 
-Adapted from `verifiable_grid/contracts/cairo/src/lib.cairo`. Same module structure, same `felt252` IDs, but the entry points reflect a **sweep-and-commit** mission, not a path-following one.
+A standard `#[starknet::interface]` trait. `felt252` IDs (cheapest type
+on Starknet, no range check needed). Entry points are shaped around the
+**sweep-and-commit** flow — drones submit per-cell telemetry, the swarm's
+lead drone publishes the Poseidon commitment over all of it.
 
 ```cairo
 #[starknet::interface]
@@ -219,7 +223,7 @@ trait IConvoyProtocol<TContractState> {
 }
 ```
 
-Storage layout (mirror of `verifiable_grid/contracts/cairo/src/lib.cairo` storage section):
+Storage layout:
 
 ```cairo
 #[storage]

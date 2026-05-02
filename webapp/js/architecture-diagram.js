@@ -55,8 +55,8 @@ const HVUS = [
   { id: 'HVU-3', x: 1200, y: 440 }    // same row as E & C, dead-centre between
 ];
 
-// Proof-generation flow inside an L2 swarm — mirrors steps 9–18 of the
-// sequence diagram in verifiable_grid/architecture/layers.html.
+// Proof-generation flow inside an L2 swarm — the Madara → Pathfinder →
+// Orchestrator → SNOS → Stone pipeline, expressed as a sequence diagram.
 // `from` and `to` are indices into the L2 service array:
 //   0 = Madara, 1 = Pathfinder, 2 = Orchestrator, 3 = SNOS, 4 = Stone Prover
 // `kind: 'self'` draws a small loop on the actor's own lifeline.
@@ -161,8 +161,8 @@ const HEADER_H   = 30;
 const CARD_PAD   = 8;
 // Vertical (ship) layout
 const V_CARD_H   = 38, V_CARD_GAP = 4, V_ICON = 20;
-// Horizontal (L2) layout — sequence-diagram-style column headers,
-// matching the actor row from the verifiable_grid layers.html.
+// Horizontal (L2) layout — sequence-diagram-style column headers
+// (one card per actor in the proof-generation pipeline).
 const H_CARD_W   = 110, H_CARD_H = 100, H_CARD_GAP = 14;
 const H_ICON     = 26;
 const STEP_R     = 8;
@@ -213,8 +213,7 @@ function buildContainer(c) {
 }
 
 // Horizontal pipeline: 5 column-header cards in a row, then a mini
-// sequence diagram (lifelines + step-arrows) below — mirrors layers.html
-// in the verifiable_grid project.
+// sequence diagram (lifelines + step-arrows) below.
 function renderHorizontalServices(g, c, services) {
   const innerY = HEADER_H + 8;
   const totalW = services.length * H_CARD_W + (services.length - 1) * H_CARD_GAP;

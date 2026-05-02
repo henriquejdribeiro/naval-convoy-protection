@@ -1,9 +1,9 @@
 # Cairo 0 program — `safe_area_verify.cairo` (pseudocode)
 
-> Same Cairo 0 / proof-mode dialect as `verifiable_grid/infrastructure/prover-api/drone_verify.cairo`.
-> Compiles with `cairo-lang==0.14.0.1`, executes with `cairo_run --proof_mode`,
-> proven by `cpu_air_prover` (Stone). Produces the PIE that SNOS replays
-> and the STARK that lands on L1.
+> Cairo 0 / proof-mode dialect. Compiles with `cairo-lang==0.14.0.1`,
+> executes with `cairo_run --proof_mode`, proven by `cpu_air_prover`
+> (Stone). Produces the PIE that SNOS replays and the STARK that lands
+> on L1 via the StarkWare `FactRegistry` pattern.
 
 This is **pseudocode**, not a final implementation. The point is to
 confront the edge cases of the SAFE_AREA criterion *before* committing
@@ -18,8 +18,8 @@ to a constraint shape. When this is finalised, it goes in
 %builtins output poseidon range_check
 
 # Public inputs come from the `output` segment — they're emitted as
-# program output and end up on-chain as outputHash. Same convention as
-# verifiable_grid/drone_verify.cairo.
+# program output and end up on-chain as outputHash. Standard StarkWare
+# proof-mode convention.
 
 # Private inputs are read via cairo_run hints:
 #   %{ memory[ids.dst + ids.idx] = program_input['cells'][ids.idx]['x'] %}
@@ -57,10 +57,9 @@ TelemetryCell layout (one per swept cell):
 
 ## 2. The five assertions
 
-Each assertion is a separate Cairo function. The pattern of stacked
-`range_check` assertions and recursive iteration mirrors
-`verifiable_grid/.../drone_verify.cairo` (functions `assert_in_grid`,
-`assert_valid_move`, `verify_path`).
+Each assertion is a separate Cairo function. The idiom is the standard
+Cairo 0 pattern of stacked `range_check` assertions and recursive
+iteration over input arrays — small, auditable, friendly to the prover.
 
 ### A. Witness binding
 
@@ -209,6 +208,6 @@ These are intentional limits — written down so they don't get assumed away.
 
 ## 5. Why Cairo 0 and not Cairo 1 for this program
 
-This question came up in `verifiable_grid` development too. Short answer: **the Stone prover only consumes Cairo 0 PIE traces.** Stwo and the newer Cairo 1 toolchain are still maturing — for a thesis where the verification path needs to be reproducible end-to-end *today*, Cairo 0 + Stone is the only path that lands on L1 via `stark_evm_adapter`.
+Short answer: **the Stone prover only consumes Cairo 0 PIE traces.** Stwo and the newer Cairo 1 toolchain are still maturing — for a thesis where the verification path needs to be reproducible end-to-end *today*, Cairo 0 + Stone is the only path that lands on L1 via `stark_evm_adapter`.
 
-The Cairo 1 contract (`convoy_protocol.cairo`) handles state and storage on L2; the Cairo 0 program (`safe_area_verify.cairo`) handles the proof. Two languages, two roles, two compilers — same pattern as the parent project.
+The Cairo 1 contract (`convoy_protocol.cairo`) handles state and storage on L2; the Cairo 0 program (`safe_area_verify.cairo`) handles the proof. Two languages, two roles, two compilers.

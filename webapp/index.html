@@ -229,7 +229,7 @@ PRIVATE: cells[], total_cells_in_area, area_polygon[]
     <div class="card spec-card">
       <div class="card-tag">SAFE_AREA</div>
       <h3>The five assertions</h3>
-      <p>Cairo 0 program proven by Stone, verified on L1 via <code>FactRegistry</code>. Each step is a separate function, in the same recursive-with-<code>range_check</code> style as <code>verifiable_grid/drone_verify.cairo</code>.</p>
+      <p>Cairo 0 program proven by Stone, verified on L1 via the StarkWare <code>FactRegistry</code> pattern. Each step is a separate function in the standard recursive-with-<code>range_check</code> Cairo 0 idiom.</p>
       <pre class="spec-code"><code>1. bind_witness(cells, n, telemetry_commitment)
    ─ Poseidon-chain over cells must equal the commitment
 2. bind_polygon(corners, area_polygon_hash)

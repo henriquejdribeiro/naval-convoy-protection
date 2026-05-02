@@ -1,9 +1,7 @@
 # Acceptance criteria — per phase
 
 > Each phase has **one concrete scenario** with a measurable pass/fail.
-> If the scenario passes end-to-end, the phase is done. The bar mirrors
-> what `verifiable_grid` already proves out (mission registration → STARK
-> proof → on-chain fact → event-driven UI), adapted to the convoy mission.
+> If the scenario passes end-to-end, the phase is done.
 
 ## Phase 1 — Visualisation-first ✅
 
@@ -65,8 +63,8 @@
 ```
 
 **Pass criteria:**
-- [ ] STARK proof size ≤ 1 MB (the verifiable_grid baseline is ~677 KB; we expect a similar order).
-- [ ] Total time from "telemetry submitted" to "MissionVerified on L1" ≤ 4 minutes per mission. (Stone proving on a 16 GB host is the bottleneck — see `verifiable_grid` benchmarks.)
+- [ ] STARK proof size on the order of 1 MB (Stone proofs for similar-shape Cairo 0 programs are typically ~500 KB – 1 MB).
+- [ ] Total time from "telemetry submitted" to "MissionVerified on L1" ≤ 4 minutes per mission. Stone proving on a 16 GB host is the bottleneck; budget accordingly.
 - [ ] When run with **deliberately bad telemetry** (coverage = 80 %, below 95 % threshold), the Cairo 0 program aborts inside `check_coverage` and the orchestrator never produces a fact. Nothing lands on L1. Verified by `eth_getLogs` showing no `MissionVerified`.
 - [ ] When run with **good telemetry**, the L1 fact's `coveragePermille ≥ 950`, `maxContact < 7000`, `elapsedSeconds ≤ 360`. Verified by reading the `proofs[]` array via `eth_call`.
 - [ ] If Ship F's RPC is unreachable, orchestrator falls over to Ship A within 30 s and the mission still completes (relay-redundancy test).
