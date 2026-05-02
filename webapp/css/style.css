@@ -209,6 +209,33 @@ section.container .subtitle {
 }
 .asymmetry-line strong { color: var(--text); }
 
+/* ── Mission brief — compact overrides ─────────────────────
+   Goal: fit the whole brief on one viewport without dropping
+   any text. Only tightens spacing, padding, and font sizes
+   inside #mission-brief; other sections keep their defaults. */
+#mission-brief                       { padding: 10px 24px 14px; }
+#mission-brief h2                    { font-size: 20px; margin-bottom: 2px; }
+#mission-brief .subtitle             { font-size: 13px; margin-bottom: 8px; line-height: 1.45; }
+#mission-brief .card-grid            { gap: 10px; margin-bottom: 8px; }
+#mission-brief .card                 { padding: 10px 14px; }
+#mission-brief .mission-card         { padding: 26px 14px 10px; }
+#mission-brief .mission-card .card-tag { top: 8px; right: 10px; padding: 2px 8px; font-size: 10px; }
+#mission-brief .mission-card h3      { font-size: 13.5px; margin-bottom: 6px; }
+#mission-brief .spec                 { font-size: 12.5px; line-height: 1.35; margin-top: 4px; padding-left: 16px; }
+#mission-brief .spec li              { margin-bottom: 1px; }
+#mission-brief .success-card         { padding: 10px 14px; margin-top: 8px; }
+#mission-brief .success-card h3      { font-size: 13.5px; margin-bottom: 4px; }
+#mission-brief .success-card p       { margin: 4px 0; font-size: 12.5px; line-height: 1.4; }
+#mission-brief .success-card ol      { font-size: 12.5px; line-height: 1.35; margin: 4px 0; }
+#mission-brief .success-card ol li   { margin-bottom: 0; }
+#mission-brief .subsection-title     { margin: 12px 0 2px; font-size: 14.5px; }
+#mission-brief .tp-grid              { gap: 10px; margin-bottom: 6px; }
+#mission-brief .tp-grid .card        { padding: 26px 12px 10px; }
+#mission-brief .tp-grid .card-tag    { top: 8px; right: 10px; padding: 2px 8px; font-size: 9.5px; }
+#mission-brief .param-list           { font-size: 12px; line-height: 1.4; }
+#mission-brief .asymmetry-line       { margin: 8px 0 0 !important; font-size: 12.5px; }
+#mission-brief .specs-banner         { margin-top: 10px; padding: 7px 12px; font-size: 12px; }
+
 /* ── Architecture diagram ──────────────────────────────── */
 .arch-layout {
   display: grid;
