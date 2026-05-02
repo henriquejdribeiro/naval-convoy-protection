@@ -15,7 +15,7 @@
 | Foundry image | `ghcr.io/foundry-rs/foundry:latest` |
 | `solc` (legacy, for FactRegistry) | `0.6.12` |
 | OpenZeppelin Contracts | latest stable (via npm + foundry remappings) |
-| StarkWare verifier components | `starkware-libs/starkex-contracts` — `evm-verifier/FactRegistry`, `MemoryPageFactRegistry` |
+| StarkWare verifier components | [`starkware-libs/starkex-contracts`](https://github.com/starkware-libs/starkex-contracts) — `evm-verifier/FactRegistry`, `MemoryPageFactRegistry` |
 
 Clique PoA configuration is per **EIP-225**. Six validator addresses (the six
 ship keys) are baked into `genesis.json`.

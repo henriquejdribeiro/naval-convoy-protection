@@ -2,9 +2,12 @@
 
 > The contract between layers. Solidity follows the StarkWare
 > **FactRegistry** pattern — the same base used by the production
-> GPS Statement Verifier on Ethereum mainnet. Cairo 1 lives on the L2
-> as a Madara contract; Cairo 0 runs once per mission inside the Stone
-> prover. Starknet protocol target throughout: **v0.14.1**.
+> GPS Statement Verifier on Ethereum mainnet. Reference implementation:
+> [`starkware-libs/starkex-contracts`](https://github.com/starkware-libs/starkex-contracts)
+> (`evm-verifier/FactRegistry`, `MemoryPageFactRegistry`).
+> Cairo 1 lives on the L2 as a Madara contract; Cairo 0 runs once per
+> mission inside the Stone prover. Starknet protocol target throughout:
+> **v0.14.1**.
 
 ## Layer split
 
@@ -52,7 +55,7 @@ This dual-Cairo layout is forced by the StarkWare prover stack — Stone consume
 
 ### `ConvoyProofVerifier.sol`
 
-Inherits StarkWare's `FactRegistry` (the production base for the GPS Statement Verifier on mainnet) and OpenZeppelin's `Ownable` for access control.
+Inherits StarkWare's [`FactRegistry`](https://github.com/starkware-libs/starkex-contracts) (the production base for the GPS Statement Verifier on mainnet) and OpenZeppelin's `Ownable` for access control.
 
 ```solidity
 // SPDX-License-Identifier: Apache-2.0
