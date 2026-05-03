@@ -64,8 +64,15 @@
     </div>
   </div>
 
-  <div class="card success-card compact-criterion">
-    <p><strong class="crit-title">SAFE_AREA criterion &mdash;</strong> a mission concludes with <code>SAFE_AREA</code> if and only if <strong>(1)</strong> total coverage &ge; threshold percentage of the assigned area, <strong>(2)</strong> total execution time &le; window, AND <strong>(3)</strong> no contacts detected above the probability threshold. A Cairo verification program (one per L2) will encode these constraints; the STARK proof will attest all three conditions held without revealing the drone telemetry that produced them.</p>
+  <div class="card success-card">
+    <h3>SAFE_AREA criterion</h3>
+    <p class="crit-intro">A mission concludes with <code>SAFE_AREA</code> if and only if all three conditions hold:</p>
+    <ul class="spec crit-list">
+      <li><strong>Coverage:</strong> total coverage &ge; threshold percentage of the assigned area</li>
+      <li><strong>Time:</strong> total execution time &le; window</li>
+      <li><strong>Contacts:</strong> no contacts detected above the probability threshold</li>
+    </ul>
+    <p class="crit-foot">A Cairo verification program (one per L2) will encode these constraints; the STARK proof will attest all three conditions held without revealing the drone telemetry that produced them.</p>
   </div>
 
   <!-- ── Transparency vs privacy ─────────────────────────── -->
