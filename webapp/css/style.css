@@ -233,7 +233,8 @@ section.container .subtitle {
    any text. Tightens spacing inside #mission-brief; other
    sections keep their defaults. */
 #mission-brief                         { padding: 8px 24px 12px; }
-#mission-brief h2                      { font-size: 19px; margin-bottom: 2px; }
+/* h2 size + margin inherited from section.container h2 (22 px) for parity
+   with the Interactive simulation header */
 #mission-brief .subtitle               { font-size: 12.5px; margin-bottom: 6px; line-height: 1.4; }
 #mission-brief .card-grid              { gap: 10px; margin-bottom: 6px; }
 #mission-brief .card                   { padding: 8px 12px; }
