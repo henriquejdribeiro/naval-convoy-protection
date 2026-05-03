@@ -16,58 +16,76 @@
 
 ## Phase 2 — L1 mechanics
 
-**Goal:** prove the L1 settlement layer works end-to-end with the new contracts.
+**Goal:** prove the L1 settlement layer works end-to-end with the four contracts (`Registry`, `Verifier`, `CommandLog`, `StarknetCoreStub`). Pattern B — **D explicitly triggers the advance**, the Verifier does NOT auto-fire.
 
 **Pass scenario:**
 
 ```
-1. docker compose up geth-clique             # 6-validator Clique chain comes up
-2. forge script DeployL1.s.sol               # deploys Verifier + Registry + CommandLog
-3. cast send Registry "deploy(uint256,...)"  # from D's commander key
-   → MissionDeployed(EX-010) event observed in eth_getLogs
-4. cast send Registry "deploy(...)"          # from any other ship's key
-   → tx REVERTS (onlyOwner enforced)
-5. cast send Verifier "registerSafeProof(...)" with a HARDCODED valid fact for EX-010
-   → MissionVerified(EX-010, …) event observed
-6. cast send Verifier "registerSafeProof(...)" with HARDCODED valid fact for EX-011
-   → MissionVerified(EX-011, …) event observed
-   → AND in the SAME tx: ConvoyAdvance(firedBy=verifier) event observed (auto-fire)
+1. docker compose up geth-clique                         # 6-validator Clique chain comes up
+2. forge script DeployL1.s.sol                           # deploys all 4 contracts
+3. cast send Registry "deploy(MissionSpec)" from D's COMMANDER key (EX-011, drone_id=β)
+   → MissionDeployed(11, β, spec) event observed (drone_id is indexed)
+4. cast send Registry "deploy(MissionSpec)" from a non-commander ship key
+   → tx REVERTS (onlyCommander)
+5. cast send Verifier "submitProof(...)" with HARDCODED valid fact for (mid=10, drone=α)
+   → Registry.verdict[10][α] == SAFE  (read via cast call)
+   → no ConvoyAdvance event (only one verdict so far)
+6. cast send Verifier "submitProof(...)" with HARDCODED valid fact for (mid=11, drone=β)
+   → Registry.verdict[11][β] == SAFE
+   → still no ConvoyAdvance event (Verifier does NOT auto-fire — Pattern B)
+7. cast send CommandLog "advance(MAX_SPEED)" from D's COMMANDER key
+   → ConvoyAdvance(block_number, MAX_SPEED, commander) event emitted
+8. cast send CommandLog "advance(MAX_SPEED)" from a non-commander key
+   → tx REVERTS (onlyCommander)
+9. (Negative test)  Reset chain.  Run steps 1–4 only, then attempt step 7
+   → tx REVERTS (CommandLog re-checks Registry.verdict[α] && verdict[β]; missing → revert)
 ```
 
 **Pass criteria** (every line measurable, all must hold):
 - [ ] All 6 ship containers come up with `peerCount == 5` (Clique mesh formed).
 - [ ] First Clique block is sealed within 10 s of chain start.
-- [ ] Step 3 succeeds; step 4 reverts with `Ownable: caller is not the owner`.
-- [ ] Steps 5 + 6 produce exactly **3 events on L1** (2 × `MissionVerified`, 1 × `ConvoyAdvance`).
-- [ ] `ConvoyAdvance.firedBy == address(Verifier)` (the auto-fire path, not D).
-- [ ] Total time from step 5 → step 6's atomic advance event ≤ 5 s (one block).
-- [ ] If only **one** mission has registered, no `ConvoyAdvance` fires (the dual-SAFE check holds).
+- [ ] Step 3 succeeds; step 4 reverts with `onlyCommander`.
+- [ ] Step 5 leaves `Registry.verdict[10][α] == SAFE` and emits NO `ConvoyAdvance`.
+- [ ] Step 6 leaves `Registry.verdict[11][β] == SAFE` and emits NO `ConvoyAdvance` (proves no auto-fire).
+- [ ] Step 7 emits `ConvoyAdvance(block, MAX_SPEED, D)` where `commander == D's address`.
+- [ ] Step 8 reverts with `onlyCommander`.
+- [ ] Step 9 reverts with `dualSafeRequired` (or equivalent — the dual-SAFE precondition holds).
+- [ ] Total time from step 5 to step 7's `ConvoyAdvance` event ≤ 15 s (three blocks at 5 s slot time).
 
-**Out of scope for Phase 2:** no real STARK proof — the fact in steps 5–6 is hand-crafted (programHash + outputHash hard-coded). Real proofs come in Phase 3.
+**Out of scope for Phase 2:** no real STARK proof — the fact in steps 5–6 is hand-crafted (`programHash` + `outputHash` hard-coded). Real proofs come in Phase 3.
 
-## Phase 3 — L2 + drones + real proofs
+## Phase 3 — L2 + drone + real proofs
 
-**Goal:** the L1 fact submitted in Phase 2 step 5 is now produced by an actual end-to-end run of the prover stack against simulated drone telemetry.
+**Goal:** the hand-crafted fact submitted in Phase 2 step 5/6 is now produced by an actual end-to-end run of the prover stack against simulated drone telemetry. **One drone per L2** (drone β on L2-B, drone α on L2-A).
 
 **Pass scenario:**
 
 ```
 1. docker compose --profile proving up
-2. POST telemetry to L2-Alpha for 5 simulated drones; they sweep a 20×20 cell area
-3. Wait until convoy_protocol.cairo on L2-A emits SweepCommitment(EX-010, …)
-4. Orchestrator polls Pathfinder, picks up the L2 block
-5. Orchestrator runs SNOS → Stone → stark_evm_adapter
-6. Orchestrator submits registerSafeProof to L1 via Ship F's RPC endpoint
-7. Repeat steps 2–6 for L2-Bravo and EX-011 via Ship B's endpoint
-8. Both MissionVerified events land; ConvoyAdvance fires atomically with the second
+2. POST telemetry to L2-Bravo for drone β (24×24-cell area, ~50 cells swept)
+   → drone β signs each submit_telemetry tx with its Stark-curve key
+3. drone β calls submit_sweep_commitment(EX-011, H_β = Poseidon(cells))
+4. Madara β seals block N including all telemetry + commitment txs
+5. Pathfinder β indexes block N
+6. Orchestrator-β polls Pathfinder, picks up block N, runs SNOS → Stone
+   → SNOS asserts SAFE_AREA inside Cairo VM; Stone produces π_β
+7. Orchestrator-β hands π_β to ship B over radio (RPC)
+8. Ship B writes Verifier.submitProof(π_β, public_inputs, EX-011, β) to L1
+9. PoA fan-out propagates the tx; every Geth re-runs FRI; Registry.verdict[11][β] = SAFE
+10. Repeat steps 2–9 for L2-Alpha (drone α, EX-010, ship F as relay)
+11. D's orchestrator polls Registry, sees both verdicts SAFE
+12. D writes CommandLog.advance(MAX_SPEED) from the commander key
+    → ConvoyAdvance event emitted (Pattern B — D triggers, not auto-fire)
+13. Both relays bridge the advance event over radio to their L2 drones
 ```
 
 **Pass criteria:**
-- [ ] STARK proof size on the order of 1 MB (Stone proofs for similar-shape Cairo 0 programs are typically ~500 KB – 1 MB).
-- [ ] Total time from "telemetry submitted" to "MissionVerified on L1" ≤ 4 minutes per mission. Stone proving on a 16 GB host is the bottleneck; budget accordingly.
-- [ ] When run with **deliberately bad telemetry** (coverage = 80 %, below 95 % threshold), the Cairo 0 program aborts inside `check_coverage` and the orchestrator never produces a fact. Nothing lands on L1. Verified by `eth_getLogs` showing no `MissionVerified`.
-- [ ] When run with **good telemetry**, the L1 fact's `coveragePermille ≥ 950`, `maxContact < 7000`, `elapsedSeconds ≤ 360`. Verified by reading the `proofs[]` array via `eth_call`.
-- [ ] If Ship F's RPC is unreachable, orchestrator falls over to Ship A within 30 s and the mission still completes (relay-redundancy test).
+- [ ] STARK proof size on the order of 1 MB (Stone proofs for similar-shape Cairo 0 programs are typically 500 KB – 1 MB).
+- [ ] Total time from "drone β starts sweep" to "Registry.verdict[11][β] == SAFE on L1" ≤ 4 minutes per lane. Stone proving on a 16 GB host is the bottleneck; budget accordingly.
+- [ ] When run with **deliberately bad telemetry** (coverage = 80 %, below 95 % threshold), SNOS replay aborts inside `safe_area_verify.cairo` and Stone never produces a proof. Nothing lands on L1. Verified by `eth_getLogs` showing no `setVerdict` write for that mission.
+- [ ] When run with **good telemetry**, the L1 verdict carries `coveragePermille ≥ 950`, `maxContactBp < 7000`, `elapsedSeconds ≤ 360`. Verified by reading Registry storage via `eth_call`.
+- [ ] If ship B's relay endpoint is unreachable, Orchestrator-β falls over to ship C (next-best signal for the bravo lane per `orchestrator.toml`) within 30 s and the mission still completes (relay-redundancy test).
+- [ ] D's `advance(MAX_SPEED)` tx fires only once both verdicts are SAFE; if D fires it earlier, the tx reverts (`CommandLog` dual-SAFE precondition).
 
 ### Phase 3 deliverable: `mission-replay.json` — the recorded full-pipeline capture
 
@@ -79,26 +97,35 @@ The capstone artefact for Phase 3 (and the file the webapp's simulation will eve
 1.  build:start, build:end                            (per service: geth, madara-α, madara-β, pathfinder-α, pathfinder-β, snos-α, snos-β, stone-α, stone-β, orchestrator-α, orchestrator-β)
 2.  container:up                                      (per service)
 3.  geth:genesis-loaded, geth:first-block-sealed
-4.  registry:deploy(EX-010)  — tx_hash, block, gas
-5.  registry:deploy(EX-011)  — tx_hash, block, gas
-6.  L2-α:telemetry-tx(cell_id, drone_id)              (one entry per cell, ×N cells)
-7.  L2-β:telemetry-tx(...)                             (same)
-8.  L2-α:sweep-commitment(EX-010, commitment, n_cells)
-9.  L2-β:sweep-commitment(EX-011, ...)
-10. pathfinder-α:block-synced(block_number)
-11. orch-α:picked-up-block(block_number)
-12. snos-α:pie-generated(elapsed_ms, pie_size_bytes)
-13. stone-α:proof-generated(elapsed_ms, proof_size_bytes, n_steps)
-14. orch-α:adapter-ran(elapsed_ms)
-15. L1:registerSafeProof(EX-010, relay=F, tx_hash, gas, block)
-16. L1:MissionVerified(EX-010, …)                     event log
-17. (steps 10–16 repeat for L2-β and EX-011)
-18. L1:MissionVerified(EX-011, …)                     event log — SAME TX as ConvoyAdvance
-19. L1:ConvoyAdvance(firedBy=verifier)                event log
-20. radio:F→L2-α(advance)                             timestamp only
-21. radio:B→L2-β(advance)                             timestamp only
-22. radio:D→HVU-{1,2,3}(advance)                      timestamp only
-23. mission:complete                                  end-of-run marker
+4.  registry:deploy(EX-010, drone_id=α)               — tx_hash, block, gas
+5.  registry:MissionDeployed(EX-010, α)               event log (indexed)
+6.  registry:deploy(EX-011, drone_id=β)               — tx_hash, block, gas
+7.  registry:MissionDeployed(EX-011, β)               event log
+8.  relay-F:radio-dispatch(EX-010, L2-A)              event filter fired on F's orchestrator
+9.  relay-B:radio-dispatch(EX-011, L2-B)
+10. L2-α:submit_telemetry-tx(cell_id, drone_id=α)     (one entry per cell, ×N cells)
+11. L2-β:submit_telemetry-tx(cell_id, drone_id=β)     (same shape, ×N)
+12. L2-α:submit_sweep_commitment(EX-010, H_α, n_cells)
+13. L2-β:submit_sweep_commitment(EX-011, H_β, n_cells)
+14. madara-α:block-sealed(block_number)               sealed Starknet block N
+15. madara-β:block-sealed(block_number)
+16. pathfinder-α:block-indexed(block_number)
+17. pathfinder-β:block-indexed(block_number)
+18. orch-α:picked-up-block(block_number)
+19. snos-α:pie-generated(elapsed_ms, pie_size_bytes)  — replay asserted SAFE_AREA
+20. stone-α:proof-generated(elapsed_ms, proof_size_bytes, n_steps)  → π_α
+21. orch-α:adapter-ran(elapsed_ms)                    stark-evm-adapter
+22. orch-α:relay-handoff(ship=F, π_α)                 radio RPC
+23. ship-F:submitProof-tx(EX-010, α, tx_hash, block)  L1 tx written
+24. L1:setVerdict(EX-010, α, SAFE)                    side-effect of submitProof execution
+25. (steps 18–24 repeat for L2-β / orch-β / ship-B / EX-011)
+26. L1:setVerdict(EX-011, β, SAFE)
+27. D:dual-safe-detected(t_ms_after_second_setVerdict) D's orchestrator polls Registry
+28. D:advance-tx(MAX_SPEED, tx_hash, block)           D writes CommandLog.advance
+29. L1:ConvoyAdvance(block, MAX_SPEED, commander=D)   event log (Pattern B — D triggers)
+30. relay-B:radio-advance(L2-B)                       advance command bridged to drone β
+31. relay-F:radio-advance(L2-A)                       advance command bridged to drone α
+32. mission:complete                                  end-of-run marker
 ```
 
 **Pass criteria for the deliverable:**
@@ -136,7 +163,8 @@ This is the artefact that **proves the architecture works end-to-end**. Until th
 ## Cross-phase: thesis defence readiness
 
 **Pass criteria (orthogonal to Phase 2/3/4):**
-- [ ] All five spec docs in `docs/specs/` are filled in: `threat-model.md`, `interfaces.md`, `cairo-safe-area.md`, `acceptance.md` (this file), and `versions.md` (root).
+- [ ] All six spec docs in `docs/specs/` are filled in and consistent with each other: `protocol.md` (the canonical 24-message spec), `threat-model.md`, `interfaces.md`, `cairo-safe-area.md`, `acceptance.md` (this file), and `versions.md` (root).
+- [ ] **`protocol.md` and `acceptance.md` agree** — every contract endpoint, event name, payload field, and trust-boundary classification matches between the two. If they ever drift, `protocol.md` wins.
 - [ ] Every Phase 2/3 contract / program exists in source AND has at least one passing unit test (Foundry for Solidity, `cairo_run` for Cairo).
 - [ ] The site at `localhost:8081` correctly summarises the threat model, public function signatures, and per-phase acceptance.
 - [ ] The end-to-end smoke run in Phase 3 produces logs / artifacts that can be replayed in the simulation as a real-data demo for the defence panel.

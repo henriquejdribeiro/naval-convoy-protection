@@ -211,7 +211,48 @@
 </section>
 
 <!-- ════════════════════════════════════════════════════════════
-     SECTION 4 — CODE COMPONENTS
+     SECTION 4 — TRANSACTION FLOW DIAGRAM (the data movement)
+     ════════════════════════════════════════════════════════════ -->
+<section class="container container-wide" id="transaction-flow">
+  <h2>Transaction flow diagram</h2>
+  <p class="subtitle">If <em>Architecture at a glance</em> shows what's running, this diagram shows <em>how the data moves</em> &mdash; the same 8-phase cycle as the simulation, told at the protocol level. Each step names the contract endpoint, payload, key signature or hash, and trust boundary. Showing the <strong>L2-Bravo lane</strong> (ship B as primary relay); L2-Alpha mirrors with ship F. Use &#x25B6; / &#x25B6;&#x25B6; to step through; click side panel updates per step.</p>
+
+  <div class="tflow-layout">
+
+    <!-- LEFT: animated overlay on architecture layout -->
+    <div class="tflow-stage-wrap">
+      <div class="tflow-stage" id="tflow-stage"></div>
+      <div class="tflow-controls">
+        <button class="tflow-btn" data-act="zoom-in"  title="Zoom in">+</button>
+        <button class="tflow-btn" data-act="zoom-out" title="Zoom out">&minus;</button>
+        <button class="tflow-btn" data-act="reset"    title="Fit to view">&#x2302;</button>
+      </div>
+      <div class="tflow-legend">
+        <span><i class="dot dot-active"></i> active</span>
+        <span><i class="dot dot-cross"></i> trust crossing</span>
+      </div>
+      <div class="tflow-playbar">
+        <button class="tflow-playbtn" data-act="reset-step" title="Reset to step 0">&#x23EE;</button>
+        <button class="tflow-playbtn" data-act="prev"        title="Previous step (←)">&#x2190;</button>
+        <button class="tflow-playbtn primary" data-act="play" title="Play / Pause (Space)">&#x25B6;</button>
+        <button class="tflow-playbtn" data-act="next"        title="Next step (→)">&#x2192;</button>
+        <span class="tflow-step-counter">Step <span id="tflow-cur">0</span> / <span id="tflow-total">24</span></span>
+      </div>
+    </div>
+
+    <!-- RIGHT: per-step detail panel -->
+    <aside class="tflow-panel" id="tflow-panel">
+      <div class="tflow-panel-empty">
+        <h4>Step detail</h4>
+        <p>Click <strong>&#x25B6; Play</strong> to walk through one full mission cycle, or use <strong>&#x25B6;&#x25B6; Next</strong> / <strong>&#x25C0; Prev</strong> to step manually. Each step shows the contract endpoint, payload schema, authentication, and trust-boundary detail of one call between containers.</p>
+      </div>
+    </aside>
+
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════
+     SECTION 5 — CODE COMPONENTS
      ════════════════════════════════════════════════════════════ -->
 <section class="container container-wide" id="files">
   <h2>Code components</h2>
@@ -365,5 +406,6 @@
 
 <script type="module" src="js/convoy-sim.js"></script>
 <script type="module" src="js/architecture-diagram.js"></script>
+<script type="module" src="js/transaction-flow.js"></script>
 </body>
 </html>

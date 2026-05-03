@@ -20,9 +20,9 @@ const VB_H = 760;
 const SHIP_W = 200, SHIP_H = 90;
 const CMDR_W = 200, CMDR_H = 90;       // same as SHIP_H — D no longer runs a
                                         // watcher daemon, only the Geth node
-const L2_W   = 720, L2_H   = 380;   // tall — actor row at top + lifelines
-                                     // with 10 step-arrows below (steps 9-18
-                                     // of the proof generation flow)
+const L2_W   = 720, L2_H   = 175;   // header + 5 service tiles (no inner
+                                     // sequence diagram — flow detail moves
+                                     // to the Transaction flow diagram)
 
 const CONTAINERS = [
   // Top of the convoy. Layout: 100 left margin, 720 L2A, 80 corridor, 200 F,
@@ -30,11 +30,11 @@ const CONTAINERS = [
   // 100 right margin = VB_W 2580. The 80 ship-HVU gap is the visible
   // breathing room around each HVU at the rendered scale.
   { id: 'A',   kind: 'ship',      name: 'Ship A — Forward',           x: 1200, y: 40,  w: SHIP_W, h: SHIP_H },
-  // L2 banners — vertical centre aligns with F / B vertical centre
-  { id: 'L2A', kind: 'l2-alpha',  name: 'L2-Alpha — Madara α swarm',   x: 120,  y: 55,  w: L2_W,   h: L2_H   },
+  // L2 banners — vertical centre aligns with F / B vertical centre (245)
+  { id: 'L2A', kind: 'l2-alpha',  name: 'L2-Alpha — Madara α drone',   x: 120,  y: 158, w: L2_W,   h: L2_H   },
   { id: 'F',   kind: 'ship',      name: 'Ship F — Forward-left',      x: 920,  y: 200, w: SHIP_W, h: SHIP_H },
   { id: 'B',   kind: 'ship',      name: 'Ship B — Forward-right',     x: 1480, y: 200, w: SHIP_W, h: SHIP_H },
-  { id: 'L2B', kind: 'l2-bravo',  name: 'L2-Bravo — Madara β swarm',   x: 1760, y: 55,  w: L2_W,   h: L2_H   },
+  { id: 'L2B', kind: 'l2-bravo',  name: 'L2-Bravo — Madara β drone',   x: 1760, y: 158, w: L2_W,   h: L2_H   },
   // Lower row of the convoy
   { id: 'E',   kind: 'ship',      name: 'Ship E — Mid-left',          x: 920,  y: 440, w: SHIP_W, h: SHIP_H },
   { id: 'C',   kind: 'ship',      name: 'Ship C — Mid-right',         x: 1480, y: 440, w: SHIP_W, h: SHIP_H },
@@ -55,7 +55,7 @@ const HVUS = [
   { id: 'HVU-3', x: 1200, y: 440 }    // same row as E & C, dead-centre between
 ];
 
-// Proof-generation flow inside an L2 swarm — the Madara → Pathfinder →
+// Proof-generation flow inside an L2 stack — the Madara → Pathfinder →
 // Orchestrator → SNOS → Stone pipeline, expressed as a sequence diagram.
 // `from` and `to` are indices into the L2 service array:
 //   0 = Madara, 1 = Pathfinder, 2 = Orchestrator, 3 = SNOS, 4 = Stone Prover
@@ -78,24 +78,24 @@ const L2_FLOW = [
 // SNOS replays trace → Stone produces the STARK.
 const SERVICES = {
   'ship': [
-    { icon: 'images/ethereum.png', name: 'Geth (Clique PoA)', sub: 'L1 validator node' }
+    { icon: 'images/ethereum.png', name: 'Geth (Clique PoA)', sub: 'L1 validator node', version: 'v1.10.17' }
   ],
   'ship-cmdr': [
-    { icon: 'images/ethereum.png', name: 'Geth (Clique PoA)', sub: 'L1 validator node' }
+    { icon: 'images/ethereum.png', name: 'Geth (Clique PoA)', sub: 'L1 validator node', version: 'v1.10.17' }
   ],
   'l2-alpha': [
-    { icon: 'images/madara.png',       name: 'Madara α',     sub: 'Execution Layer',  stage: 'exec'  },
-    { icon: 'images/pathfinder.png',   name: 'Starknet Node', sub: 'Pathfinder',      stage: 'exec'  },
-    { icon: 'images/madara.png',       name: 'Orchestrator', sub: 'Settlement orch.', stage: 'exec'  },
-    { icon: 'images/snos.jpg',         name: 'SNOS',         sub: 'StarkNet OS',      stage: 'prove' },
-    { icon: 'images/stone-prover.svg', name: 'Stone Prover', sub: 'STARK Prover',     stage: 'prove' }
+    { icon: 'images/madara.png',       name: 'Madara α',     sub: 'Execution Layer',  version: ':nightly',         stage: 'exec'  },
+    { icon: 'images/pathfinder.png',   name: 'Starknet Node', sub: 'Pathfinder',      version: 'v0.21.3',          stage: 'exec'  },
+    { icon: 'images/madara.png',       name: 'Orchestrator', sub: 'Settlement orch.', version: 'in-house',         stage: 'exec'  },
+    { icon: 'images/snos.jpg',         name: 'SNOS',         sub: 'StarkNet OS',      version: 'v0.14.1-α',         stage: 'prove' },
+    { icon: 'images/stone-prover.svg', name: 'Stone Prover', sub: 'STARK Prover',     version: 'main',             stage: 'prove' }
   ],
   'l2-bravo': [
-    { icon: 'images/madara.png',       name: 'Madara β',     sub: 'Execution Layer',  stage: 'exec'  },
-    { icon: 'images/pathfinder.png',   name: 'Starknet Node', sub: 'Pathfinder',      stage: 'exec'  },
-    { icon: 'images/madara.png',       name: 'Orchestrator', sub: 'Settlement orch.', stage: 'exec'  },
-    { icon: 'images/snos.jpg',         name: 'SNOS',         sub: 'StarkNet OS',      stage: 'prove' },
-    { icon: 'images/stone-prover.svg', name: 'Stone Prover', sub: 'STARK Prover',     stage: 'prove' }
+    { icon: 'images/madara.png',       name: 'Madara β',     sub: 'Execution Layer',  version: ':nightly',         stage: 'exec'  },
+    { icon: 'images/pathfinder.png',   name: 'Starknet Node', sub: 'Pathfinder',      version: 'v0.21.3',          stage: 'exec'  },
+    { icon: 'images/madara.png',       name: 'Orchestrator', sub: 'Settlement orch.', version: 'in-house',         stage: 'exec'  },
+    { icon: 'images/snos.jpg',         name: 'SNOS',         sub: 'StarkNet OS',      version: 'v0.14.1-α',         stage: 'prove' },
+    { icon: 'images/stone-prover.svg', name: 'Stone Prover', sub: 'STARK Prover',     version: 'main',             stage: 'prove' }
   ]
 };
 
@@ -117,6 +117,245 @@ const DRONES = {
   'l2-bravo': { id: 'β', account: '0x__β__', key: 'keystore/bravo.json' }
 };
 
+// Per-kind specification — what the container is, which cryptographic
+// primitives it uses, and what it can / cannot do (the trust boundary).
+const WHAT_IS = {
+  'ship':      'One of six L1 validators on the Geth Clique PoA chain. Also acts as a best-signal proof relay between an L2 and L1.',
+  'ship-cmdr': 'Regular L1 validator <em>plus</em> holder of the commander key. The only ship authorised to deploy mission specs and to fire a manual advance override.',
+  'l2-alpha':  'A single drone running its own self-contained L2 stack (Madara α + Pathfinder + SNOS + Stone). The drone is the only client of this L2.',
+  'l2-bravo':  'A single drone running its own self-contained L2 stack (Madara β + Pathfinder + SNOS + Stone). The drone is the only client of this L2.'
+};
+
+const CRYPTO_IN_PLAY = {
+  'ship': [
+    { p: 'secp256k1 ECDSA',  d: 'Clique PoA block sealing + L1 transaction signing (mission deploy, proof relay)' }
+  ],
+  'ship-cmdr': [
+    { p: 'secp256k1 ECDSA',  d: 'same as a regular ship — block sealing + tx signing' },
+    { p: 'Commander key',     d: 'separate keystore entry; required by Registry.deploy() and the CommandLog manual-override path' }
+  ],
+  'l2-alpha': [
+    { p: 'Stark-curve ECDSA', d: 'drone signs every <code>submit_telemetry</code> tx; verified by its OZ account contract on Madara' },
+    { p: 'Poseidon',          d: 'telemetry commitment <code>H_α</code> over the per-cell array; Cairo-native hash, cheap to verify inside the proof' },
+    { p: 'STARK / FRI',       d: 'Stone produces <code>π_α</code> over <code>safe_area_verify.cairo</code>; lambdaclass <code>cairo-vm</code> executes the program' }
+  ],
+  'l2-bravo': [
+    { p: 'Stark-curve ECDSA', d: 'drone signs every <code>submit_telemetry</code> tx; verified by its OZ account contract on Madara' },
+    { p: 'Poseidon',          d: 'telemetry commitment <code>H_β</code> over the per-cell array; Cairo-native hash, cheap to verify inside the proof' },
+    { p: 'STARK / FRI',       d: 'Stone produces <code>π_β</code> over <code>safe_area_verify.cairo</code>; lambdaclass <code>cairo-vm</code> executes the program' }
+  ]
+};
+
+// Per-package metadata. Stack inventory in the architecture-at-a-glance side
+// panel is rendered from this. The architecture view answers "what's running"
+// — version, source, license, role. Flow / endpoints / hashes / signatures
+// are answered by the upcoming Transaction flow diagram.
+const PACKAGE_SPEC = {
+  'ship': [
+    { name: 'Geth (ethereum/client-go)', version: 'v1.10.17', license: 'LGPL-3.0',
+      source: 'https://github.com/ethereum/go-ethereum',
+      role: 'L1 Clique PoA validator (EIP-225); secp256k1 block sealing',
+      note: 'EVM target paris — predates 1.11 PoS migration; keeps Clique as a first-class consensus engine' },
+    { name: 'Solidity (Foundry profile)', version: '0.8.33', license: 'MIT / Apache-2.0',
+      source: 'https://github.com/foundry-rs/foundry',
+      role: 'L1 contract compile target (Verifier, Registry, CommandLog, StarknetCoreStub)',
+      note: 'Highest stable solc that compiles StarkWare FactRegistry without modification' },
+    { name: 'StarkWare verifier components', version: 'main', license: 'Apache-2.0',
+      source: 'https://github.com/starkware-libs/starkex-contracts',
+      role: 'evm-verifier base (FactRegistry, MemoryPageFactRegistry)',
+      note: 'Used as the production base for Verifier.sol' }
+  ],
+  'ship-cmdr': [
+    { name: 'Geth (ethereum/client-go)', version: 'v1.10.17', license: 'LGPL-3.0',
+      source: 'https://github.com/ethereum/go-ethereum',
+      role: 'L1 Clique PoA validator + commander key holder',
+      note: 'Same Geth build as a regular ship; commander role is a separate keystore entry, not a different binary' },
+    { name: 'Solidity (Foundry profile)', version: '0.8.33', license: 'MIT / Apache-2.0',
+      source: 'https://github.com/foundry-rs/foundry',
+      role: 'L1 contract compile target',
+      note: 'Same as a regular ship' },
+    { name: 'StarkWare verifier components', version: 'main', license: 'Apache-2.0',
+      source: 'https://github.com/starkware-libs/starkex-contracts',
+      role: 'evm-verifier base for Verifier.sol',
+      note: 'Same as a regular ship' }
+  ],
+  'l2-alpha': [
+    { name: 'Madara α', version: ':nightly', license: 'Apache-2.0',
+      source: 'https://github.com/madara-alliance/madara',
+      role: 'Starknet sequencer — execution layer for L2-Alpha',
+      note: 'Pinned to nightly digest until the Madara Alliance cuts a stable Starknet 0.14.1-aligned release' },
+    { name: 'Pathfinder', version: 'v0.21.3', license: 'MIT / Apache-2.0',
+      source: 'https://github.com/eqlabs/pathfinder',
+      role: 'Starknet full node + JSON-RPC',
+      note: 'Aligned with Starknet protocol v0.14.1' },
+    { name: 'Orchestrator', version: 'in-house', license: 'Apache-2.0',
+      source: 'https://github.com/madara-alliance/madara',
+      role: 'Settlement orchestrator — coordinates SNOS + Stone, hands proof to relay ship',
+      note: 'Rust adaptation derived from the madara orchestrator; Phase 3 deliverable' },
+    { name: 'SNOS', version: 'v0.14.1-alpha.0', license: 'MIT / Apache-2.0',
+      source: 'https://github.com/keep-starknet-strange/snos',
+      role: 'StarkNet OS — generates PIE traces from sealed L2 blocks',
+      note: 'Uses cairo-lang 0.14.1a0 + lambdaclass cairo-vm internally' },
+    { name: 'Stone Prover', version: 'main', license: 'Apache-2.0',
+      source: 'https://github.com/starkware-libs/stone-prover',
+      role: 'STARK prover — runs FRI over the PIE',
+      note: 'Built with Bazel 5.4.1 + cairo-lang 0.14.0.1 (deliberately different cairo-lang from SNOS)' }
+  ],
+  'l2-bravo': [
+    { name: 'Madara β', version: ':nightly', license: 'Apache-2.0',
+      source: 'https://github.com/madara-alliance/madara',
+      role: 'Starknet sequencer — execution layer for L2-Bravo',
+      note: 'Pinned to nightly digest until the Madara Alliance cuts a stable Starknet 0.14.1-aligned release' },
+    { name: 'Pathfinder', version: 'v0.21.3', license: 'MIT / Apache-2.0',
+      source: 'https://github.com/eqlabs/pathfinder',
+      role: 'Starknet full node + JSON-RPC',
+      note: 'Aligned with Starknet protocol v0.14.1' },
+    { name: 'Orchestrator', version: 'in-house', license: 'Apache-2.0',
+      source: 'https://github.com/madara-alliance/madara',
+      role: 'Settlement orchestrator — coordinates SNOS + Stone, hands proof to relay ship',
+      note: 'Rust adaptation derived from the madara orchestrator; Phase 3 deliverable' },
+    { name: 'SNOS', version: 'v0.14.1-alpha.0', license: 'MIT / Apache-2.0',
+      source: 'https://github.com/keep-starknet-strange/snos',
+      role: 'StarkNet OS — generates PIE traces from sealed L2 blocks',
+      note: 'Uses cairo-lang 0.14.1a0 + lambdaclass cairo-vm internally' },
+    { name: 'Stone Prover', version: 'main', license: 'Apache-2.0',
+      source: 'https://github.com/starkware-libs/stone-prover',
+      role: 'STARK prover — runs FRI over the PIE',
+      note: 'Built with Bazel 5.4.1 + cairo-lang 0.14.0.1 (deliberately different cairo-lang from SNOS)' }
+  ]
+};
+
+// ---------------------------------------------------------------------------
+// PARKED FOR THE TRANSACTION FLOW DIAGRAM (next section).
+// CONTRACT_API, LIFECYCLE, L1_ANCHOR describe how data MOVES — they do not
+// belong in the architecture-at-a-glance ("what's running") view. They are
+// kept here because the Transaction flow diagram will render them; the
+// selectContainer() panel below no longer references them.
+// ---------------------------------------------------------------------------
+
+// Cairo contract entry points + struct shapes — the API engineers will code
+// against in Phase 3. Per-L2 because the symbols (α / β, H_α / H_β) differ.
+const CONTRACT_API = {
+  'l2-alpha': {
+    entryPoints: [
+      { sig: 'fn deploy_mission(spec: MissionSpec) -> u128',                       caller: 'L1→L2 bridge', desc: 'consumes the mission spec relayed from L1 Registry' },
+      { sig: 'fn submit_telemetry(mission_id: u128, cells: Array<TelemetryCell>)', caller: 'drone α',       desc: 'per-cell readings; signed with the drone\'s Stark-curve key' },
+      { sig: 'fn submit_sweep_commitment(mission_id: u128, h: felt252)',           caller: 'drone α',       desc: 'closes the sweep; commits H_α = Poseidon(cells)' }
+    ],
+    structs: [
+      { name: 'MissionSpec',   fields: [
+        { f: 'area_hash: felt252',  c: 'Poseidon hash of polygon vertices' },
+        { f: 'coverage_min: u16',   c: 'permille (950 = ≥ 95% cells)' },
+        { f: 'p_min: u16',          c: 'basis points (7000 = p_contact ≥ 0.7)' },
+        { f: 'time_window: u64',    c: 'seconds (360 = 6 min)' }
+      ]},
+      { name: 'TelemetryCell', fields: [
+        { f: 'x: u16, y: u16',      c: 'cell index in the area grid' },
+        { f: 'p_contact: u16',      c: 'basis points (max-prob hit in cell)' },
+        { f: 'ts: u64',             c: 'unix timestamp seconds' }
+      ]}
+    ]
+  },
+  'l2-bravo': {
+    entryPoints: [
+      { sig: 'fn deploy_mission(spec: MissionSpec) -> u128',                       caller: 'L1→L2 bridge', desc: 'consumes the mission spec relayed from L1 Registry' },
+      { sig: 'fn submit_telemetry(mission_id: u128, cells: Array<TelemetryCell>)', caller: 'drone β',       desc: 'per-cell readings; signed with the drone\'s Stark-curve key' },
+      { sig: 'fn submit_sweep_commitment(mission_id: u128, h: felt252)',           caller: 'drone β',       desc: 'closes the sweep; commits H_β = Poseidon(cells)' }
+    ],
+    structs: [
+      { name: 'MissionSpec',   fields: [
+        { f: 'area_hash: felt252',  c: 'Poseidon hash of polygon vertices' },
+        { f: 'coverage_min: u16',   c: 'permille (950 = ≥ 95% cells)' },
+        { f: 'p_min: u16',          c: 'basis points (7000 = p_contact ≥ 0.7)' },
+        { f: 'time_window: u64',    c: 'seconds (360 = 6 min)' }
+      ]},
+      { name: 'TelemetryCell', fields: [
+        { f: 'x: u16, y: u16',      c: 'cell index in the area grid' },
+        { f: 'p_contact: u16',      c: 'basis points (max-prob hit in cell)' },
+        { f: 'ts: u64',             c: 'unix timestamp seconds' }
+      ]}
+    ]
+  }
+};
+
+// End-to-end mission lifecycle from the L2's perspective — chronological,
+// from "spec arrives on L1" to "verdict lands on L1". Each step has a `who`
+// label naming the actor (L1, drone, Madara, SNOS, Stone, L1 again).
+const LIFECYCLE = {
+  'l2-alpha': [
+    { who: 'L1',      t: 'Registry emits <code>MissionDeployed(EX-0xx)</code>; bridge relays spec to L2' },
+    { who: 'drone α', t: 'Sweeps cells; signs and submits each <code>submit_telemetry(...)</code> tx' },
+    { who: 'drone α', t: 'Closes with <code>submit_sweep_commitment(H_α)</code>' },
+    { who: 'Madara',  t: 'Seals block; Pathfinder indexes it' },
+    { who: 'SNOS',    t: 'Replays block in Cairo VM; asserts SAFE_AREA on the witness' },
+    { who: 'Stone',   t: 'Produces <code>π_α</code>; orchestrator hands it to relay ship F → A' },
+    { who: 'L1',      t: 'Verifier re-runs FRI; on dual SAFE, <code>CommandLog.advance()</code> fires' }
+  ],
+  'l2-bravo': [
+    { who: 'L1',      t: 'Registry emits <code>MissionDeployed(EX-0xx)</code>; bridge relays spec to L2' },
+    { who: 'drone β', t: 'Sweeps cells; signs and submits each <code>submit_telemetry(...)</code> tx' },
+    { who: 'drone β', t: 'Closes with <code>submit_sweep_commitment(H_β)</code>' },
+    { who: 'Madara',  t: 'Seals block; Pathfinder indexes it' },
+    { who: 'SNOS',    t: 'Replays block in Cairo VM; asserts SAFE_AREA on the witness' },
+    { who: 'Stone',   t: 'Produces <code>π_β</code>; orchestrator hands it to relay ship B → A' },
+    { who: 'L1',      t: 'Verifier re-runs FRI; on dual SAFE, <code>CommandLog.advance()</code> fires' }
+  ]
+};
+
+// L1 settlement anchor — the contract this Madara writes its state diffs and
+// proof commits into. The 4th L1 contract (alongside Verifier, Registry,
+// CommandLog), required by Madara's settlement loop.
+const L1_ANCHOR = {
+  'l2-alpha': {
+    contract: 'StarknetCoreStub.sol',
+    address:  '0x__core_α__',
+    desc:     'Madara α settles state diffs + proof commits here',
+    msgs: [
+      { dir: 'L1 → L2', t: 'mission spec relay (Registry → bridge → <code>deploy_mission</code>)' },
+      { dir: 'L2 → L1', t: 'state diff + proof root committed by the orchestrator' }
+    ]
+  },
+  'l2-bravo': {
+    contract: 'StarknetCoreStub.sol',
+    address:  '0x__core_β__',
+    desc:     'Madara β settles state diffs + proof commits here',
+    msgs: [
+      { dir: 'L1 → L2', t: 'mission spec relay (Registry → bridge → <code>deploy_mission</code>)' },
+      { dir: 'L2 → L1', t: 'state diff + proof root committed by the orchestrator' }
+    ]
+  }
+};
+
+const TRUST_SPEC = {
+  'ship': [
+    { mark: 'ok',   t: 'Sign blocks (1 of 6 PoA validators; ≥ 4 of 6 needed for finality)' },
+    { mark: 'ok',   t: 'Submit proof-relay transactions to L1 (envelope only)' },
+    { mark: 'no',   t: 'Cannot forge a STARK proof — the Verifier re-runs FRI on every submission' },
+    { mark: 'no',   t: 'Cannot bypass the dual-SAFE auto-fire — chain enforces it inside the Verifier' }
+  ],
+  'ship-cmdr': [
+    { mark: 'ok',   t: 'Same as a regular ship' },
+    { mark: 'ok',   t: 'Deploy mission specs on the Registry (<code>onlyCommander</code>)' },
+    { mark: 'ok',   t: 'Manual advance override via <code>CommandLog.advance()</code> (failsafe path)' },
+    { mark: 'no',   t: 'Cannot manufacture a SAFE verdict — Verifier remains the only gate' },
+    { mark: 'no',   t: 'Cannot bypass dual-SAFE for the auto-fire path' }
+  ],
+  'l2-alpha': [
+    { mark: 'ok',   t: 'Sequences telemetry into L2 blocks' },
+    { mark: 'ok',   t: 'Cairo program enforces SAFE_AREA on the witness (Coverage / Time / Contacts)' },
+    { mark: 'ok',   t: 'Stone refuses to prove constraint-violating telemetry → no <code>π_α</code>, nothing reaches L1' },
+    { mark: 'no',   t: 'Cannot bypass the L1 Verifier — FRI re-runs on chain regardless of who submitted' },
+    { mark: 'warn', t: 'A compromised drone reporting fake-low <code>p_contact</code> still produces a valid proof — drones must be honest sensors (current trust assumption; future: k-of-n drone signatures)' }
+  ],
+  'l2-bravo': [
+    { mark: 'ok',   t: 'Sequences telemetry into L2 blocks' },
+    { mark: 'ok',   t: 'Cairo program enforces SAFE_AREA on the witness (Coverage / Time / Contacts)' },
+    { mark: 'ok',   t: 'Stone refuses to prove constraint-violating telemetry → no <code>π_β</code>, nothing reaches L1' },
+    { mark: 'no',   t: 'Cannot bypass the L1 Verifier — FRI re-runs on chain regardless of who submitted' },
+    { mark: 'warn', t: 'A compromised drone reporting fake-low <code>p_contact</code> still produces a valid proof — drones must be honest sensors (current trust assumption; future: k-of-n drone signatures)' }
+  ]
+};
+
 // Per-container file inventory — placeholders until each phase is built.
 const FILES = {
   'ship': [
@@ -133,14 +372,14 @@ const FILES = {
   'l2-alpha': [
     { p: 'docker/l2-alpha/docker-compose.yml',     d: 'Madara α + Pathfinder + SNOS + Stone + orchestrator', phase: 3 },
     { p: 'docker/l2-alpha/madara/config.toml',     d: 'sequencer params, settlement contract on L1',         phase: 3 },
-    { p: 'docker/l2-alpha/pathfinder/config.toml', d: 'indexer + JSON-RPC for Alpha drones',                 phase: 3 },
+    { p: 'docker/l2-alpha/pathfinder/config.toml', d: 'indexer + JSON-RPC for the Alpha drone',             phase: 3 },
     { p: 'docker/l2-alpha/orchestrator.toml',      d: 'L1 RPC, relay-ship priority (F → A)',                 phase: 3 },
     { p: 'cairo/alpha_verify.cairo',               d: 'SAFE_AREA verification program (Alpha)',              phase: 3 }
   ],
   'l2-bravo': [
     { p: 'docker/l2-bravo/docker-compose.yml',     d: 'Madara β + Pathfinder + SNOS + Stone + orchestrator', phase: 3 },
     { p: 'docker/l2-bravo/madara/config.toml',     d: 'sequencer params, settlement contract on L1',         phase: 3 },
-    { p: 'docker/l2-bravo/pathfinder/config.toml', d: 'indexer + JSON-RPC for Bravo drones',                 phase: 3 },
+    { p: 'docker/l2-bravo/pathfinder/config.toml', d: 'indexer + JSON-RPC for the Bravo drone',             phase: 3 },
     { p: 'docker/l2-bravo/orchestrator.toml',      d: 'L1 RPC, relay-ship priority (B → A)',                 phase: 3 },
     { p: 'cairo/bravo_verify.cairo',               d: 'SAFE_AREA verification program (Bravo)',              phase: 3 }
   ]
@@ -223,16 +462,15 @@ function buildContainer(c) {
   return g;
 }
 
-// Horizontal pipeline: 5 column-header cards in a row, then a mini
-// sequence diagram (lifelines + step-arrows) below.
+// Horizontal pipeline: 5 service tiles in a row showing icon + package name +
+// short role label. The architecture view answers "what's running"; flow
+// detail (sequence arrows, step numbers) lives in the Transaction flow
+// diagram, not here.
 function renderHorizontalServices(g, c, services) {
   const innerY = HEADER_H + 8;
   const totalW = services.length * H_CARD_W + (services.length - 1) * H_CARD_GAP;
   const xStart = (c.w - totalW) / 2;
   let xOff = xStart;
-
-  // Collect each actor's lifeline x-position so we can draw arrows after.
-  const lifelineX = [];
 
   for (let i = 0; i < services.length; i++) {
     const s = services[i];
@@ -245,29 +483,17 @@ function renderHorizontalServices(g, c, services) {
       class: `svc-card stage-${s.stage || 'plain'}`
     }));
 
-    // Step-number badge top-left
-    g.appendChild(el('circle', {
-      cx: xOff + STEP_R + 4, cy: innerY + STEP_R + 4,
-      r: STEP_R, class: `svc-step stage-${s.stage || 'plain'}`
-    }));
-    const num = el('text', {
-      x: xOff + STEP_R + 4, y: innerY + STEP_R + 7.5,
-      'text-anchor': 'middle', class: 'svc-step-num'
-    });
-    num.textContent = String(i + 1);
-    g.appendChild(num);
-
     // Logo centred horizontally near the top
     g.appendChild(image(
       s.icon,
       xOff + (H_CARD_W - H_ICON) / 2,
-      innerY + 22,
+      innerY + 14,
       H_ICON, H_ICON
     ));
 
     // Name (centred, bold)
     const nm = el('text', {
-      x: xOff + H_CARD_W / 2, y: innerY + 64,
+      x: xOff + H_CARD_W / 2, y: innerY + 56,
       'text-anchor': 'middle', class: 'svc-name'
     });
     nm.textContent = s.name;
@@ -275,97 +501,24 @@ function renderHorizontalServices(g, c, services) {
 
     // Sub (centred, muted)
     const sb = el('text', {
-      x: xOff + H_CARD_W / 2, y: innerY + 78,
+      x: xOff + H_CARD_W / 2, y: innerY + 70,
       'text-anchor': 'middle', class: 'svc-sub'
     });
     sb.textContent = s.sub;
     g.appendChild(sb);
 
-    lifelineX.push(xOff + H_CARD_W / 2);
+    // Version chip (small, centred under sub)
+    if (s.version) {
+      const vc = el('text', {
+        x: xOff + H_CARD_W / 2, y: innerY + 86,
+        'text-anchor': 'middle', class: 'svc-version'
+      });
+      vc.textContent = s.version;
+      g.appendChild(vc);
+    }
+
     xOff += H_CARD_W + H_CARD_GAP;
   }
-
-  // ── Mini sequence diagram below the actor row ─────────────
-  const cardsBottom = innerY + H_CARD_H;
-  const flowTop     = cardsBottom + 14;
-  const flowBottom  = c.h - 12;
-  const stepRows    = L2_FLOW.length;
-  const rowGap      = (flowBottom - flowTop) / (stepRows + 0.5);
-
-  // Vertical lifelines descending from each actor card
-  for (const x of lifelineX) {
-    g.appendChild(el('line', {
-      x1: x, y1: cardsBottom + 2,
-      x2: x, y2: flowBottom,
-      class: 'arch-lifeline'
-    }));
-  }
-
-  // Step arrows
-  for (let i = 0; i < L2_FLOW.length; i++) {
-    const ev = L2_FLOW[i];
-    const rowY = flowTop + (i + 0.5) * rowGap;
-    const fromX = lifelineX[ev.from];
-    const toX   = lifelineX[ev.to];
-
-    if (ev.kind === 'self') {
-      // Self-loop on the actor's own lifeline. Default to drawing it on the
-      // RIGHT side, but flip LEFT when the actor sits near the banner's
-      // right edge and there isn't room — keeps the loop + label inside the
-      // green / purple container.
-      const loopW = 26, loopH = Math.min(10, rowGap * 0.7);
-      const labelEstW  = (ev.label || '').length * 5.6;
-      const rightSpace = (c.w - CARD_PAD) - fromX;
-      const goLeft = rightSpace < (loopW + 10 + labelEstW);
-      const dir = goLeft ? -1 : 1;
-
-      g.appendChild(el('path', {
-        d: `M ${fromX} ${rowY} L ${fromX + dir * loopW} ${rowY} ` +
-           `L ${fromX + dir * loopW} ${rowY + loopH} ` +
-           `L ${fromX + dir * 4} ${rowY + loopH}`,
-        class: 'arch-flow-line',
-        'marker-end': 'url(#arch-flow-arrow)'
-      }));
-      drawStepBadge(g, fromX, rowY, ev.step);
-      const lbl = el('text', {
-        x: fromX + dir * (loopW + 6), y: rowY + loopH / 2 + 3,
-        'text-anchor': goLeft ? 'end' : 'start',
-        class: 'arch-flow-label'
-      });
-      lbl.textContent = ev.label;
-      g.appendChild(lbl);
-    } else {
-      // Horizontal message arrow between two lifelines
-      const dir = toX > fromX ? 1 : -1;
-      const x1 = fromX + dir * 4;   // small offset off the source lifeline
-      const x2 = toX   - dir * 2;   // arrow tip just before target lifeline
-      g.appendChild(el('line', {
-        x1, y1: rowY, x2, y2: rowY,
-        class: 'arch-flow-line',
-        'marker-end': 'url(#arch-flow-arrow)'
-      }));
-      drawStepBadge(g, fromX, rowY, ev.step);
-      const lbl = el('text', {
-        x: (fromX + toX) / 2, y: rowY - 4,
-        'text-anchor': 'middle', class: 'arch-flow-label'
-      });
-      lbl.textContent = ev.label;
-      g.appendChild(lbl);
-    }
-  }
-}
-
-// Small numbered circle (white text on dark fill) anchored at (x, y).
-function drawStepBadge(g, x, y, n) {
-  g.appendChild(el('circle', {
-    cx: x, cy: y, r: 7, class: 'arch-flow-step'
-  }));
-  const t = el('text', {
-    x: x, y: y + 2.5, 'text-anchor': 'middle',
-    class: 'arch-flow-step-num'
-  });
-  t.textContent = String(n);
-  g.appendChild(t);
 }
 
 // Vertical layout: single (or two) cards stacked — used by ship containers.
@@ -463,46 +616,8 @@ function buildSvg() {
     class: 'arch-ring'
   }));
 
-  // Relay arrows: L2-Alpha hands π_α sideways into F;
-  //               L2-Bravo hands π_β sideways into B.
-  // Picks the closest edges based on relative container position so the
-  // arrow stays clean whether L2 sits on a flank or above the convoy.
-  function relay(fromId, toId, color, label) {
-    const a = CONTAINERS.find(c => c.id === fromId);
-    const b = CONTAINERS.find(c => c.id === toId);
-    const aCx = a.x + a.w / 2, aCy = a.y + a.h / 2;
-    const bCx = b.x + b.w / 2, bCy = b.y + b.h / 2;
-
-    let x1, y1, x2, y2, labelDy;
-    if (Math.abs(aCx - bCx) > Math.abs(aCy - bCy)) {
-      // Horizontal flow — connect the facing left/right edges
-      y1 = aCy; y2 = bCy;
-      if (aCx < bCx) { x1 = a.x + a.w; x2 = b.x; }
-      else            { x1 = a.x;       x2 = b.x + b.w; }
-      labelDy = -10;
-    } else {
-      // Vertical flow — connect the facing top/bottom edges
-      x1 = aCx; x2 = bCx;
-      if (aCy < bCy) { y1 = a.y + a.h; y2 = b.y; }
-      else            { y1 = a.y;       y2 = b.y + b.h; }
-      labelDy = 0;
-    }
-
-    root.appendChild(el('line', {
-      x1, y1, x2, y2,
-      stroke: color, 'stroke-width': 2.5, 'stroke-dasharray': '7 5',
-      'marker-end': 'url(#arch-arrow)', opacity: 0.85
-    }));
-    const lbl = el('text', {
-      x: (x1 + x2) / 2, y: (y1 + y2) / 2 + labelDy,
-      'text-anchor': 'middle',
-      class: 'arch-edge-label', fill: color
-    });
-    lbl.textContent = label;
-    root.appendChild(lbl);
-  }
-  relay('L2A', 'F', '#22c55e', 'π_α  relay');
-  relay('L2B', 'B', '#8b5cf6', 'π_β  relay');
+  // (π_α / π_β relay arrows used to render here — moved to the Transaction
+  // flow diagram, which is the proper home for cross-layer message arrows.)
 
   // HVUs — protected, off-network. Dashed border to signal "outside the
   // cryptographic perimeter". They receive D's tactical-radio command
@@ -713,37 +828,84 @@ function selectContainer(id) {
   const files = FILES[c.kind] || [];
   const isShip = c.kind === 'ship' || c.kind === 'ship-cmdr';
   const isL2 = c.kind.startsWith('l2-');
-  const services = SERVICES[c.kind] || [];
   const drone = DRONES[c.kind] || null;
+  const packages = PACKAGE_SPEC[c.kind] || [];
+
+  // Helper — short github org/repo from full URL for display
+  const ghShort = (url) => {
+    const m = url.match(/github\.com\/([^\/]+)\/([^\/?#]+)/);
+    return m ? `${m[1]}/${m[2]}` : url;
+  };
 
   panel.innerHTML = `
     <div class="arch-panel-header">
       <span class="arch-panel-kind kind-${c.kind}">${KIND_LABEL[c.kind] || ''}</span>
       <h4>${escape(c.name)}</h4>
-      ${isL2 ? '<p class="arch-panel-flow">Proof generation flow ↓</p>' : ''}
-      <ul class="arch-panel-services">
-        ${services.map((s, i) => `
-          <li class="stage-${s.stage || 'plain'}">
-            ${isL2 ? `<span class="svc-step-pill stage-${s.stage || 'plain'}">${i + 1}</span>` : ''}
-            <img src="${escape(s.icon)}" alt="" class="svc-icon"/>
-            <span><strong>${escape(s.name)}</strong> &mdash; ${escape(s.sub)}</span>
-          </li>
-        `).join('')}
-      </ul>
     </div>
+
+    ${WHAT_IS[c.kind] ? `
+      <p class="arch-panel-section-h">What this is</p>
+      <p class="arch-panel-prose">${WHAT_IS[c.kind]}</p>
+    ` : ''}
 
     ${isL2 && drone ? `
       <p class="arch-panel-section-h">Drone &mdash; the only client of this L2</p>
       <ul class="arch-panel-drones">
+        <li class="drone-row-h">
+          <span>drone_id</span>
+          <span>account on Madara</span>
+          <span>signing keystore</span>
+        </li>
         <li class="drone-row drone-solo">
-          <span class="drone-id">${escape(drone.id)}</span>
-          <span class="drone-acct" title="account contract address (placeholder)">${escape(drone.account)}</span>
-          <span class="drone-key"  title="signing key file (placeholder)">${escape(drone.key)}</span>
+          <span class="drone-id" title="felt252 literal hard-coded in convoy_protocol.cairo">${escape(drone.id)}</span>
+          <span class="drone-acct" title="OZ account contract address on Madara — placeholder until Phase 3">${escape(drone.account)}</span>
+          <span class="drone-key"  title="JSON keystore holding the Stark-curve private key — placeholder until Phase 3">${escape(drone.key)}</span>
         </li>
       </ul>
-      <p class="arch-panel-note">This drone is the only entity that talks to this L2. It holds one OpenZeppelin account contract on Madara, signs each <code>submit_telemetry</code> call with its Stark-curve key, and closes the sweep with <code>submit_sweep_commitment</code>. Inside <code>convoy_protocol.cairo</code> it's addressed by its <code>drone_id</code> (felt252).</p>
+      <ul class="drone-caption">
+        <li><code>${escape(drone.id)}</code> &mdash; the <code>drone_id</code> felt252 used inside <code>convoy_protocol.cairo</code></li>
+        <li><code>${escape(drone.account)}</code> &mdash; placeholder for the OpenZeppelin account contract address on Madara (real address lands at Phase 3 deploy)</li>
+        <li><code>${escape(drone.key)}</code> &mdash; placeholder for the JSON keystore holding the Stark-curve private key the drone signs <code>submit_telemetry</code> with</li>
+      </ul>
     ` : ''}
 
+    ${packages.length ? `
+      <p class="arch-panel-section-h">${isL2 ? 'Stack inventory' : 'Packages running'}</p>
+      <ul class="arch-pkg-list">
+        ${packages.map(p => `
+          <li class="arch-pkg-card">
+            <div class="arch-pkg-head">
+              <span class="arch-pkg-name">${escape(p.name)}</span>
+              <span class="arch-pkg-ver">${escape(p.version)}</span>
+              <span class="arch-pkg-license">${escape(p.license)}</span>
+            </div>
+            <div class="arch-pkg-role">${escape(p.role)}</div>
+            <a class="arch-pkg-source" href="${escape(p.source)}" target="_blank" rel="noopener">${escape(ghShort(p.source))}</a>
+            ${p.note ? `<div class="arch-pkg-note">${escape(p.note)}</div>` : ''}
+          </li>
+        `).join('')}
+      </ul>
+    ` : ''}
+
+    ${(CRYPTO_IN_PLAY[c.kind] || []).length ? `
+      <p class="arch-panel-section-h">Crypto provided</p>
+      <ul class="arch-panel-crypto">
+        ${CRYPTO_IN_PLAY[c.kind].map(x => `
+          <li><strong>${escape(x.p)}</strong> &mdash; ${x.d}</li>
+        `).join('')}
+      </ul>
+    ` : ''}
+
+    ${(TRUST_SPEC[c.kind] || []).length ? `
+      <p class="arch-panel-section-h">Specification &mdash; trust boundary</p>
+      <ul class="arch-panel-trust">
+        ${TRUST_SPEC[c.kind].map(x => `
+          <li class="mark-${x.mark}"><span class="mark-icon"></span><span>${x.t}</span></li>
+        `).join('')}
+      </ul>
+    ` : ''}
+
+    <p class="arch-panel-section-h">Files</p>
     <ul class="arch-panel-files">
       ${files.map(fileRow).join('')}
       ${isShip ? `
@@ -751,7 +913,7 @@ function selectContainer(id) {
         ${SHARED_L1_CONTRACTS.map(fileRow).join('')}
       ` : ''}
     </ul>
-    <p class="arch-panel-foot">All file paths and account placeholders are stubs. Real values land when Phase ${isShip ? 2 : 3} ships.</p>
+    <p class="arch-panel-foot">All file paths and account placeholders are stubs. Real values land when Phase ${isShip ? 2 : 3} ships. Contract endpoints, mission lifecycle, and L1 settlement bridge live in the Transaction flow diagram (next section).</p>
   `;
 }
 
