@@ -25,7 +25,7 @@ import "../src/StarknetCoreStub.sol";
  *   6. Ship B (bravo relay) registers a SAFE proof for (11, β)
  *      → Registry.verdict[11][β] = true; still no ConvoyAdvance
  *   7. Non-relay caller hits onlyRelay revert
- *   8. D fires CommandLog.advance(10, 11, MAX_SPEED) → ConvoyAdvance event
+ *   8. D fires CommandLog.advance(alphaMid, betaMid, 100) → ConvoyAdvance event
  *   9. Non-commander advance attempt reverts
  *  10. Pre-dual-SAFE advance attempt reverts (using a fresh CommandLog
  *      against unverified mids)
@@ -223,18 +223,18 @@ contract Phase2AcceptanceTest is Test {
             block.number,
             mA,
             mB,
-            commandLog.MAX_SPEED(),
+            100,
             commander
         );
         vm.prank(commander);
-        commandLog.advance(mA, mB, commandLog.MAX_SPEED());
+        commandLog.advance(mA, mB, 100);
 
         assertEq(commandLog.advanceCount(), 1, "advance recorded");
         CommandLog.AdvanceRecord memory rec = commandLog.getAdvance(0);
         assertEq(rec.alphaMid,  mA);
         assertEq(rec.betaMid,   mB);
         assertEq(rec.commander, commander);
-        assertEq(rec.speed,     commandLog.MAX_SPEED());
+        assertEq(rec.speed,     100);
     }
 
     // ───────────────────────────────────────────────────────────────────
@@ -243,7 +243,7 @@ contract Phase2AcceptanceTest is Test {
     function test_07_nonCommanderAdvanceReverts() public {
         vm.prank(stranger);
         vm.expectRevert(bytes("CommandLog: onlyCommander"));
-        commandLog.advance(1, 2, commandLog.MAX_SPEED());
+        commandLog.advance(1, 2, 100);
     }
 
     // ───────────────────────────────────────────────────────────────────
@@ -262,7 +262,7 @@ contract Phase2AcceptanceTest is Test {
         // D tries to advance — must revert because β isn't SAFE yet
         vm.prank(commander);
         vm.expectRevert(bytes("CommandLog: beta not SAFE"));
-        commandLog.advance(mA, mB, commandLog.MAX_SPEED());
+        commandLog.advance(mA, mB, 100);
 
         // Now verify beta
         vm.prank(bravoRelay);
@@ -270,7 +270,7 @@ contract Phase2AcceptanceTest is Test {
 
         // Now the same call must succeed
         vm.prank(commander);
-        commandLog.advance(mA, mB, commandLog.MAX_SPEED());
+        commandLog.advance(mA, mB, 100);
         assertEq(commandLog.advanceCount(), 1);
     }
 

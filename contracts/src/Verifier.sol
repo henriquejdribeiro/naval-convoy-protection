@@ -23,7 +23,7 @@ import "./Registry.sol";
  *      stores extended proof metadata, and writes the SAFE verdict to the
  *      Registry.
  *   5. D's orchestrator polls Registry for dual-SAFE; on observing it,
- *      D fires `CommandLog.advance(MAX_SPEED)` (Pattern B).
+ *      D fires `CommandLog.advance(...)` with a chosen speed (Pattern B).
  *
  * The cryptographic gate is the **off-chain `cpu_air_verifier`** — same
  * verifier used by the GPS Statement Verifier on Ethereum mainnet. The

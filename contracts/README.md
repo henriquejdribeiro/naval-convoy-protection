@@ -55,3 +55,12 @@ forge script script/DeployL1.s.sol \
 ```
 
 Output prints all four contract addresses + the wired commander / relay addresses. Save these for the orchestrator config in Phase 3.
+
+### `advance(...)` — speed argument
+
+`CommandLog.advance(alphaMid, betaMid, speed)` takes any `uint256` for the
+`speed` field. The value is opaque to the protocol — it rides along inside
+the `ConvoyAdvance` event for off-chain interpretation. The convention this
+project uses is **`speed = 100`** (≈ "full ahead"), but any non-zero value
+is accepted. The `docker-compose.l1.yml` deploy service exposes
+`CONVOY_SPEED` (default `100`) for scripted demos.

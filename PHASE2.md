@@ -121,9 +121,10 @@ cast send $REGISTRY \
 # 4. Ship B (bravo relay) registers a SAFE proof for (mid=2, droneId=2)
 # ...
 
-# 5. D fires advance — only succeeds because both verdicts are SAFE
+# 5. D fires advance — only succeeds because both verdicts are SAFE.
+#    The third arg is the speed (any non-zero uint256). Convention: 100.
 cast send $COMMANDLOG \
-    "advance(uint256,uint256,uint256)" 1 2 100 \
+    "advance(uint256,uint256,uint256)" 1 2 ${CONVOY_SPEED:-100} \
     --private-key $COMMANDER_PK --rpc-url $RPC
 ```
 

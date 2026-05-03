@@ -59,11 +59,6 @@ contract CommandLog {
     event CommanderRotated(address indexed previous, address indexed current);
 
     // ───────────────────────────────────────────────────────────────────
-    //  Speed constants (fixed semantics; thesis can extend later)
-    // ───────────────────────────────────────────────────────────────────
-    uint256 public constant MAX_SPEED = 100;     // arbitrary unit; "full ahead"
-
-    // ───────────────────────────────────────────────────────────────────
     //  Modifiers
     // ───────────────────────────────────────────────────────────────────
     modifier onlyCommander() {
@@ -118,7 +113,7 @@ contract CommandLog {
      *
      * @param alphaMid  α-lane mission id whose verdict must be SAFE
      * @param betaMid   β-lane mission id whose verdict must be SAFE
-     * @param speed     speed constant (typically `MAX_SPEED`)
+     * @param speed     opaque speed value carried in the event (convention: 100 = full ahead; any non-zero uint256 is accepted)
      */
     function advance(uint256 alphaMid, uint256 betaMid, uint256 speed)
         external
