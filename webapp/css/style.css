@@ -86,12 +86,13 @@ em { color: var(--accent-2); font-style: normal; font-weight: 600; }
   height: 32px;
   border-radius: 50%;
   color: var(--text-muted);
+  transform: translateY(4px);     /* nudge down to sit at cap-height of the title */
   transition: color 0.15s, background 0.15s, transform 0.15s;
 }
 .hero-gh:hover {
   color: var(--accent-2);
   background: rgba(255, 214, 0, 0.10);
-  transform: scale(1.08);
+  transform: translateY(4px) scale(1.08);
 }
 .hero .tagline {
   font-size: 17px;
