@@ -42,7 +42,7 @@ fi
 # 3. Run geth in Clique signer mode
 exec geth \
     --datadir "${DATA_DIR}" \
-    --networkid 1337 \
+    --networkid 11155111 \
     --nodiscover \
     --syncmode full \
     --gcmode archive \
