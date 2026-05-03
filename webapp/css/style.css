@@ -74,6 +74,24 @@ em { color: var(--accent-2); font-style: normal; font-weight: 600; }
   margin: 0 0 10px;
   letter-spacing: -0.5px;
   color: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.hero-gh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: var(--text-muted);
+  transition: color 0.15s, background 0.15s, transform 0.15s;
+}
+.hero-gh:hover {
+  color: var(--accent-2);
+  background: rgba(255, 214, 0, 0.10);
+  transform: scale(1.08);
 }
 .hero .tagline {
   font-size: 17px;
