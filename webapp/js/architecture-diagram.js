@@ -106,6 +106,28 @@ const KIND_LABEL = {
   'l2-bravo':  'L2-BRAVO'
 };
 
+// Drone fleet inside each L2 swarm. For Phase 3 simulation each drone is
+// a Starknet account on Madara: it holds an OpenZeppelin account contract
+// at `account`, signs txs with the Stark-curve key in `key`, and is
+// addressed inside `convoy_protocol.cairo` by `drone_id` (felt252).
+// Lead drone is the only one authorised to call `submit_sweep_commitment`.
+const DRONES = {
+  'l2-alpha': [
+    { id: 'α-1', role: 'lead',    account: '0x__α1__', key: 'keystore/alpha-1.json' },
+    { id: 'α-2', role: 'sweeper', account: '0x__α2__', key: 'keystore/alpha-2.json' },
+    { id: 'α-3', role: 'sweeper', account: '0x__α3__', key: 'keystore/alpha-3.json' },
+    { id: 'α-4', role: 'sweeper', account: '0x__α4__', key: 'keystore/alpha-4.json' },
+    { id: 'α-5', role: 'sweeper', account: '0x__α5__', key: 'keystore/alpha-5.json' }
+  ],
+  'l2-bravo': [
+    { id: 'β-1', role: 'lead',    account: '0x__β1__', key: 'keystore/bravo-1.json' },
+    { id: 'β-2', role: 'sweeper', account: '0x__β2__', key: 'keystore/bravo-2.json' },
+    { id: 'β-3', role: 'sweeper', account: '0x__β3__', key: 'keystore/bravo-3.json' },
+    { id: 'β-4', role: 'sweeper', account: '0x__β4__', key: 'keystore/bravo-4.json' },
+    { id: 'β-5', role: 'sweeper', account: '0x__β5__', key: 'keystore/bravo-5.json' }
+  ]
+};
+
 // Per-container file inventory — placeholders until each phase is built.
 const FILES = {
   'ship': [
@@ -703,6 +725,7 @@ function selectContainer(id) {
   const isShip = c.kind === 'ship' || c.kind === 'ship-cmdr';
   const isL2 = c.kind.startsWith('l2-');
   const services = SERVICES[c.kind] || [];
+  const drones = DRONES[c.kind] || [];
 
   panel.innerHTML = `
     <div class="arch-panel-header">
@@ -719,6 +742,22 @@ function selectContainer(id) {
         `).join('')}
       </ul>
     </div>
+
+    ${isL2 ? `
+      <p class="arch-panel-section-h">Drone fleet &mdash; 5 Starknet accounts on this L2</p>
+      <ul class="arch-panel-drones">
+        ${drones.map(d => `
+          <li class="drone-row${d.role === 'lead' ? ' drone-lead' : ''}">
+            <span class="drone-id">${escape(d.id)}</span>
+            <span class="drone-role">${escape(d.role)}</span>
+            <span class="drone-acct" title="account contract address (placeholder)">${escape(d.account)}</span>
+            <span class="drone-key"  title="signing key file (placeholder)">${escape(d.key)}</span>
+          </li>
+        `).join('')}
+      </ul>
+      <p class="arch-panel-note">Each drone holds an OpenZeppelin account contract on this L2 and signs <code>submit_telemetry</code> calls with its Stark-curve key. The <strong>lead</strong> drone is the only one authorised to close the sweep with <code>submit_sweep_commitment</code>.</p>
+    ` : ''}
+
     <ul class="arch-panel-files">
       ${files.map(fileRow).join('')}
       ${isShip ? `
@@ -726,7 +765,7 @@ function selectContainer(id) {
         ${SHARED_L1_CONTRACTS.map(fileRow).join('')}
       ` : ''}
     </ul>
-    <p class="arch-panel-foot">All file paths are placeholders. The actual layout will be finalised when Phase ${isShip ? 2 : 3} ships.</p>
+    <p class="arch-panel-foot">All file paths and account placeholders are stubs. Real values land when Phase ${isShip ? 2 : 3} ships.</p>
   `;
 }
 

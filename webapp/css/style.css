@@ -647,6 +647,74 @@ section.container .subtitle {
   font-style: italic;
 }
 
+/* Drone fleet section (L2 panel only) */
+.arch-panel-section-h {
+  margin: 14px 0 6px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border-2);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+}
+.arch-panel-drones {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.drone-row {
+  display: grid;
+  grid-template-columns: 36px 60px 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 8px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: 'Consolas', monospace;
+  font-size: 10.5px;
+  line-height: 1.3;
+  color: var(--text-muted);
+}
+.drone-row.drone-lead {
+  border-left: 2px solid var(--accent-2);
+  background: rgba(255, 214, 0, 0.06);
+}
+.drone-id {
+  font-weight: 700;
+  color: var(--text);
+}
+.drone-role {
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 9.5px;
+  color: var(--text-dim);
+}
+.drone-row.drone-lead .drone-role {
+  color: var(--accent-2);
+}
+.drone-acct, .drone-key {
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.arch-panel-note {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+.arch-panel-note code {
+  font-size: 10.5px;
+}
+.arch-panel-note strong {
+  color: var(--accent-2);
+}
+
 @media (max-width: 980px) {
   .arch-layout { grid-template-columns: 1fr; }
   .arch-panel { position: static; max-height: none; }
