@@ -39,7 +39,7 @@
   <div class="card-grid">
     <div class="card mission-card mission-alpha">
       <div class="card-tag">EX-010</div>
-      <h3>Left frontal area &mdash; Alpha drones</h3>
+      <h3>Left frontal area &mdash; Alpha drone</h3>
       <ul class="spec">
         <li><strong>L2 chain:</strong> <code>L2-Alpha</code> (Madara α)</li>
         <li><strong>Sweep pattern:</strong> zig-zag area coverage</li>
@@ -52,7 +52,7 @@
 
     <div class="card mission-card mission-bravo">
       <div class="card-tag">EX-011</div>
-      <h3>Right frontal area &mdash; Bravo drones</h3>
+      <h3>Right frontal area &mdash; Bravo drone</h3>
       <ul class="spec">
         <li><strong>L2 chain:</strong> <code>L2-Bravo</code> (Madara β)</li>
         <li><strong>Sweep pattern:</strong> corridor (width 2<em>a</em>)</li>
@@ -137,8 +137,8 @@
           <li><strong><code>A · B · C · E · F</code></strong> — five convoy ships acting as L1 Clique-PoA validators and proof relays. Position determines which L2 they have best signal to.</li>
           <li><strong><code>D</code></strong> — commander ship (yellow ring). Only ship authorised to issue the convoy advance command.</li>
           <li><strong><code>HVU</code></strong> — <em>High-Value Unit</em>. The three protected ships in the centre of the convoy. Their survival is the reason the mission runs.</li>
-          <li><strong><code>L2-Alpha box (green)</code></strong> — Madara α sequencer running 5 Alpha drones. Sweeps the left frontal area.</li>
-          <li><strong><code>L2-Bravo box (purple)</code></strong> — Madara β sequencer running 5 Bravo drones. Sweeps the right frontal corridor.</li>
+          <li><strong><code>L2-Alpha box (green)</code></strong> — one Alpha drone running its own Madara α sequencer. Sweeps the left frontal area.</li>
+          <li><strong><code>L2-Bravo box (purple)</code></strong> — one Bravo drone running its own Madara β sequencer. Sweeps the right frontal corridor.</li>
           <li><strong><code>L1 PoA Verifier</code></strong> — Geth Clique chain (6 validators) hosting the Solidity contracts for STARK proof verification, mission registry, and commander logging.</li>
           <li><strong><code>EX-010 · EX-011</code></strong> — mission IDs. EX-010 = left area (Alpha). EX-011 = right corridor (Bravo).</li>
         </ul>

@@ -649,7 +649,7 @@ function buildFrames() {
                 highlightAlpha: true, highlightBravo: true,
             },
             badge: 'Sweep', badgeClass: 'sweep',
-            text: `Alpha drones zig-zag the left area, Bravo drones cover the right corridor. Coverage <strong>${Math.round(p*100)}&thinsp;%</strong>.`,
+            text: `The Alpha drone zig-zags the left area; the Bravo drone covers the right corridor. Coverage <strong>${Math.round(p*100)}&thinsp;%</strong>.`,
             registry: reg('SWEEPING', 'SWEEPING', 'idle'),
             dwell: 220,
         });

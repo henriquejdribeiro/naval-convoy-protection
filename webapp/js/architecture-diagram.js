@@ -106,26 +106,15 @@ const KIND_LABEL = {
   'l2-bravo':  'L2-BRAVO'
 };
 
-// Drone fleet inside each L2 swarm. For Phase 3 simulation each drone is
-// a Starknet account on Madara: it holds an OpenZeppelin account contract
-// at `account`, signs txs with the Stark-curve key in `key`, and is
-// addressed inside `convoy_protocol.cairo` by `drone_id` (felt252).
-// Lead drone is the only one authorised to call `submit_sweep_commitment`.
+// Each L2 IS a single drone — its own Madara sequencer, its own Pathfinder,
+// its own SNOS+Stone proving stack. The drone is the only client of its L2:
+// it holds one OpenZeppelin account contract on Madara, signs every
+// `submit_telemetry` call with its Stark-curve key, and closes the sweep
+// with `submit_sweep_commitment`. Inside `convoy_protocol.cairo` it's
+// addressed by its `drone_id` (felt252).
 const DRONES = {
-  'l2-alpha': [
-    { id: 'α-1', role: 'lead',    account: '0x__α1__', key: 'keystore/alpha-1.json' },
-    { id: 'α-2', role: 'sweeper', account: '0x__α2__', key: 'keystore/alpha-2.json' },
-    { id: 'α-3', role: 'sweeper', account: '0x__α3__', key: 'keystore/alpha-3.json' },
-    { id: 'α-4', role: 'sweeper', account: '0x__α4__', key: 'keystore/alpha-4.json' },
-    { id: 'α-5', role: 'sweeper', account: '0x__α5__', key: 'keystore/alpha-5.json' }
-  ],
-  'l2-bravo': [
-    { id: 'β-1', role: 'lead',    account: '0x__β1__', key: 'keystore/bravo-1.json' },
-    { id: 'β-2', role: 'sweeper', account: '0x__β2__', key: 'keystore/bravo-2.json' },
-    { id: 'β-3', role: 'sweeper', account: '0x__β3__', key: 'keystore/bravo-3.json' },
-    { id: 'β-4', role: 'sweeper', account: '0x__β4__', key: 'keystore/bravo-4.json' },
-    { id: 'β-5', role: 'sweeper', account: '0x__β5__', key: 'keystore/bravo-5.json' }
-  ]
+  'l2-alpha': { id: 'α', account: '0x__α__', key: 'keystore/alpha.json' },
+  'l2-bravo': { id: 'β', account: '0x__β__', key: 'keystore/bravo.json' }
 };
 
 // Per-container file inventory — placeholders until each phase is built.
@@ -725,7 +714,7 @@ function selectContainer(id) {
   const isShip = c.kind === 'ship' || c.kind === 'ship-cmdr';
   const isL2 = c.kind.startsWith('l2-');
   const services = SERVICES[c.kind] || [];
-  const drones = DRONES[c.kind] || [];
+  const drone = DRONES[c.kind] || null;
 
   panel.innerHTML = `
     <div class="arch-panel-header">
@@ -743,19 +732,16 @@ function selectContainer(id) {
       </ul>
     </div>
 
-    ${isL2 ? `
-      <p class="arch-panel-section-h">Drone fleet &mdash; 5 Starknet accounts on this L2</p>
+    ${isL2 && drone ? `
+      <p class="arch-panel-section-h">Drone &mdash; the only client of this L2</p>
       <ul class="arch-panel-drones">
-        ${drones.map(d => `
-          <li class="drone-row${d.role === 'lead' ? ' drone-lead' : ''}">
-            <span class="drone-id">${escape(d.id)}</span>
-            <span class="drone-role">${escape(d.role)}</span>
-            <span class="drone-acct" title="account contract address (placeholder)">${escape(d.account)}</span>
-            <span class="drone-key"  title="signing key file (placeholder)">${escape(d.key)}</span>
-          </li>
-        `).join('')}
+        <li class="drone-row drone-solo">
+          <span class="drone-id">${escape(drone.id)}</span>
+          <span class="drone-acct" title="account contract address (placeholder)">${escape(drone.account)}</span>
+          <span class="drone-key"  title="signing key file (placeholder)">${escape(drone.key)}</span>
+        </li>
       </ul>
-      <p class="arch-panel-note">Each drone holds an OpenZeppelin account contract on this L2 and signs <code>submit_telemetry</code> calls with its Stark-curve key. The <strong>lead</strong> drone is the only one authorised to close the sweep with <code>submit_sweep_commitment</code>.</p>
+      <p class="arch-panel-note">This drone is the only entity that talks to this L2. It holds one OpenZeppelin account contract on Madara, signs each <code>submit_telemetry</code> call with its Stark-curve key, and closes the sweep with <code>submit_sweep_commitment</code>. Inside <code>convoy_protocol.cairo</code> it's addressed by its <code>drone_id</code> (felt252).</p>
     ` : ''}
 
     <ul class="arch-panel-files">
