@@ -1,0 +1,8 @@
+starkware/=lib/cairo-lang/src/starkware/
+starkware/starknet/=lib/cairo-lang/src/starkware/starknet/
+starkware/solidity/=lib/cairo-lang/src/starkware/solidity/
+starkware/solidity/components/=lib/cairo-lang/src/starkware/solidity/components/
+starkware/solidity/interfaces/=lib/cairo-lang/src/starkware/solidity/interfaces/
+starkware/solidity/libraries/=lib/cairo-lang/src/starkware/solidity/libraries/
+@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
+forge-std/=lib/forge-std/src/

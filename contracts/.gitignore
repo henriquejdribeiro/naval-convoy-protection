@@ -1,0 +1,11 @@
+# Foundry build artifacts
+out/
+cache/
+broadcast/
+
+# Dependencies (installed via `forge install`)
+lib/
+
+# Coverage / debug
+*.dbg.json
+report/

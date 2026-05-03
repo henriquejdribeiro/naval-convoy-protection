@@ -1,0 +1,5 @@
+# Keystore JSON files are generated locally by following keys/README.md.
+# They contain the well-known anvil dev keys (encrypted with the password
+# in ../password.txt). Safe to commit for THIS dev project — the keys are
+# public and have no value on any real network. But we keep the directory
+# tracked via .gitkeep so contributors know where to put them.

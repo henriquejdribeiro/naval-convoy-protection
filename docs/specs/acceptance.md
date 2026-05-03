@@ -27,10 +27,14 @@
    → MissionDeployed(11, β, spec) event observed (drone_id is indexed)
 4. cast send Registry "deploy(MissionSpec)" from a non-commander ship key
    → tx REVERTS (onlyCommander)
-5. cast send Verifier "submitProof(...)" with HARDCODED valid fact for (mid=10, drone=α)
-   → Registry.verdict[10][α] == SAFE  (read via cast call)
-   → no ConvoyAdvance event (only one verdict so far)
-6. cast send Verifier "submitProof(...)" with HARDCODED valid fact for (mid=11, drone=β)
+5. cast send Verifier "registerSafeProof(programHash, outputHash, mid=10, drone=α, ...)"
+   from ship F's relay key (whitelisted as alpha relay)
+   → factHash = keccak256(programHash, outputHash) added to Verifier.verifiedFacts
+   → Registry.verdict[10][α] == SAFE  (cross-contract setVerdict)
+   → FactRegistered + MissionVerified events emitted
+   → no ConvoyAdvance event yet (only one verdict so far)
+6. cast send Verifier "registerSafeProof(programHash, outputHash, mid=11, drone=β, ...)"
+   from ship B's relay key (whitelisted as bravo relay)
    → Registry.verdict[11][β] == SAFE
    → still no ConvoyAdvance event (Verifier does NOT auto-fire — Pattern B)
 7. cast send CommandLog "advance(MAX_SPEED)" from D's COMMANDER key
@@ -45,8 +49,9 @@
 - [ ] All 6 ship containers come up with `peerCount == 5` (Clique mesh formed).
 - [ ] First Clique block is sealed within 10 s of chain start.
 - [ ] Step 3 succeeds; step 4 reverts with `onlyCommander`.
-- [ ] Step 5 leaves `Registry.verdict[10][α] == SAFE` and emits NO `ConvoyAdvance`.
-- [ ] Step 6 leaves `Registry.verdict[11][β] == SAFE` and emits NO `ConvoyAdvance` (proves no auto-fire).
+- [ ] Step 5 leaves `Verifier.verifiedFacts[β-factHash] == true`, `Registry.verdict[10][α] == SAFE`, emits `FactRegistered` + `MissionVerified`, NO `ConvoyAdvance`.
+- [ ] Step 6 leaves `Verifier.verifiedFacts[β-factHash] == true`, `Registry.verdict[11][β] == SAFE`, emits `FactRegistered` + `MissionVerified`, still NO `ConvoyAdvance` (proves no auto-fire).
+- [ ] If a non-relay key calls `registerSafeProof`, tx reverts with `onlyRelay`.
 - [ ] Step 7 emits `ConvoyAdvance(block, MAX_SPEED, D)` where `commander == D's address`.
 - [ ] Step 8 reverts with `onlyCommander`.
 - [ ] Step 9 reverts with `dualSafeRequired` (or equivalent — the dual-SAFE precondition holds).
@@ -69,14 +74,21 @@
 5. Pathfinder β indexes block N
 6. Orchestrator-β polls Pathfinder, picks up block N, runs SNOS → Stone
    → SNOS asserts SAFE_AREA inside Cairo VM; Stone produces π_β
-7. Orchestrator-β hands π_β to ship B over radio (RPC)
-8. Ship B writes Verifier.submitProof(π_β, public_inputs, EX-011, β) to L1
-9. PoA fan-out propagates the tx; every Geth re-runs FRI; Registry.verdict[11][β] = SAFE
-10. Repeat steps 2–9 for L2-Alpha (drone α, EX-010, ship F as relay)
-11. D's orchestrator polls Registry, sees both verdicts SAFE
-12. D writes CommandLog.advance(MAX_SPEED) from the commander key
+7. Orchestrator-β verifies π_β locally with cpu_air_verifier → runs
+   stark_evm_adapter → produces (programHash, outputHash) fact +
+   public outputs (coveragePermille, maxContactBp, elapsedSeconds, H_β)
+8. Orchestrator-β hands the fact bundle to ship B over radio (RPC) —
+   raw proof bytes do NOT travel to L1
+9. Ship B writes Verifier.registerSafeProof(programHash, outputHash,
+   mid=EX-011, drone=β, ...public outputs) to L1 with the ship's key
+10. PoA fan-out propagates the tx; every Geth registers the fact in
+    Verifier.verifiedFacts, calls Registry.setVerdict(EX-011, β, SAFE),
+    emits FactRegistered + MissionVerified events
+11. Repeat steps 2–10 for L2-Alpha (drone α, EX-010, ship F as relay)
+12. D's orchestrator polls Registry, sees both verdicts SAFE
+13. D writes CommandLog.advance(MAX_SPEED) from the commander key
     → ConvoyAdvance event emitted (Pattern B — D triggers, not auto-fire)
-13. Both relays bridge the advance event over radio to their L2 drones
+14. Both relays bridge the advance event over radio to their L2 drones
 ```
 
 **Pass criteria:**
@@ -114,18 +126,21 @@ The capstone artefact for Phase 3 (and the file the webapp's simulation will eve
 18. orch-α:picked-up-block(block_number)
 19. snos-α:pie-generated(elapsed_ms, pie_size_bytes)  — replay asserted SAFE_AREA
 20. stone-α:proof-generated(elapsed_ms, proof_size_bytes, n_steps)  → π_α
-21. orch-α:adapter-ran(elapsed_ms)                    stark-evm-adapter
-22. orch-α:relay-handoff(ship=F, π_α)                 radio RPC
-23. ship-F:submitProof-tx(EX-010, α, tx_hash, block)  L1 tx written
-24. L1:setVerdict(EX-010, α, SAFE)                    side-effect of submitProof execution
-25. (steps 18–24 repeat for L2-β / orch-β / ship-B / EX-011)
-26. L1:setVerdict(EX-011, β, SAFE)
-27. D:dual-safe-detected(t_ms_after_second_setVerdict) D's orchestrator polls Registry
-28. D:advance-tx(MAX_SPEED, tx_hash, block)           D writes CommandLog.advance
-29. L1:ConvoyAdvance(block, MAX_SPEED, commander=D)   event log (Pattern B — D triggers)
-30. relay-B:radio-advance(L2-B)                       advance command bridged to drone β
-31. relay-F:radio-advance(L2-A)                       advance command bridged to drone α
-32. mission:complete                                  end-of-run marker
+21. orch-α:cpu-air-verifier-ok(elapsed_ms)             off-chain verification
+22. orch-α:stark-evm-adapter-ran(elapsed_ms, programHash, outputHash)
+23. orch-α:relay-handoff(ship=F, fact_bundle)         radio RPC (fact, not raw proof)
+24. ship-F:registerSafeProof-tx(EX-010, α, tx_hash, block)  L1 tx written
+25. L1:FactRegistered(α-factHash, programHash, outputHash)
+26. L1:MissionVerified(EX-010, α, factHash, coveragePermille, maxContactBp, elapsedSeconds)
+27. L1:setVerdict(EX-010, α, SAFE)                    side-effect of registerSafeProof
+28. (steps 18–27 repeat for L2-β / orch-β / ship-B / EX-011)
+29. L1:setVerdict(EX-011, β, SAFE)
+30. D:dual-safe-detected(t_ms_after_second_setVerdict) D's orchestrator polls Registry
+31. D:advance-tx(MAX_SPEED, tx_hash, block)           D writes CommandLog.advance
+32. L1:ConvoyAdvance(block, MAX_SPEED, commander=D)   event log (Pattern B — D triggers)
+33. relay-B:radio-advance(L2-B)                       advance command bridged to drone β
+34. relay-F:radio-advance(L2-A)                       advance command bridged to drone α
+35. mission:complete                                  end-of-run marker
 ```
 
 **Pass criteria for the deliverable:**

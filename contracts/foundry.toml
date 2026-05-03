@@ -1,0 +1,37 @@
+# Foundry profile for Phase 2 — the four L1 contracts that drive the
+# convoy mission protocol. Solidity + EVM target match versions.md.
+
+[profile.default]
+src              = "src"
+test             = "test"
+script           = "script"
+out              = "out"
+libs             = ["lib"]
+cache_path       = "cache"
+broadcast        = "broadcast"
+
+solc             = "0.8.33"
+evm_version      = "paris"
+optimizer        = true
+optimizer_runs   = 200
+auto_detect_solc = false
+
+# Verbose test output by default; gas snapshots help track regressions.
+verbosity        = 2
+gas_reports      = ["Verifier", "Registry", "CommandLog"]
+
+# Include relative paths for clean error messages in CI.
+fs_permissions   = [{ access = "read", path = "./out" }]
+
+[fmt]
+line_length      = 100
+tab_width        = 4
+bracket_spacing  = false
+int_types        = "long"
+
+[rpc_endpoints]
+local            = "http://127.0.0.1:8545"
+
+[etherscan]
+# Local PoA chain — no etherscan, but the section is needed for `forge` to
+# parse the toml without warnings.

@@ -1,0 +1,252 @@
+# =============================================================================
+# Phase 2 — L1 Clique PoA chain (6 validators) + Foundry deploy service.
+#
+# Brings up the convoy's L1 settlement layer:
+#   - 6 Geth nodes (one per ship A/B/C/D/E/F), each a Clique signer
+#   - All on the same Docker bridge network so they peer with each other
+#   - Ship A exposes 8545 (HTTP RPC) + 8546 (WS) to the host
+#   - A `deploy-l1` service (Foundry) deploys the 4 contracts when invoked
+#
+# Bring up:
+#   docker compose -f docker-compose.l1.yml up -d
+#
+# Deploy contracts (after chain is healthy):
+#   docker compose -f docker-compose.l1.yml --profile deploy run --rm deploy-l1
+#
+# Tail logs:
+#   docker compose -f docker-compose.l1.yml logs -f ship-a
+#
+# Tear down:
+#   docker compose -f docker-compose.l1.yml down -v
+# =============================================================================
+
+services:
+
+  # ───────────────────────────── Ship A — primary validator + deploy target ─
+  ship-a:
+    image: ethereum/client-go:v1.10.17
+    container_name: convoy-ship-a
+    hostname: ship-a
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/init-geth.sh"]
+    environment:
+      SHIP_ID: A
+      SIGNER_ADDR: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+      SIGNER_KEYFILE: /keys/A.json
+      PASSWORD_FILE: /password.txt
+      P2P_PORT: "30303"
+      BOOTNODES: ""
+    volumes:
+      - ./infrastructure/geth/init-geth.sh:/init-geth.sh:ro
+      - ./infrastructure/geth/genesis.json:/genesis.json:ro
+      - ./infrastructure/geth/password.txt:/password.txt:ro
+      - ./infrastructure/geth/keys:/keys:ro
+      - ship-a-data:/data
+    ports:
+      - "8545:8545"
+      - "8546:8546"
+      - "30303:30303"
+    networks:
+      convoy-l1:
+        aliases: [ ship-a ]
+    healthcheck:
+      test: ["CMD-SHELL", "geth attach --exec 'eth.blockNumber' http://localhost:8545 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # ───────────────────────────── Ship B — bravo lane relay ─────────────────
+  ship-b:
+    image: ethereum/client-go:v1.10.17
+    container_name: convoy-ship-b
+    hostname: ship-b
+    restart: unless-stopped
+    depends_on:
+      ship-a:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/init-geth.sh"]
+    environment:
+      SHIP_ID: B
+      SIGNER_ADDR: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+      SIGNER_KEYFILE: /keys/B.json
+      PASSWORD_FILE: /password.txt
+      P2P_PORT: "30304"
+      BOOTNODES: "enode://ship-a:30303"
+    volumes:
+      - ./infrastructure/geth/init-geth.sh:/init-geth.sh:ro
+      - ./infrastructure/geth/genesis.json:/genesis.json:ro
+      - ./infrastructure/geth/password.txt:/password.txt:ro
+      - ./infrastructure/geth/keys:/keys:ro
+      - ship-b-data:/data
+    ports:
+      - "8645:8545"
+    networks:
+      convoy-l1:
+        aliases: [ ship-b ]
+
+  # ───────────────────────────── Ship C ────────────────────────────────────
+  ship-c:
+    image: ethereum/client-go:v1.10.17
+    container_name: convoy-ship-c
+    hostname: ship-c
+    restart: unless-stopped
+    depends_on:
+      ship-a:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/init-geth.sh"]
+    environment:
+      SHIP_ID: C
+      SIGNER_ADDR: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+      SIGNER_KEYFILE: /keys/C.json
+      PASSWORD_FILE: /password.txt
+      P2P_PORT: "30305"
+      BOOTNODES: "enode://ship-a:30303"
+    volumes:
+      - ./infrastructure/geth/init-geth.sh:/init-geth.sh:ro
+      - ./infrastructure/geth/genesis.json:/genesis.json:ro
+      - ./infrastructure/geth/password.txt:/password.txt:ro
+      - ./infrastructure/geth/keys:/keys:ro
+      - ship-c-data:/data
+    ports:
+      - "8745:8545"
+    networks:
+      convoy-l1:
+        aliases: [ ship-c ]
+
+  # ───────────────────────────── Ship D — commander ship ───────────────────
+  ship-d:
+    image: ethereum/client-go:v1.10.17
+    container_name: convoy-ship-d
+    hostname: ship-d
+    restart: unless-stopped
+    depends_on:
+      ship-a:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/init-geth.sh"]
+    environment:
+      SHIP_ID: D
+      SIGNER_ADDR: "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
+      SIGNER_KEYFILE: /keys/D.json
+      PASSWORD_FILE: /password.txt
+      P2P_PORT: "30306"
+      BOOTNODES: "enode://ship-a:30303"
+    volumes:
+      - ./infrastructure/geth/init-geth.sh:/init-geth.sh:ro
+      - ./infrastructure/geth/genesis.json:/genesis.json:ro
+      - ./infrastructure/geth/password.txt:/password.txt:ro
+      - ./infrastructure/geth/keys:/keys:ro
+      # D also has the commander keystore mounted — this is what D's
+      # orchestrator (in Phase 3) will use to sign Registry.deploy and
+      # CommandLog.advance txs. Separate from the validator key above.
+      - ship-d-data:/data
+    ports:
+      - "8845:8545"
+    networks:
+      convoy-l1:
+        aliases: [ ship-d ]
+
+  # ───────────────────────────── Ship E ────────────────────────────────────
+  ship-e:
+    image: ethereum/client-go:v1.10.17
+    container_name: convoy-ship-e
+    hostname: ship-e
+    restart: unless-stopped
+    depends_on:
+      ship-a:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/init-geth.sh"]
+    environment:
+      SHIP_ID: E
+      SIGNER_ADDR: "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65"
+      SIGNER_KEYFILE: /keys/E.json
+      PASSWORD_FILE: /password.txt
+      P2P_PORT: "30307"
+      BOOTNODES: "enode://ship-a:30303"
+    volumes:
+      - ./infrastructure/geth/init-geth.sh:/init-geth.sh:ro
+      - ./infrastructure/geth/genesis.json:/genesis.json:ro
+      - ./infrastructure/geth/password.txt:/password.txt:ro
+      - ./infrastructure/geth/keys:/keys:ro
+      - ship-e-data:/data
+    ports:
+      - "8945:8545"
+    networks:
+      convoy-l1:
+        aliases: [ ship-e ]
+
+  # ───────────────────────────── Ship F — alpha lane relay ─────────────────
+  ship-f:
+    image: ethereum/client-go:v1.10.17
+    container_name: convoy-ship-f
+    hostname: ship-f
+    restart: unless-stopped
+    depends_on:
+      ship-a:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/init-geth.sh"]
+    environment:
+      SHIP_ID: F
+      SIGNER_ADDR: "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+      SIGNER_KEYFILE: /keys/F.json
+      PASSWORD_FILE: /password.txt
+      P2P_PORT: "30308"
+      BOOTNODES: "enode://ship-a:30303"
+    volumes:
+      - ./infrastructure/geth/init-geth.sh:/init-geth.sh:ro
+      - ./infrastructure/geth/genesis.json:/genesis.json:ro
+      - ./infrastructure/geth/password.txt:/password.txt:ro
+      - ./infrastructure/geth/keys:/keys:ro
+      - ship-f-data:/data
+    ports:
+      - "9045:8545"
+    networks:
+      convoy-l1:
+        aliases: [ ship-f ]
+
+  # ───────────────────────────── Foundry deploy service (manual run) ───────
+  deploy-l1:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: convoy-deploy-l1
+    profiles: ["deploy"]      # only runs when invoked explicitly
+    depends_on:
+      ship-a:
+        condition: service_healthy
+    working_dir: /workspace
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        echo "[deploy-l1] installing forge dependencies"
+        forge install --no-commit foundry-rs/forge-std OpenZeppelin/openzeppelin-contracts || true
+        echo "[deploy-l1] building"
+        forge build
+        echo "[deploy-l1] running tests"
+        forge test --match-contract Phase2Acceptance -vv
+        echo "[deploy-l1] deploying to ship-a"
+        export COMMANDER_ADDR=0x14dC79964da2C08b23698B3D3cc7Ca32193d9955
+        export ALPHA_RELAY_ADDR=0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc
+        export BRAVO_RELAY_ADDR=0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+        forge script script/DeployL1.s.sol \
+          --rpc-url http://ship-a:8545 \
+          --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+          --broadcast
+    environment:
+      FOUNDRY_PROFILE: default
+    volumes:
+      - ./contracts:/workspace
+    networks:
+      - convoy-l1
+
+# ───────────────────────────────────────────────────────────────────────────
+volumes:
+  ship-a-data:
+  ship-b-data:
+  ship-c-data:
+  ship-d-data:
+  ship-e-data:
+  ship-f-data:
+
+networks:
+  convoy-l1:
+    name: convoy-l1
+    driver: bridge

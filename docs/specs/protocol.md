@@ -45,7 +45,7 @@ Four boundary crossings. Every other call is intra-domain.
 | 1 | **commander → L1** (step 1) | `secp256k1` ECDSA over the commander key + `onlyCommander` modifier |
 | 2 | **L1 → L2** (step 4 dispatch) | TLS over the convoy radio link; relay key whitelisted on Madara |
 | 3 | **drone → L2** (steps 5–6) | Stark-curve ECDSA via the OZ account contract on Madara; Cairo program enforces `SAFE_AREA` on the witness |
-| 4 | **L2 → L1** (step 19 relay handoff) | Off-chain RPC over radio; **soundness rests on the on-chain FRI re-check inside step 21**, not on the relay's honesty |
+| 4 | **L2 → L1** (step 19 relay handoff) | The relay ship runs `cpu_air_verifier` + `stark_evm_adapter` locally, **off-chain**, before forwarding the fact to L1. Soundness rests on this off-chain verifier being correct (it's StarkWare's production verifier — same one used by the GPS Statement Verifier on Ethereum mainnet), not on the relay's honesty |
 | 5 | **L1 → L2** (step 24 advance bridge) | TLS over radio; same channel as step 4, opposite direction |
 
 ---
@@ -365,76 +365,123 @@ mirror on the alpha lane.
 
 ## Phase 5 — Relay back to L1 + on-chain verification (steps 19–21)
 
-### Step 19 — Orchestrator → ship B (radio)
+### Step 19 — Off-chain verify + Orchestrator hands fact to ship B (radio)
 
-- **Message**: Orchestrator → ship B (parallel: Orchestrator-α → ship F)
-- **Endpoint signature** (off-chain):
+- **Message**: Orchestrator-β → ship B (parallel: Orchestrator-α → ship F)
+- **Sub-actions inside the orchestrator** (run locally on the relay ship,
+  before any L1 tx):
+  1. `cpu_air_verifier` runs against π_β to confirm the STARK proof
+     verifies (soundness gate — fails here if Stone produced an invalid
+     proof).
+  2. `stark_evm_adapter` converts the verified proof into the **fact**
+     tuple expected by L1: `factHash = keccak256(programHash, outputHash)`.
+  3. Public output values are extracted from the proof's public memory
+     segment: `[n_cells, H_β, area_hash, coveragePermille, maxContactBp,
+     elapsedSeconds]`.
+- **Endpoint signature** (off-chain RPC):
   ```
   POST /relay/submit
-  body: { proof: π_β, public_input, mid, drone_id=β }
+  body: {
+    programHash, outputHash, mid, drone_id,
+    coveragePermille, maxContactBp, elapsedSeconds, H_beta, n_steps
+  }
   ```
 - **Payload**:
-  - `proof: bytes` — π_β
-  - `public_input` — from step 18
-  - `mid: uint256`
-  - `drone_id: felt252` — β
-- **Authentication**: Off-chain RPC over the convoy radio link. **The
-  relay ship trusts the Orchestrator only insofar as it forwards
-  whatever proof it receives** — soundness rests on the on-chain
-  re-check (step 21), not on the relay's honesty.
-- **Trust boundary**: **L2 → L1 (relay handoff) — TRUST CROSSING**
-- **What happens**: Orchestrator hands the proof bundle to ship B. The
-  proof leaves the L2 perimeter at this point.
-- **Parallel lane**: Orchestrator-α → ship F with π_α.
+  - `programHash` — `bytes32` `keccak256` of the compiled `safe_area_verify.cairo` program bytecode
+  - `outputHash` — `bytes32` `keccak256` of the ABI-encoded program output
+  - `mid` — `uint256` mission id
+  - `drone_id` — `uint256` α or β
+  - Public output fields — `coveragePermille`, `maxContactBp`,
+    `elapsedSeconds`, `H_β`, `n_steps`
+- **Authentication**: **`cpu_air_verifier` is the cryptographic gate** —
+  it runs StarkWare's production verifier locally and rejects any proof
+  that doesn't pass FRI. Same verifier the GPS Statement Verifier uses
+  on Ethereum mainnet. The relay ship's L1 tx envelope (next step) only
+  authenticates the submitter; **the proof is already known to be valid
+  by the time the fact reaches L1**.
+- **Trust boundary**: **L2 → L1 (relay handoff) — TRUST CROSSING**.
+  Soundness rests on `cpu_air_verifier` being correct (a well-audited
+  StarkWare component). The relay ship is NOT trusted to vouch for
+  proof validity — the fact registry pattern means "off-chain verify,
+  on-chain register" rather than "on-chain re-verify".
+- **What happens**: Orchestrator-β verifies π_β locally, runs the
+  EVM-adapter to produce the fact, and hands the fact bundle to ship
+  B's submission daemon. The proof bytes themselves do **not** travel
+  to L1 (would be too expensive); only the 32-byte fact + public values.
+- **Parallel lane**: Orchestrator-α → ship F with π_α's fact.
 
-### Step 20 — `submitProof(...)` tx (B for π_β, F for π_α)
+### Step 20 — `registerSafeProof(...)` tx (B for β-fact, F for α-fact)
 
 - **Self-action** on ship B (parallel on ship F)
 - **Endpoint signature** (Solidity on L1):
   ```solidity
-  function submitProof(
-      bytes proof,
-      bytes32[] public_inputs,
+  function registerSafeProof(
+      bytes32 programHash,
+      bytes32 outputHash,
       uint256 mid,
-      uint256 drone_id
-  ) external;
+      uint256 drone_id,
+      uint256 coveragePermille,
+      uint256 maxContactBp,
+      uint256 elapsedSeconds,
+      bytes32 H_commitment,
+      uint256 nSteps
+  )
+      external
+      onlyRelay
+      returns (uint256 proofId, bytes32 factHash);
   ```
-- **Payload**:
-  - `proof (β)` — `bytes` π_β (signed by B)
-  - `proof (α)` — `bytes` π_α (signed by F)
-  - `public_inputs: bytes32[]` — recomputed from each proof's public input array
-  - `mid: uint256` — `EX-011` for β, `EX-010` for α
-  - `drone_id: uint256` — β or α
+- **Payload** (per call):
+  - `programHash, outputHash` — fact components from step 19
+  - `mid, drone_id` — same `mid` as deployed in step 1; `α` or `β`
+  - `coveragePermille` — must satisfy `≥ MissionSpec.coverage_min`
+  - `maxContactBp` — must satisfy `< MissionSpec.p_min`
+  - `elapsedSeconds` — must satisfy `≤ MissionSpec.time_window`
+  - `H_commitment` — Poseidon commitment over the cell array (recorded
+    for audit; matches the on-chain `H_β` from `submit_sweep_commitment`)
+  - `nSteps` — Cairo VM step count (provenance metadata)
 - **Authentication**: **`secp256k1` ECDSA** — each relay signs its own
-  L1 tx envelope. B signs π_β's tx, F signs π_α's tx. The signature only
-  authenticates "this ship submitted this tx" — proof correctness is
-  checked by the contract logic, **not the signature**. **Relay ships
-  are deliberately not trusted to vouch for proof validity.**
-- **Trust boundary**: L1 internal (no crossing — the trust crossing was
-  in step 19; from here on the proof is on the chain)
-- **What happens**: In parallel, ship B writes its `submitProof` tx for
-  π_β onto its Geth node, and ship F writes its `submitProof` tx for
-  π_α onto its Geth node. Both call `Verifier.sol`.
+  L1 tx envelope. B signs the β-fact tx with its ship key, F signs the
+  α-fact tx with its ship key. The `onlyRelay` modifier on
+  `Verifier.registerSafeProof` checks `msg.sender` against the
+  whitelisted relay-ship address for that `drone_id` (configured at
+  deploy in `Verifier.sol`'s constructor).
+- **Trust boundary**: L1 internal (no crossing — the L2→L1 crossing
+  was in step 19; from here on the fact is on the chain)
+- **What happens**: In parallel, ship B writes its `registerSafeProof`
+  tx for the β-fact onto its Geth node, and ship F writes its tx for
+  the α-fact. Both call `Verifier.sol`.
 
-### Step 21 — PoA fan-out → both proofs verify on-chain → verdicts written
+### Step 21 — PoA fan-out → fact registered + verdict written + events
 
 - **Message**: ship B → L1 cluster (parallel: ship F → L1 cluster)
 - **Endpoint**: Clique PoA peer broadcast
 - **Payload**:
-  - `block N+k` — sealed PoA block including B's `submitProof` tx
-  - `block N+k+1` — sealed PoA block including F's `submitProof` tx
+  - `block N+k` — sealed PoA block including B's `registerSafeProof` tx
+  - `block N+k+1` — sealed PoA block including F's `registerSafeProof` tx
     (may be the same block if same signer slot)
 - **Authentication**: `secp256k1` — block sealer signs the header. Same
   PoA fan-out as step 2.
 - **Trust boundary**: L1 internal (no crossing)
-- **What happens**: Both `submitProof` txs propagate to all 6 ships via
-  Clique PoA. **As each block executes on every Geth in lockstep,
-  `Verifier.submitProof` internally runs FRI re-verification (the
-  cryptographic gate — invalid proofs revert here) and writes the SAFE
-  verdict to Registry under `(mid, drone_id)`.** After this step,
-  Registry holds `verdict[α] = SAFE` and `verdict[β] = SAFE` on every
-  node. (FRI re-run + `setVerdict` happen as side-effects of the
-  `submitProof` tx execution; no separate steps in this protocol.)
+- **What happens**: Both `registerSafeProof` txs propagate to all 6
+  ships via Clique PoA. As each block executes on every Geth in lockstep,
+  `Verifier.registerSafeProof`:
+  1. Computes `factHash = keccak256(programHash, outputHash)`.
+  2. Calls inherited `FactRegistry.registerFact(factHash)` — sets
+     `verifiedFact[factHash] = true`.
+  3. Stores the proof metadata (mid, drone_id, coverage/contact/elapsed
+     fields, `H_commitment`, `nSteps`, `block.timestamp`,
+     `block.number`) in the `proofs[]` array.
+  4. Calls `Registry.setVerdict(mid, drone_id, SAFE)` (cross-contract,
+     gated by `onlyVerifier` on Registry).
+  5. Emits `FactRegistered(factHash, programHash, outputHash)` and
+     `MissionVerified(proofId, mid, drone_id, factHash, coveragePermille,
+     maxContactBp, elapsedSeconds)`.
+
+  After this step, Registry holds `verdict[α] = SAFE` and
+  `verdict[β] = SAFE` on every node, and the corresponding `factHash`es
+  are marked verified. (Steps 1–5 above all happen as side-effects of
+  the `registerSafeProof` tx execution; no separate steps in this
+  protocol.)
 
 ---
 
@@ -544,9 +591,9 @@ channel is needed at the protocol level. (See `docs/decisions/`.)
 | 16 | 4 | Orch | Stone | msg | — | send PIE + config |
 | 17 | 4 | Stone | Stone | self | — | run FRI → π_β |
 | 18 | 4 | Stone | Orch | msg | — | π_β + public inputs |
-| 19 | 5 | Orch | ship B (and F) | msg | ⚠ L2→L1 | hand off π over radio |
-| 20 | 5 | ship B (and F) | self | self | — | `submitProof(...)` tx |
-| 21 | 5 | ship B (and F) | L1 cluster | msg | — | PoA fan-out → FRI re-run + verdict |
+| 19 | 5 | Orch | ship B (and F) | msg | ⚠ L2→L1 | off-chain verify (`cpu_air_verifier`) → adapter → hand fact over radio |
+| 20 | 5 | ship B (and F) | self | self | — | `registerSafeProof(...)` tx (fact + public outputs) |
+| 21 | 5 | ship B (and F) | L1 cluster | msg | — | PoA fan-out → fact registered + verdict + `MissionVerified` event |
 | 22 | 6 | D | D | self | — | `advance(MAX_SPEED)` tx |
 | 23 | 6 | D | L1 cluster | msg | — | PoA fan-out → CommandLog + `ConvoyAdvance` |
 | 24 | 7 | ship B (and F) | L2-B (and L2-A) | msg | ⚠ L1→L2 | radio advance to drones |
