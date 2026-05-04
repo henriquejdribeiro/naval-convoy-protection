@@ -1,0 +1,20 @@
+# =============================================================================
+# convoy_protocol — Cairo 1 contract deployed to Madara α / Madara β.
+#
+# Mirrors verifiable_grid/contracts/cairo/Scarb.toml — same Cairo edition,
+# same starknet dependency version. Sierra + CASM emitted so Madara can
+# load and execute the contract.
+# =============================================================================
+
+[package]
+name        = "convoy_protocol"
+version     = "0.1.0"
+edition     = "2024_07"
+description = "L2 contract — drone telemetry + sweep commitment for the convoy protocol"
+
+[dependencies]
+starknet = ">=2.9.2"
+
+[[target.starknet-contract]]
+sierra = true
+casm   = true

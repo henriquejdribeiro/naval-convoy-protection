@@ -1,34 +1,35 @@
 # =============================================================================
-# Phase 3 — L2 + STARK proof pipeline (initial slice: prover-api only)
+# Phase 3 — L2 + STARK proof pipeline.
 #
-# This file EXTENDS docker-compose.l1.yml. Bring up:
+# Extends docker-compose.l1.yml. Bring up:
 #
 #   docker compose -f docker-compose.l1.yml -f docker-compose.l2.yml up -d
 #
-# What's in this compose file (Phase 3 minimum vertical slice):
+# Service profiles (control which subset starts):
+#   default profile         prover-api only — Phase 3.a, direct cairo-run
+#   `l2` profile            + madara + pathfinder — Phase 3.b, real L2 stack
+#   `proving` profile       + snos — full SNOS-driven proof pipeline
 #
-#   - prover-api  Stone STARK prover (cpu_air_prover) + stark_evm_adapter +
-#                 cairo-lang. Compiles safe_area_verify.cairo, runs it
-#                 against /proofs/program_input.json (or sample_input.json
-#                 if absent), generates a STARK proof, verifies it locally,
-#                 adapts to EVM format, and submits registerSafeProof to
-#                 the Verifier contract on ship-a's chain.
+# Phase 3.a (default profile, what works today):
+#   prover-api  →  cairo-compile + cairo-run + cpu_air_prover +
+#                 cpu_air_verifier + stark_evm_adapter + Verifier.registerSafeProof
+#                 against ship-a's chain. No Madara needed.
 #
-# What's COMING (separate file, separate work):
+# Phase 3.b (l2 profile, in flight):
+#   madara       Cairo-1 sequencer hosting convoy_protocol.cairo. Settles
+#                into the StarknetCoreStub already deployed in Phase 2 at
+#                0x5FbDB2315678afecb367f032d93F642f64180aa3.
+#   pathfinder   Independent full-node + JSON-RPC; archive-mode state
+#                tries so SNOS can replay arbitrary blocks.
 #
-#   - madara      L2 sequencer (Cairo 1 contracts)        Phase 3.b
-#   - pathfinder  StarkNet RPC indexer                    Phase 3.b
-#   - snos        StarkNet OS (replays L2 block → PIE)    Phase 3.c
-#   - orchestrator  Madara orchestrator (job queue)       Phase 3.d
-#
-# The current slice proves end-to-end "Cairo program → STARK proof → on-chain
-# fact" without involving Madara. Once that works, we layer on Madara/SNOS
-# so the proofs come from real L2 block replays instead of direct
-# cairo-run.
+# Phase 3.c (proving profile, post-Madara):
+#   snos         StarkNet OS — replays an L2 block into a PIE the prover
+#                consumes. Uses Karnot's tx-hash patches kept verbatim.
 # =============================================================================
 
 services:
 
+  # ═══ Phase 3.a — direct STARK prover (no Madara) ═══════════════════════
   prover-api:
     build:
       context: ./infrastructure/prover-api
@@ -43,19 +44,11 @@ services:
     environment:
       STONE_OUTPUT_DIR:  /proofs
       GETH_RPC_URL:      http://ship-a:8545
-      # Verifier contract address — CREATE deterministic from anvil[0] nonce 2
-      # (matches the address printed by DeployL1.s.sol).
       VERIFIER_ADDR:     "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"
-      # Relay private keys (anvil[1] = ship B = bravo; anvil[5] = ship F = alpha).
-      # The submit script picks the right one based on drone_id from the proof
-      # public outputs.
       ALPHA_RELAY_PK:    "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
       BRAVO_RELAY_PK:    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
     networks:
       - convoy-l1
-    # Stone is RAM-bound. 50-cell SAFE proof should peak around 6–8 GB on a
-    # starknet_with_keccak layout; 12 GB ceiling gives headroom for bigger
-    # mission sizes during demo.
     deploy:
       resources:
         limits:
@@ -63,11 +56,118 @@ services:
         reservations:
           memory: 6G
 
+  # ═══ Phase 3.b — Madara L2 sequencer ═══════════════════════════════════
+  # Same image + flags as verifiable_grid's madara service. Settles into
+  # the existing StarknetCoreStub at the deterministic anvil[0]+nonce0 address
+  # (0x5FbDB2315678afecb367f032d93F642f64180aa3 — see DeployL1.s.sol log).
+  madara:
+    image: ghcr.io/madara-alliance/madara:nightly
+    container_name: convoy-madara
+    profiles: ["l2", "proving"]
+    depends_on:
+      ship-a:
+        condition: service_healthy
+    volumes:
+      - madara-data:/madara_db
+    command: >
+      --name Madara
+      --devnet
+      --base-path /madara_db
+      --chain-config-override=chain_id=convoy_devnet,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --rpc-external
+      --rpc-cors all
+      --feeder-gateway-enable
+      --gateway-external
+      --gateway-port 8080
+      --rpc-pre-v0-9-preconfirmed-as-pending
+      --l1-sync-disabled
+      --no-transaction-validation
+      --l1-gas-price 1000000000
+      --blob-gas-price 100000
+    ports:
+      - "9944:9944"   # StarkNet JSON-RPC v0.7
+      - "8080:8080"   # feeder-gateway (Pathfinder consumes this)
+    networks:
+      - convoy-l1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9944/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  # ═══ Pathfinder — independent indexer ═════════════════════════════════
+  pathfinder:
+    image: eqlabs/pathfinder:v0.21.3
+    container_name: convoy-pathfinder
+    profiles: ["l2", "proving"]
+    depends_on:
+      ship-a:
+        condition: service_healthy
+      madara:
+        condition: service_healthy
+    volumes:
+      - pathfinder-data:/usr/share/pathfinder/data
+    environment:
+      RUST_LOG: info
+    command: >
+      --network custom
+      --chain-id convoy_devnet
+      --ethereum.url ws://ship-a:8546
+      --gateway-url http://convoy-madara:8080/gateway
+      --feeder-gateway-url http://convoy-madara:8080/feeder_gateway
+      --storage.state-tries archive
+      --data-directory /usr/share/pathfinder/data
+    ports:
+      - "9545:9545"
+    networks:
+      - convoy-l1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/9545'"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 120s
+
+  # ═══ Phase 3.c — SNOS PIE generator ════════════════════════════════════
+  # Replays a Madara block in the Cairo VM, emits a PIE the prover consumes.
+  # Profile gated by `proving` so Phase 3.a/b can run without it.
+  snos:
+    build:
+      context: ./infrastructure/snos
+      dockerfile: Dockerfile
+    image: convoy-snos:latest
+    container_name: convoy-snos
+    profiles: ["proving"]
+    depends_on:
+      pathfinder:
+        condition: service_healthy
+    volumes:
+      - snos-output:/output
+      - ./infrastructure/snos/entrypoint.sh:/app/entrypoint.sh:ro
+    environment:
+      SNOS_BLOCK_NUMBER: 1                    # which L2 block to prove
+      SNOS_RPC_PROVIDER: http://convoy-pathfinder:9545
+      SNOS_GATEWAY_URL:  http://convoy-madara:8080
+      SNOS_OUTPUT_DIR:   /output
+    networks:
+      - convoy-l1
+
+
 volumes:
   prover-output:
     driver: local
+  madara-data:
+    driver: local
+  pathfinder-data:
+    driver: local
+  snos-output:
+    driver: local
 
-# Note: the convoy-l1 network is created by docker-compose.l1.yml.
+
+# convoy-l1 network is created by docker-compose.l1.yml.
 networks:
   convoy-l1:
     external: true

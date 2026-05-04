@@ -1,19 +1,16 @@
 # =============================================================================
-# Phase 3 prover-api — Stone STARK prover for the convoy SAFE_AREA program
+# Phase 3.a prover-api — Stone STARK prover for safe_area_verify.cairo
 #
-# Adapted from verifiable_grid/infrastructure/prover-api/Dockerfile (working
-# pinned versions kept identical for compatibility with cpu_air_prover output).
+# Adapted from verifiable_grid/infrastructure/prover-api with stone-prover-cli
+# DROPPED (it pinned Rust 1.81 which hits a `time` crate ICE on current
+# nightly registry resolutions). stone-prover-cli is only needed for SNOS-
+# emitted PIEs (Phase 3.b); the direct cairo-run path used here lets
+# cpu_air_prover consume the trace + memory + public_input files directly.
 #
-# Build inputs:
-#   - cpu_air_prover  / cpu_air_verifier  (Stone, official C++ binary, Bazel build)
-#   - cairo-lang 0.14.0.1                  (cairo-compile + cairo-run --proof_mode)
-#   - stone-prover-cli                     (Moonsong-Labs Rust bootloader, for SNOS PIEs)
-#   - stark-evm-adapter                    (zksecurity, EVM-compatible proof adaptation)
-#
-# Adaptations vs verifiable_grid:
-#   - safe_area_verify.cairo replaces drone_verify.cairo
-#   - submit_proof_l1.py speaks the registerSafeProof(SafeProofInputs) ABI
-#   - sample_input.json carries the SAFE_AREA cell schema (x, y, p_contact, ts)
+# Build stages:
+#   1. stone-builder    cpu_air_prover / cpu_air_verifier (Bazel + ciimage/python)
+#   2. adapter-builder  stark_evm_adapter (Rust 1.89, works without patches)
+#   3. runtime          Ubuntu 22.04 + cairo-lang 0.14.0.1 (pip) + the binaries
 # =============================================================================
 
 # --- Stage 1: Build C++ Stone prover from official repo (Bazel) ---
@@ -27,16 +24,7 @@ RUN git clone https://github.com/starkware-libs/stone-prover.git .
 RUN bash install_deps.sh
 RUN bazel build //...
 
-# --- Stage 2a: stone-prover-cli (Rust bootloader for SNOS v0.14 PIEs) ---
-# Rust 1.81 is required — the time crate 0.3.34 has an inference regression on 1.82+
-FROM rust:1.81-bookworm AS prover-cli-builder
-RUN apt-get update && apt-get install -y git pkg-config libssl-dev cmake clang && \
-    rm -rf /var/lib/apt/lists/*
-RUN git clone --depth 1 https://github.com/Moonsong-Labs/stone-prover-cli.git /build/stone-prover-cli
-WORKDIR /build/stone-prover-cli
-RUN cargo build --release
-
-# --- Stage 2b: stark-evm-adapter (proof bytes -> EVM-compatible "fact" tuple) ---
+# --- Stage 2: stark-evm-adapter (proof bytes -> EVM-compatible "fact" tuple) ---
 FROM rust:1.89-bookworm AS adapter-builder
 RUN apt-get update && apt-get install -y git pkg-config libssl-dev cmake clang && \
     rm -rf /var/lib/apt/lists/*
@@ -61,6 +49,12 @@ RUN pip3 install --no-cache-dir \
         pysha3 \
         eth-utils
 
+# Foundry's cast — used by submit_proof_l1.py to send the L1 tx
+RUN curl -L https://foundry.paradigm.xyz | bash || true
+ENV PATH="/root/.foundry/bin:${PATH}"
+RUN /root/.foundry/bin/foundryup -i stable && \
+    /root/.foundry/bin/cast --version
+
 # Official Stone binaries
 COPY --from=stone-builder \
     /app/build/bazelbin/src/starkware/main/cpu/cpu_air_prover   /usr/local/bin/
@@ -70,17 +64,15 @@ COPY --from=stone-builder /usr/lib/x86_64-linux-gnu/libdw*  /usr/lib/x86_64-linu
 COPY --from=stone-builder /usr/lib/x86_64-linux-gnu/libelf* /usr/lib/x86_64-linux-gnu/
 COPY --from=stone-builder /usr/lib/x86_64-linux-gnu/libgmp* /usr/lib/x86_64-linux-gnu/
 
-# stone-prover-cli + stark-evm-adapter
-COPY --from=prover-cli-builder \
-    /build/stone-prover-cli/target/release/stone-prover-cli /usr/local/bin/
+# stark-evm-adapter
 COPY --from=adapter-builder \
     /build/adapter/target/release/stark_evm_adapter /usr/local/bin/
 
 # Verify binaries
-RUN cpu_air_prover   --help > /dev/null 2>&1 && echo "cpu_air_prover  OK"
-RUN cpu_air_verifier --help > /dev/null 2>&1 && echo "cpu_air_verifier OK"
-RUN stone-prover-cli --help > /dev/null 2>&1 && echo "stone-prover-cli OK"
-RUN stark_evm_adapter --help 2>&1 | head -1   && echo "stark-evm-adapter OK" || true
+RUN cpu_air_prover    --help > /dev/null 2>&1 && echo "cpu_air_prover    OK"
+RUN cpu_air_verifier  --help > /dev/null 2>&1 && echo "cpu_air_verifier  OK"
+RUN stark_evm_adapter --help 2>&1 | head -1   && echo "stark_evm_adapter OK" || true
+RUN cast --version > /dev/null 2>&1 && echo "cast              OK"
 
 WORKDIR /app
 COPY safe_area_verify.cairo /app/safe_area_verify.cairo

@@ -1,9 +1,9 @@
 {
   "_comment_top": "Canonical SAFE input for Phase 3 smoke test.",
-  "_comment_pass": "All thresholds satisfied: coverage 952/1000, max p_contact 4500/10000, elapsed 340s ≤ 360s.",
-  "_comment_lane": "drone_id=2 (β), mid=11 (EX-011) — bravo lane.",
+  "_comment_pass": "All thresholds satisfied: coverage 960/1000, max p_contact 4500/10000, elapsed 340s ≤ 360s.",
+  "_comment_lane": "drone_id=2 (β), mid=2 — bravo lane (auto-incremented: α deploys first → mid=1, β second → mid=2).",
 
-  "mid":              11,
+  "mid":              2,
   "drone_id":         2,
   "area_total_cells": 50,
   "coverage_min":     950,

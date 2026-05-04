@@ -42,10 +42,10 @@ echo "============================================"
 
 # ── Tool sanity ────────────────────────────────────────────────────────
 echo "[*] Checking tools..."
-cpu_air_prover  --help > /dev/null 2>&1 && echo "    cpu_air_prover    : OK"
-cpu_air_verifier --help > /dev/null 2>&1 && echo "    cpu_air_verifier  : OK"
-stone-prover-cli --help > /dev/null 2>&1 && echo "    stone-prover-cli  : OK"
+cpu_air_prover    --help > /dev/null 2>&1 && echo "    cpu_air_prover    : OK"
+cpu_air_verifier  --help > /dev/null 2>&1 && echo "    cpu_air_verifier  : OK"
 stark_evm_adapter --help > /dev/null 2>&1 && echo "    stark_evm_adapter : OK" || true
+cast --version            > /dev/null 2>&1 && echo "    cast              : OK"
 python3 -c "import starkware; print('    cairo-lang        : ' + __import__('importlib.metadata', fromlist=['version']).version('cairo-lang'))"
 echo ""
 

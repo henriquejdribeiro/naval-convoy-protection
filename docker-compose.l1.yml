@@ -300,11 +300,32 @@ services:
         forge build
         echo "[deploy-l1] running tests"
         forge test --match-contract Phase2Acceptance -vv
-        echo "[deploy-l1] deploying to ship-a (CONVOY_SPEED=$${CONVOY_SPEED})"
+        echo "[deploy-l1] deploying contracts to ship-a (CONVOY_SPEED=$${CONVOY_SPEED})"
         forge script script/DeployL1.s.sol \
           --rpc-url http://ship-a:8545 \
           --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
           --broadcast
+
+        # Deploy fixture missions for α and β so Phase 3 prover-api can
+        # immediately call registerSafeProof against them. Mints mid=1
+        # (drone α) then mid=2 (drone β); the prover sample uses mid=2.
+        # Deterministic Registry address from anvil[0] nonce 1.
+        REGISTRY=0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+        COMMANDER_PK=0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e
+        # MissionSpec(areaHash, coverageMin, pMin, timeWindow) — same values
+        # the prover-api sample uses (50-cell area, ≥95% coverage, p<0.7, ≤6 min)
+        SPEC="(0x6172656172656172656172656172656172656172656172656172656172656131,950,7000,360)"
+        echo "[deploy-l1] deploying mission for drone α (mid=1)"
+        cast send $$REGISTRY "deploy(uint256,(bytes32,uint16,uint16,uint64))" \
+            1 "$$SPEC" \
+            --rpc-url http://ship-a:8545 \
+            --private-key $$COMMANDER_PK
+        echo "[deploy-l1] deploying mission for drone β (mid=2)"
+        cast send $$REGISTRY "deploy(uint256,(bytes32,uint16,uint16,uint64))" \
+            2 "$$SPEC" \
+            --rpc-url http://ship-a:8545 \
+            --private-key $$COMMANDER_PK
+        echo "[deploy-l1] missions deployed; prover-api can now call registerSafeProof"
     volumes:
       - ./contracts:/workspace
     networks:
