@@ -43,8 +43,11 @@ services:
       - ./infrastructure/geth/keys:/keys:ro
       - ship-a-data:/data
     ports:
-      - "8545:8545"
-      - "8546:8546"
+      # Host ports moved off 8545/6 to avoid clashing with verifiable_grid's
+      # geth-node1 (or anything else listening there). Inside the convoy-l1
+      # network, ships still talk to each other on 8545.
+      - "18545:8545"
+      - "18546:8546"
       - "30303:30303"
     networks:
       convoy-l1:
@@ -203,6 +206,67 @@ services:
       convoy-l1:
         aliases: [ ship-f ]
 
+  # ───────────────────────────── wire-mesh — peer everyone to ship-a ──────
+  # Runs once on `up`. Waits for all 6 ship containers to be healthy /
+  # responsive on RPC, fetches ship-a's enode via admin_nodeInfo, then
+  # calls admin_addPeer on each of B/C/D/E/F to establish the Clique mesh.
+  # Discovery should also work via discv4 on the bridge network, but this
+  # explicit wiring guarantees the mesh forms within seconds rather than
+  # minutes.
+  wire-mesh:
+    image: curlimages/curl:8.10.1
+    container_name: convoy-wire-mesh
+    restart: "no"
+    depends_on:
+      - ship-a
+      - ship-b
+      - ship-c
+      - ship-d
+      - ship-e
+      - ship-f
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        SHIPS="ship-a ship-b ship-c ship-d ship-e ship-f"
+
+        # 1. Wait for every ship's RPC to come up
+        for s in $$SHIPS; do
+            echo "[wire-mesh] waiting for $$s RPC"
+            until curl -fs -X POST -H 'Content-Type: application/json' \
+                --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+                http://$$s:8545 >/dev/null 2>&1; do sleep 1; done
+        done
+
+        # 2. Fetch every ship's enode and rewrite the host part to its
+        #    docker DNS name so peers can route to it (geth advertises
+        #    127.0.0.1 by default which isn't reachable from siblings).
+        for s in $$SHIPS; do
+            E=$$(curl -fs -X POST -H 'Content-Type: application/json' \
+                --data '{"jsonrpc":"2.0","method":"admin_nodeInfo","params":[],"id":1}' \
+                http://$$s:8545 | sed -n 's/.*"enode":"\([^"]*\)".*/\1/p')
+            E_NET=$$(echo "$$E" | sed -E "s/@[0-9.]+:/@$$s:/" | sed "s|@\\[::\\]:|@$$s:|")
+            eval "ENODE_$$(echo $$s | tr '-' '_')=\"$$E_NET\""
+            echo "[wire-mesh] $$s enode: $$E_NET"
+        done
+
+        # 3. Full N×N mesh — addPeer every other ship's enode on every ship
+        for src in $$SHIPS; do
+            for dst in $$SHIPS; do
+                [ "$$src" = "$$dst" ] && continue
+                varname=ENODE_$$(echo $$dst | tr '-' '_')
+                eval "TARGET_ENODE=\$$$$varname"
+                R=$$(curl -fs -X POST -H 'Content-Type: application/json' \
+                    --data "{\"jsonrpc\":\"2.0\",\"method\":\"admin_addPeer\",\"params\":[\"$$TARGET_ENODE\"],\"id\":1}" \
+                    http://$$src:8545 | sed -n 's/.*"result":\([a-z]*\).*/\1/p')
+                echo "[wire-mesh] $$src -> $$dst : addPeer = $$R"
+            done
+        done
+
+        echo "[wire-mesh] mesh wired (N×N)"
+    networks:
+      - convoy-l1
+
   # ───────────────────────────── Foundry deploy service (manual run) ───────
   deploy-l1:
     image: ghcr.io/foundry-rs/foundry:latest
@@ -226,8 +290,12 @@ services:
     command:
       - |
         set -e
-        echo "[deploy-l1] installing forge dependencies"
-        forge install --no-commit foundry-rs/forge-std OpenZeppelin/openzeppelin-contracts || true
+        echo "[deploy-l1] installing forge dependencies (via git clone — more robust than forge install on bind-mounted source)"
+        mkdir -p lib
+        [ -d lib/forge-std ] || git clone --depth 1 --branch v1.9.4 \
+            https://github.com/foundry-rs/forge-std lib/forge-std
+        [ -d lib/openzeppelin-contracts ] || git clone --depth 1 --branch v5.0.2 \
+            https://github.com/OpenZeppelin/openzeppelin-contracts lib/openzeppelin-contracts
         echo "[deploy-l1] building"
         forge build
         echo "[deploy-l1] running tests"

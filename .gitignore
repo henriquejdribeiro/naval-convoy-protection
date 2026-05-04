@@ -37,3 +37,17 @@ proofs/
 artifacts/
 *.pie
 *.proof.json
+
+# Geth keystores — regenerated deterministically by scripts/generate-keys.sh
+# from the well-known anvil mnemonic. Not committed (no value to track).
+infrastructure/geth/keys/*.json
+
+# Foundry build artifacts (the contracts/.gitignore covers this too;
+# duplicated at repo root in case forge is run from elsewhere)
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+contracts/lib/
+
+# Temp dir used during keystore generation
+.tmp-keys/

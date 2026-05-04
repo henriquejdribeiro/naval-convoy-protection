@@ -45,6 +45,13 @@ contract Phase2AcceptanceTest is Test {
     address internal bravoRelay= address(0xB000B);     // ship B
     address internal stranger  = address(0xDEAD);      // a non-privileged caller
 
+    // Cached drone-id constants. Public Solidity constants are exposed as
+    // auto-generated external getter functions, so reading them mid-test
+    // (e.g. registry.DRONE_ALPHA()) consumes any in-flight vm.prank.
+    // Cache once in setUp() to avoid that footgun.
+    uint256 internal ALPHA;
+    uint256 internal BRAVO;
+
     // Mission ids (deploy() auto-increments starting at 1; each lane's
     // mid will be different per call)
     uint256 internal mid_alpha;
@@ -64,6 +71,9 @@ contract Phase2AcceptanceTest is Test {
         registry.setVerifier(address(verifier));
 
         vm.stopPrank();
+
+        ALPHA = registry.DRONE_ALPHA();
+        BRAVO = registry.DRONE_BRAVO();
     }
 
     // ───────────────────────────────────────────────────────────────────
@@ -102,19 +112,19 @@ contract Phase2AcceptanceTest is Test {
         Registry.MissionSpec memory spec = _spec();
 
         vm.expectEmit(true, true, false, true, address(registry));
-        emit Registry.MissionDeployed(1, registry.DRONE_ALPHA(), spec);
+        emit Registry.MissionDeployed(1, ALPHA, spec);
         vm.prank(commander);
-        mid_alpha = registry.deploy(registry.DRONE_ALPHA(), spec);
+        mid_alpha = registry.deploy(ALPHA, spec);
         assertEq(mid_alpha, 1, "first mission should mint mid=1");
 
         vm.expectEmit(true, true, false, true, address(registry));
-        emit Registry.MissionDeployed(2, registry.DRONE_BRAVO(), spec);
+        emit Registry.MissionDeployed(2, BRAVO, spec);
         vm.prank(commander);
-        mid_beta = registry.deploy(registry.DRONE_BRAVO(), spec);
+        mid_beta = registry.deploy(BRAVO, spec);
         assertEq(mid_beta, 2, "second mission should mint mid=2");
 
         // Specs persisted under (mid, droneId)
-        Registry.MissionSpec memory got = registry.getSpec(1, registry.DRONE_ALPHA());
+        Registry.MissionSpec memory got = registry.getSpec(1, ALPHA);
         assertEq(got.coverageMin, 950);
         assertEq(got.pMin,        7000);
         assertEq(got.timeWindow,  360);
@@ -126,7 +136,7 @@ contract Phase2AcceptanceTest is Test {
     function test_02_nonCommanderDeployReverts() public {
         vm.prank(stranger);
         vm.expectRevert(bytes("Registry: onlyCommander"));
-        registry.deploy(registry.DRONE_ALPHA(), _spec());
+        registry.deploy(ALPHA, _spec());
     }
 
     // ───────────────────────────────────────────────────────────────────
@@ -135,18 +145,18 @@ contract Phase2AcceptanceTest is Test {
     function test_03_alphaRelayRegistersSafeProof() public {
         // Deploy mission first (mirrors test_01)
         vm.startPrank(commander);
-        uint256 mA = registry.deploy(registry.DRONE_ALPHA(), _spec());
-        uint256 mB = registry.deploy(registry.DRONE_BRAVO(), _spec());
+        uint256 mA = registry.deploy(ALPHA, _spec());
+        uint256 mB = registry.deploy(BRAVO, _spec());
         vm.stopPrank();
 
-        Verifier.SafeProofInputs memory inputs = _validInputs(mA, registry.DRONE_ALPHA());
+        Verifier.SafeProofInputs memory inputs = _validInputs(mA, ALPHA);
 
         vm.prank(alphaRelay);
         (uint256 proofId, bytes32 factHash) = verifier.registerSafeProof(inputs);
 
         assertEq(proofId, 0,                "first proof should be id 0");
         assertTrue(verifier.isValid(factHash), "fact should be registered");
-        assertTrue(registry.isSafe(mA, registry.DRONE_ALPHA()),
+        assertTrue(registry.isSafe(mA, ALPHA),
                    "alpha verdict should be SAFE");
         // β not yet verified — dual-SAFE precondition must still fail
         assertFalse(registry.isDualSafe(mA, mB), "dual-SAFE should be false");
@@ -163,20 +173,20 @@ contract Phase2AcceptanceTest is Test {
     // ───────────────────────────────────────────────────────────────────
     function test_04_bothLanesVerified_dualSafeReached() public {
         vm.startPrank(commander);
-        uint256 mA = registry.deploy(registry.DRONE_ALPHA(), _spec());
-        uint256 mB = registry.deploy(registry.DRONE_BRAVO(), _spec());
+        uint256 mA = registry.deploy(ALPHA, _spec());
+        uint256 mB = registry.deploy(BRAVO, _spec());
         vm.stopPrank();
 
         // α-fact via ship F
         vm.prank(alphaRelay);
-        verifier.registerSafeProof(_validInputs(mA, registry.DRONE_ALPHA()));
+        verifier.registerSafeProof(_validInputs(mA, ALPHA));
 
         // β-fact via ship B
         vm.prank(bravoRelay);
-        verifier.registerSafeProof(_validInputs(mB, registry.DRONE_BRAVO()));
+        verifier.registerSafeProof(_validInputs(mB, BRAVO));
 
-        assertTrue(registry.isSafe(mA, registry.DRONE_ALPHA()));
-        assertTrue(registry.isSafe(mB, registry.DRONE_BRAVO()));
+        assertTrue(registry.isSafe(mA, ALPHA));
+        assertTrue(registry.isSafe(mB, BRAVO));
         assertTrue(registry.isDualSafe(mA, mB), "dual-SAFE should be true");
 
         // Pattern B: still NO ConvoyAdvance event from Verifier alone
@@ -189,16 +199,16 @@ contract Phase2AcceptanceTest is Test {
     // ───────────────────────────────────────────────────────────────────
     function test_05_nonRelayCallerReverts() public {
         vm.prank(commander);
-        uint256 mA = registry.deploy(registry.DRONE_ALPHA(), _spec());
+        uint256 mA = registry.deploy(ALPHA, _spec());
 
         vm.prank(stranger);
         vm.expectRevert(bytes("Verifier: onlyRelay"));
-        verifier.registerSafeProof(_validInputs(mA, registry.DRONE_ALPHA()));
+        verifier.registerSafeProof(_validInputs(mA, ALPHA));
 
         // Also: bravo relay cannot submit α-facts (wrong lane)
         vm.prank(bravoRelay);
         vm.expectRevert(bytes("Verifier: onlyRelay"));
-        verifier.registerSafeProof(_validInputs(mA, registry.DRONE_ALPHA()));
+        verifier.registerSafeProof(_validInputs(mA, ALPHA));
     }
 
     // ───────────────────────────────────────────────────────────────────
@@ -206,14 +216,14 @@ contract Phase2AcceptanceTest is Test {
     // ───────────────────────────────────────────────────────────────────
     function test_06_commanderFiresAdvance_emitsConvoyAdvance() public {
         vm.startPrank(commander);
-        uint256 mA = registry.deploy(registry.DRONE_ALPHA(), _spec());
-        uint256 mB = registry.deploy(registry.DRONE_BRAVO(), _spec());
+        uint256 mA = registry.deploy(ALPHA, _spec());
+        uint256 mB = registry.deploy(BRAVO, _spec());
         vm.stopPrank();
 
         vm.prank(alphaRelay);
-        verifier.registerSafeProof(_validInputs(mA, registry.DRONE_ALPHA()));
+        verifier.registerSafeProof(_validInputs(mA, ALPHA));
         vm.prank(bravoRelay);
-        verifier.registerSafeProof(_validInputs(mB, registry.DRONE_BRAVO()));
+        verifier.registerSafeProof(_validInputs(mB, BRAVO));
 
         // Roll forward a block so block.number is past the verifier txs
         vm.roll(block.number + 1);
@@ -251,13 +261,13 @@ contract Phase2AcceptanceTest is Test {
     // ───────────────────────────────────────────────────────────────────
     function test_08_preDualSafeAdvanceReverts() public {
         vm.startPrank(commander);
-        uint256 mA = registry.deploy(registry.DRONE_ALPHA(), _spec());
-        uint256 mB = registry.deploy(registry.DRONE_BRAVO(), _spec());
+        uint256 mA = registry.deploy(ALPHA, _spec());
+        uint256 mB = registry.deploy(BRAVO, _spec());
         vm.stopPrank();
 
         // Verify ONLY alpha
         vm.prank(alphaRelay);
-        verifier.registerSafeProof(_validInputs(mA, registry.DRONE_ALPHA()));
+        verifier.registerSafeProof(_validInputs(mA, ALPHA));
 
         // D tries to advance — must revert because β isn't SAFE yet
         vm.prank(commander);
@@ -266,7 +276,7 @@ contract Phase2AcceptanceTest is Test {
 
         // Now verify beta
         vm.prank(bravoRelay);
-        verifier.registerSafeProof(_validInputs(mB, registry.DRONE_BRAVO()));
+        verifier.registerSafeProof(_validInputs(mB, BRAVO));
 
         // Now the same call must succeed
         vm.prank(commander);
@@ -279,30 +289,30 @@ contract Phase2AcceptanceTest is Test {
     // ───────────────────────────────────────────────────────────────────
     function test_09_thresholdViolationsRevert() public {
         vm.prank(commander);
-        uint256 mA = registry.deploy(registry.DRONE_ALPHA(), _spec());
+        uint256 mA = registry.deploy(ALPHA, _spec());
 
         // Coverage too low (940 permille < 950)
-        Verifier.SafeProofInputs memory bad = _validInputs(mA, registry.DRONE_ALPHA());
+        Verifier.SafeProofInputs memory bad = _validInputs(mA, ALPHA);
         bad.coveragePermille = 940;
         vm.prank(alphaRelay);
         vm.expectRevert(bytes("Verifier: coverage < threshold"));
         verifier.registerSafeProof(bad);
 
         // Contact too high (8000 bp >= 7000)
-        bad = _validInputs(mA, registry.DRONE_ALPHA());
+        bad = _validInputs(mA, ALPHA);
         bad.maxContactBp = 8000;
         vm.prank(alphaRelay);
         vm.expectRevert(bytes("Verifier: maxContact >= pMin"));
         verifier.registerSafeProof(bad);
 
         // Time over window (400 > 360)
-        bad = _validInputs(mA, registry.DRONE_ALPHA());
+        bad = _validInputs(mA, ALPHA);
         bad.elapsedSeconds = 400;
         vm.prank(alphaRelay);
         vm.expectRevert(bytes("Verifier: time > window"));
         verifier.registerSafeProof(bad);
 
         // Verdict was never set
-        assertFalse(registry.isSafe(mA, registry.DRONE_ALPHA()));
+        assertFalse(registry.isSafe(mA, ALPHA));
     }
 }

@@ -39,26 +39,33 @@ if [ -n "${SIGNER_KEYFILE}" ] && [ -f "${SIGNER_KEYFILE}" ]; then
     fi
 fi
 
-# 3. Run geth in Clique signer mode
+# 3. Run geth in Clique signer mode.
+#
+# Peering: discovery is enabled (no --nodiscover) and there are no static
+# bootnodes — geth's discv4 UDP discovery on port 30303 finds peers on the
+# convoy-l1 docker bridge automatically. After all ships are healthy, the
+# wire-mesh service explicitly addPeer's ship-a's enode to each other ship
+# as a belt-and-braces backup.
+#
+# admin RPC API is enabled so the wire-mesh helper can call admin_nodeInfo
+# and admin_addPeer.
 exec geth \
     --datadir "${DATA_DIR}" \
     --networkid 11155111 \
-    --nodiscover \
     --syncmode full \
     --gcmode archive \
     --http \
     --http.addr 0.0.0.0 \
     --http.port 8545 \
-    --http.api eth,net,web3,txpool,clique,personal \
+    --http.api admin,eth,net,web3,txpool,clique,personal \
     --http.corsdomain "*" \
     --http.vhosts "*" \
     --ws \
     --ws.addr 0.0.0.0 \
     --ws.port 8546 \
-    --ws.api eth,net,web3,txpool,clique \
+    --ws.api admin,eth,net,web3,txpool,clique \
     --ws.origins "*" \
     --port "${P2P_PORT:-30303}" \
-    --bootnodes "${BOOTNODES:-}" \
     --mine \
     --miner.etherbase "${SIGNER_ADDR}" \
     --unlock "${SIGNER_ADDR}" \
