@@ -311,7 +311,7 @@ services:
         # (drone α) then mid=2 (drone β); the prover sample uses mid=2.
         # Deterministic Registry address from anvil[0] nonce 1.
         REGISTRY=0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
-        COMMANDER_PK=0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e
+        COMMANDER_PK=0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356
         # MissionSpec(areaHash, coverageMin, pMin, timeWindow) — same values
         # the prover-api sample uses (50-cell area, ≥95% coverage, p<0.7, ≤6 min)
         SPEC="(0x6172656172656172656172656172656172656172656172656172656172656131,950,7000,360)"

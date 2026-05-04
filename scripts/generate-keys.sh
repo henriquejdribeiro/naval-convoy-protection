@@ -19,7 +19,9 @@ PASSWORD_FILE="${REPO_ROOT}/infrastructure/geth/password.txt"
 GETH_IMAGE="ethereum/client-go:v1.10.17"
 
 # Anvil's deterministic test keys (Foundry mnemonic).
-# Order matches keys/README.md: 0..5 are ship validators A..F; 6 is D's commander.
+# Order matches keys/README.md: anvil[0..5] are ship validators A..F;
+# array index 6 is D's commander, which uses anvil[7] (not anvil[6]) — anvil[6]
+# is reserved for an unrelated experiment.
 declare -a ANVIL_KEYS=(
     "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"   # [0] A
     "59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"   # [1] B
@@ -27,7 +29,7 @@ declare -a ANVIL_KEYS=(
     "7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6"   # [3] D
     "47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a"   # [4] E
     "8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"   # [5] F
-    "92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e"   # [6] D-commander
+    "4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356"   # [6] D-commander
 )
 declare -a SHIP_LABELS=(A B C D E F D-commander)
 

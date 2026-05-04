@@ -16,7 +16,7 @@ mainnet.
 | `[3]`     | `0x90F79bf6EB2c4f870365E785982E1f101E93b906` | Ship D — validator (regular ship key) |
 | `[4]`     | `0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65` | Ship E — validator |
 | `[5]`     | `0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc` | Ship F — validator + alpha lane relay |
-| `[6]`     | `0x14dC79964da2C08b23698B3D3cc7Ca32193d9955` | **Commander key** — D's separate signing key for `Registry.deploy` and `CommandLog.advance` |
+| `[7]`     | `0x14dC79964da2C08b23698B3D3cc7Ca32193d9955` | **Commander key** — D's separate signing key for `Registry.deploy` and `CommandLog.advance` (uses anvil[7], not anvil[6]) |
 
 ## Generating the keystore JSON files
 
@@ -33,7 +33,7 @@ ANVIL_KEYS=(
     "7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6"
     "47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a"
     "8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
-    "92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e"
+    "4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356"
 )
 SHIP_LABELS=(A B C D E F D-commander)
 
