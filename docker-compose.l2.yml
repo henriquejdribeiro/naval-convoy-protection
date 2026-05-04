@@ -85,8 +85,12 @@ services:
       --l1-gas-price 1000000000
       --blob-gas-price 100000
     ports:
-      - "9944:9944"   # StarkNet JSON-RPC v0.7
-      - "8080:8080"   # feeder-gateway (Pathfinder consumes this)
+      # Host ports remapped because verifiable_grid's madara-node may
+      # already hold 9944/8080. Pathfinder & SNOS consume these via the
+      # convoy-l1 docker network (http://convoy-madara:9944 / :8080),
+      # so the host mapping is for human inspection only.
+      - "19944:9944"  # StarkNet JSON-RPC v0.7  (host:19944)
+      - "18080:8080"  # feeder-gateway          (host:18080)
     networks:
       - convoy-l1
     restart: unless-stopped
