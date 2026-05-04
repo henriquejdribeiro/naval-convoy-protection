@@ -26,7 +26,9 @@
 // Compiler:  cairo-lang 0.14.0.1
 // =============================================================================
 
-%builtins output poseidon range_check
+// Builtin order MUST be a subsequence of the canonical list:
+//   output, pedersen, range_check, ecdsa, bitwise, ec_op, keccak, poseidon, ...
+%builtins output range_check poseidon
 
 from starkware.cairo.common.cairo_builtins import PoseidonBuiltin
 from starkware.cairo.common.builtin_poseidon.poseidon import poseidon_hash
@@ -154,7 +156,7 @@ func hash_cells{poseidon_ptr: PoseidonBuiltin*}(
 // ─────────────────────────────────────────────────────────────────────────
 //  Main entry point
 // ─────────────────────────────────────────────────────────────────────────
-func main{output_ptr: felt*, poseidon_ptr: PoseidonBuiltin*, range_check_ptr}() {
+func main{output_ptr: felt*, range_check_ptr, poseidon_ptr: PoseidonBuiltin*}() {
     alloc_locals;
 
     // 1. Read scalar inputs from program_input.
