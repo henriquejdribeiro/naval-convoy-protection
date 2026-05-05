@@ -103,6 +103,11 @@ services:
 
   # ═══ Pathfinder — independent indexer ═════════════════════════════════
   pathfinder:
+    # Pinned to v0.21.3 — same version verifiable_grid uses, known compat
+    # with madara :nightly + vg-snos. v0.22.3 serves /rpc/v0_10 which SNOS
+    # rpc-replay needs, but vg's working path goes through their
+    # orchestrator (vg-orchestrator + MongoDB + mock-atlantic), which
+    # mediates the SNOS calls and doesn't need v0_10 directly.
     image: eqlabs/pathfinder:v0.21.3
     container_name: convoy-pathfinder
     profiles: ["l2", "proving"]
@@ -135,16 +140,17 @@ services:
       retries: 60
       start_period: 120s
 
-  # ═══ Phase 3.c — SNOS PIE generator ════════════════════════════════════
+  # ═══ Phase 3.c — SNOS PIE generator (standalone, dev-only) ═══════════
   # Replays a Madara block in the Cairo VM, emits a PIE the prover consumes.
-  # Profile gated by `proving` so Phase 3.a/b can run without it.
+  # Useful as a standalone smoke test; the production-shape pipeline uses
+  # the orchestrator below (which calls SNOS through MongoDB jobs).
   snos:
     build:
       context: ./infrastructure/snos
       dockerfile: Dockerfile
     image: convoy-snos:latest
     container_name: convoy-snos
-    profiles: ["proving"]
+    profiles: ["proving-direct"]
     depends_on:
       pathfinder:
         condition: service_healthy
@@ -153,11 +159,166 @@ services:
       - ./infrastructure/snos/entrypoint.sh:/app/entrypoint.sh:ro
     environment:
       SNOS_BLOCK_NUMBER: 1                    # which L2 block to prove
-      SNOS_RPC_PROVIDER: http://convoy-pathfinder:9545
+      SNOS_RPC_URL:      http://convoy-pathfinder:9545
       SNOS_GATEWAY_URL:  http://convoy-madara:8080
       SNOS_OUTPUT_DIR:   /output
     networks:
       - convoy-l1
+
+  # ═══ Phase 3.c — verifiable_grid-style orchestrator stack ════════════
+  # MongoDB stores orchestrator job state; LocalStack mocks AWS S3/SQS/SNS;
+  # vg-orchestrator pulls Madara blocks, calls SNOS to replay, calls a
+  # mocked Atlantic prover service, and writes verdicts back to L1.
+  # Same image + flags verifiable_grid uses, with addresses pointed at
+  # OUR Phase 2 chain (Verifier at 0x9fE4…6e0).
+  mongo:
+    image: mongo:7
+    container_name: convoy-mongo
+    profiles: ["proving"]
+    command: ["mongod"]
+    networks:
+      - convoy-l1
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ping:1}).ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  localstack:
+    image: localstack/localstack:3
+    container_name: convoy-localstack
+    profiles: ["proving"]
+    environment:
+      # Orchestrator needs scheduler (EventBridge) for periodic worker
+      # triggers; iam for role creation; events for the rule path.
+      SERVICES: s3,sqs,sns,iam,events,scheduler,sts
+      DEFAULT_REGION: us-east-1
+      EDGE_PORT: 4566
+      LOCALSTACK_HOST: convoy-localstack:4566
+      SQS_ENDPOINT_STRATEGY: path
+    networks:
+      - convoy-l1
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  orchestrator:
+    # Official Madara modular orchestrator from the upstream ecosystem
+    # (ghcr.io/madara-alliance/orchestrator). Same binary verifiable_grid
+    # uses a fork of, but pulled directly from upstream so we get whatever
+    # the modular stack ships today.
+    image: ghcr.io/madara-alliance/orchestrator:nightly
+    container_name: convoy-orchestrator
+    profiles: ["proving"]
+    depends_on:
+      ship-a:
+        condition: service_healthy
+      madara:
+        condition: service_healthy
+      pathfinder:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ENDPOINT_URL: http://convoy-localstack:4566
+    # The orchestrator command is taken verbatim from verifiable_grid
+    # (docker inspect madara-orchestrator), with these substitutions for
+    # OUR chain:
+    #   --ethereum-rpc-url            ship-a (was geth-node1)
+    #   --l1-core-contract-address    Verifier (0x9fE4…6e0; we don't have a
+    #                                  StarknetCore on L1, so point this at
+    #                                  the Verifier — orchestrator will
+    #                                  call updateState() which is a no-op
+    #                                  on our Verifier ABI but writes the
+    #                                  fact via registerFact's mock path).
+    #   --atlantic-mock-fact-hash     true (no real Atlantic key available)
+    #   --mock-atlantic-server        true (local Stone-emulating mock)
+    # Same flag pattern verifiable_grid uses, ported to the upstream
+    # ghcr.io/madara-alliance/orchestrator:nightly binary's CLI:
+    #   --prover atlantic + --mock-atlantic-server runs the Atlantic
+    #   pipeline against a local mock server (no cloud key needed).
+    #   For real Stone STARKs against L2 blocks you'd swap to a real
+    #   Atlantic/SHARP API key.
+    command:
+      - run
+      - --aws
+      - --aws-s3
+      - --aws-sqs
+      - --aws-sns
+      - --mongodb
+      - --mongodb-connection-url
+      - mongodb://convoy-mongo:27017
+      - --mongodb-database-name
+      - orchestrator
+      - --settle-on-ethereum
+      - --da-on-ethereum
+      - --ethereum-rpc-url
+      - http://ship-a:8545
+      - --ethereum-da-rpc-url
+      - http://ship-a:8545
+      - --ethereum-private-key
+      - ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+      - --l1-core-contract-address
+      - "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+      - --starknet-operator-address
+      - "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+      - --prover
+      - atlantic
+      - --atlantic-api-key
+      - mock
+      - --atlantic-service-url
+      - http://localhost:4001
+      - --atlantic-rpc-node-url
+      - http://convoy-pathfinder:9545
+      - --atlantic-prover-type
+      - stone
+      - --atlantic-settlement-layer
+      - ethereum
+      - --atlantic-verifier-contract-address
+      - "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"
+      - --atlantic-verifier-cairo-vm
+      - rust
+      - --atlantic-verifier-result
+      - proof-generation
+      - --atlantic-network
+      - TESTNET
+      - --atlantic-mock-fact-hash
+      - "true"
+      - --mock-atlantic-server
+      - --queue-identifier
+      - "mo_{}_queue"
+      - --min-block-to-process
+      - "1"                       # Madara's block 0 is genesis-pending; start at 1
+      - --rpc-for-snos
+      - http://convoy-pathfinder:9545
+      - --madara-rpc-url
+      - http://convoy-madara:9944
+      - --madara-feeder-gateway-url
+      - http://convoy-madara:8080/feeder_gateway
+      - --max-batch-time-seconds
+      - "300"
+      - --max-batch-size
+      - "10"
+      - --host
+      - 0.0.0.0
+      - --port
+      - "3000"
+      - --admin-enabled
+      - --disable-peerdas
+    ports:
+      - "13000:3000"          # orchestrator API (host:13000)
+    networks:
+      - convoy-l1
+    restart: unless-stopped
 
 
 volumes:

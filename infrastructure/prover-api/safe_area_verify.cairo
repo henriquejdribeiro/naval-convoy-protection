@@ -160,6 +160,11 @@ func main{output_ptr: felt*, range_check_ptr, poseidon_ptr: PoseidonBuiltin*}() 
     alloc_locals;
 
     // 1. Read scalar inputs from program_input.
+    //
+    // expected_commitment is OPTIONAL — when present it binds this proof
+    // to a specific L2 storage value (the Poseidon hash chain the drone
+    // already wrote on convoy_protocol via submit_sweep_commitment).
+    // Pass 0 to skip the binding (Phase 3.a's standalone-input mode).
     local mid: felt;
     local drone_id: felt;
     local area_total_cells: felt;
@@ -168,15 +173,17 @@ func main{output_ptr: felt*, range_check_ptr, poseidon_ptr: PoseidonBuiltin*}() 
     local time_window: felt;
     local ts_start: felt;
     local n_cells: felt;
+    local expected_commitment: felt;
     %{
-        ids.mid              = program_input['mid']
-        ids.drone_id         = program_input['drone_id']
-        ids.area_total_cells = program_input['area_total_cells']
-        ids.coverage_min     = program_input['coverage_min']
-        ids.p_min            = program_input['p_min']
-        ids.time_window      = program_input['time_window']
-        ids.ts_start         = program_input['ts_start']
-        ids.n_cells          = program_input['n_cells']
+        ids.mid                 = program_input['mid']
+        ids.drone_id            = program_input['drone_id']
+        ids.area_total_cells    = program_input['area_total_cells']
+        ids.coverage_min        = program_input['coverage_min']
+        ids.p_min               = program_input['p_min']
+        ids.time_window         = program_input['time_window']
+        ids.ts_start            = program_input['ts_start']
+        ids.n_cells             = program_input['n_cells']
+        ids.expected_commitment = program_input.get('expected_commitment', 0)
     %}
 
     // 2. Validate drone_id ∈ {1, 2}.
@@ -228,6 +235,18 @@ func main{output_ptr: felt*, range_check_ptr, poseidon_ptr: PoseidonBuiltin*}() 
 
     // 8. Compute commitment: Poseidon hash chain over all cells.
     let (commitment) = hash_cells(cells_x, cells_y, cells_p, cells_ts, n_cells, 0, 0);
+
+    // 8a. L2-binding gate. If a non-zero expected_commitment was supplied
+    //     (drone read its own convoy_protocol.get_commitment storage value
+    //     and passed it in), assert the prover's computed commitment
+    //     matches. This is what gives "the proof comes from the L2 block":
+    //     the cells_x/y/p/ts the prover used must produce the same Poseidon
+    //     chain that's stored on Madara, otherwise the trace aborts.
+    //     Soundness: a tampered cell array would produce a different chain,
+    //     failing this assertion. Aborted traces produce no STARK proof.
+    if (expected_commitment != 0) {
+        assert commitment = expected_commitment;
+    }
 
     // 9. Serialise public outputs in fixed order. submit_proof_l1.py reads
     //    these in the same order to build the SafeProofInputs tuple.

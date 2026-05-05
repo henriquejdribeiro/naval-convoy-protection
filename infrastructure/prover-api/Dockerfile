@@ -34,8 +34,14 @@ COPY safe_area_verify.cairo /app/safe_area_verify.cairo
 COPY sample_input.json      /app/sample_input.json
 COPY prove_pie.py           /app/prove_pie.py
 COPY submit_proof_l1.py     /app/submit_proof_l1.py
+COPY fetch_l2_cells.py      /app/fetch_l2_cells.py
 COPY entrypoint.sh          /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
+
+# Starkli — used by fetch_l2_cells.py to query convoy_protocol via Pathfinder.
+RUN curl https://get.starkli.sh | sh
+ENV PATH="/root/.starkli/bin:${PATH}"
+RUN /bin/bash -c "source /root/.starkli/env && starkliup -v 0.4.0"
 
 RUN mkdir -p /proofs
 

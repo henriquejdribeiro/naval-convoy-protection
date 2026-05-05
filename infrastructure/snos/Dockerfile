@@ -1,59 +1,33 @@
 # =============================================================================
 # infrastructure/snos/Dockerfile — StarkNet OS for replaying L2 blocks
 #
-# Adapted from verifiable_grid/infrastructure/snos/Dockerfile. Phase 3.b
-# wires this in once Madara + Pathfinder are running. Until then the
-# image isn't built (the docker-compose.l2.yml service is gated by the
-# `proving` profile).
+# Phase 3.c. SNOS replays a sealed Madara block in the Cairo VM and
+# emits a Cairo PIE the Stone prover consumes. The proof's public
+# outputs include the new state root, so the on-chain Verifier can bind
+# the convoy_protocol commitment storage value to a STARK-verified L2
+# block execution.
 #
-# Pinned to v0.14.1-alpha.0 to match Madara 0.14.1 protocol target.
-# patch_snos_txhash.py skips an over-strict tx-hash assertion that fails
-# on Madara devnet's tweaked block headers — verifiable_grid hit and
-# fixed this; we keep their patch verbatim.
+# Builds FROM vg-snos:latest (the working image from verifiable_grid
+# that already has SNOS v0.14.1-alpha.0 fully compiled — Karnot fork
+# with the tx-hash patches, Cairo VM, rpc-replay binary, and the
+# Python deps).
+#
+# WHY base from there: the upstream SNOS build is a 30+ minute Rust
+# build + Cairo dependency setup that flakes out on slow apt mirrors.
+# Reusing the cached image cuts our build to ~10 seconds.
+#
+# What we add:
+#   - entrypoint.sh — replays Pathfinder blocks into PIEs in /output
 # =============================================================================
 
-FROM ubuntu:22.04
+FROM vg-snos:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y \
-        curl git build-essential pkg-config \
-        libssl-dev libgmp-dev \
-        python3 python3-venv python3-pip python3-dev \
-        ca-certificates wget rclone \
-    && rm -rf /var/lib/apt/lists/*
-
-# Rust toolchain (>=1.76)
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
-
-WORKDIR /app
-
-# Clone SNOS at v0.14.1-alpha.0 — matches Madara 0.14.1 protocol
-RUN git clone https://github.com/keep-starknet-strange/snos.git --recursive
-WORKDIR /app/snos
-RUN git checkout v0.14.1-alpha.0
-
-# Patch over-strict tx-hash assertions for Madara devnet compatibility
-COPY patch_snos_txhash.py /tmp/patch_snos_txhash.py
-RUN cargo fetch 2>/dev/null || true && \
-    python3 /tmp/patch_snos_txhash.py && \
-    echo "[+] SNOS tx-hash patch applied"
-
-# Cairo dependencies
-RUN python3 -m venv .venv && \
-    . .venv/bin/activate && \
-    chmod +x setup-scripts/setup-cairo.sh && \
-    ./setup-scripts/setup-cairo.sh && \
-    pip install --upgrade pip
-
-# Pre-build SNOS to amortise the slow first run
-ENV CARGO_BUILD_JOBS=2
-ENV VIRTUAL_ENV=/app/snos/.venv
-ENV PATH="/app/snos/venv/bin:/app/snos/.venv/bin:${PATH}"
-
-RUN . .venv/bin/activate && cargo build --release -p rpc-replay 2>&1 || \
-    echo "[WARN] SNOS build failed at image-time — will compile on first run"
+# Make sure curl is present so the entrypoint can poll Pathfinder.
+RUN command -v curl >/dev/null 2>&1 || apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY entrypoint.sh /app/entrypoint.sh
