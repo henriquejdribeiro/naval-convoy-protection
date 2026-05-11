@@ -79,7 +79,6 @@ services:
       --feeder-gateway-enable
       --gateway-external
       --gateway-port 8080
-      --rpc-pre-v0-9-preconfirmed-as-pending
       --l1-sync-disabled
       --no-transaction-validation
       --l1-gas-price 1000000000
@@ -230,6 +229,9 @@ services:
       AWS_SECRET_ACCESS_KEY: test
       AWS_DEFAULT_REGION: us-east-1
       AWS_ENDPOINT_URL: http://convoy-localstack:4566
+      # Verbose so we can see why SnosBatching's eligibility filter
+      # rejects blocks we expect to be batchable.
+      RUST_LOG: "debug,hyper=info,reqwest=info,aws_smithy=info,h2=info,tower=info"
     # The orchestrator command is taken verbatim from verifiable_grid
     # (docker inspect madara-orchestrator), with these substitutions for
     # OUR chain:
@@ -271,8 +273,12 @@ services:
       - "0x5FbDB2315678afecb367f032d93F642f64180aa3"
       - --starknet-operator-address
       - "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+      # `--prover mock` skips the Atlantic HTTP API entirely (no create_bucket
+      # call, no /atlantic-query polling). The proving job completes
+      # synchronously with a mock proof. The Atlantic-* flags below are
+      # required by the CLI parser even though they're unused.
       - --prover
-      - atlantic
+      - mock
       - --atlantic-api-key
       - mock
       - --atlantic-service-url
@@ -304,6 +310,12 @@ services:
       - http://convoy-madara:9944
       - --madara-feeder-gateway-url
       - http://convoy-madara:8080/feeder_gateway
+      # The "still pending" error in replay_bounds.rs comes from this RPC.
+      # Pointing it at Madara's JSON-RPC (which reports ACCEPTED_ON_L2 for
+      # sealed blocks) lets the orchestrator's batching predicate accept
+      # blocks 1..head as eligible for SNOS proving.
+      - --replay-bounds-rpc-url
+      - http://convoy-madara:9944
       - --max-batch-time-seconds
       - "300"
       - --max-batch-size

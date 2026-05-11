@@ -147,25 +147,41 @@ mod ConvoyProtocol {
     //  prefix tag so the four parallel maps never collide with the count
     //  map even if the bit-packing aliases.
     // ─────────────────────────────────────────────────────────────────────
+
+    /// Assert that `drone_id` is one of the two valid lane identifiers
+    /// (1 = α, 2 = β). Used as the first line of every public entry
+    /// point so off-lane writes are impossible.
+    ///
+    /// The arithmetic identity `(d - 1)·(d - 2) == 0` is zero iff
+    /// `d ∈ {1, 2}`. Using multiplication rather than `==` makes the
+    /// check portable across Cairo 1 toolchain versions that did not
+    /// expose equality on `felt252`.
     fn _validate_drone(drone_id: felt252) {
-        // Cairo 1 doesn't have `==` on felt252 without explicit conversion in
-        // older toolchains; using assert with arithmetic is portable.
         let valid = (drone_id - DRONE_ALPHA) * (drone_id - DRONE_BRAVO);
         assert(valid == 0, 'invalid drone_id');
     }
 
+    /// Compose a single `felt252` key from `(mid, drone_id)` for the
+    /// per-mission storage maps (`cell_count`, `commitments`).
+    ///
+    /// Encoding: `(mid << 4) | drone_id`. The 4-bit shift gives a wide
+    /// margin around the 2-valued drone_id so different `mid`s never
+    /// alias under any drone, even though `mid` is `u128`.
     fn _key_mission(mid: u128, drone_id: felt252) -> felt252 {
-        // 1 << 64-ish gap so different mids never alias under any drone_id.
-        // mid is u128 (up to 16 bytes); drone_id is 1 or 2.
         let mid_felt: felt252 = mid.into();
         mid_felt * 16 + drone_id
     }
 
+    /// Compose a single `felt252` key from `(mid, drone_id, idx)` for
+    /// the per-cell storage maps (`cells_x`, `cells_y`,
+    /// `cells_p_contact`, `cells_ts`).
+    ///
+    /// Encoding: `_key_mission(mid, drone_id) * 2^40 + idx`. `u32`'s
+    /// max value (2^32 − 1) sits comfortably below the 2^40 gap, so
+    /// adjacent missions cannot collide with each other's cells.
     fn _key_cell(mid: u128, drone_id: felt252, idx: u32) -> felt252 {
         let base = _key_mission(mid, drone_id);
         let idx_felt: felt252 = idx.into();
-        // idx room: u32 is safely under 2^32; multiplying base by 2^40
-        // leaves plenty of separation.
         base * 1099511627776 + idx_felt   // 1099511627776 = 2^40
     }
 

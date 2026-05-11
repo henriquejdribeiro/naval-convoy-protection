@@ -61,11 +61,18 @@ contract CommandLog {
     // ───────────────────────────────────────────────────────────────────
     //  Modifiers
     // ───────────────────────────────────────────────────────────────────
+
+    /// @dev Restricts a function to the commander key (ship D's
+    ///      tactical-command signing key, distinct from D's validator
+    ///      key). The single authority allowed to issue convoy advance.
     modifier onlyCommander() {
         require(msg.sender == commander, "CommandLog: onlyCommander");
         _;
     }
 
+    /// @dev Restricts a function to the operational owner. Owner power
+    ///      is limited to commander-key rotation (key-loss / compromise
+    ///      recovery); the owner cannot issue an advance themselves.
     modifier onlyOwner() {
         require(msg.sender == owner, "CommandLog: onlyOwner");
         _;
@@ -96,6 +103,16 @@ contract CommandLog {
     // ───────────────────────────────────────────────────────────────────
     //  Operational: rotate the commander address
     // ───────────────────────────────────────────────────────────────────
+
+    /**
+     * @notice Replace the commander key. Owner-only — used when the
+     *         existing commander key is lost, suspected compromised, or
+     *         the tactical-command role is transferred to another ship.
+     * @dev    Emits CommanderRotated for off-chain auditing. The new
+     *         commander takes effect immediately on the next
+     *         `advance()` call.
+     * @param  newCommander the new commander key's L1 address
+     */
     function rotateCommander(address newCommander) external onlyOwner {
         require(newCommander != address(0), "CommandLog: commander = 0x0");
         emit CommanderRotated(commander, newCommander);
@@ -147,10 +164,26 @@ contract CommandLog {
     // ───────────────────────────────────────────────────────────────────
     //  Read helpers
     // ───────────────────────────────────────────────────────────────────
+
+    /**
+     * @notice Number of convoy-advance orders ever recorded.
+     * @dev    Useful as a quick sanity counter for front-ends and tests;
+     *         each successful `advance()` increments by exactly one.
+     * @return the length of the internal `advances[]` array
+     */
     function advanceCount() external view returns (uint256) {
         return advances.length;
     }
 
+    /**
+     * @notice Read a specific advance record by index.
+     * @dev    Records are append-only; `idx == 0` is the first ever
+     *         advance. Reverts on out-of-range to surface index bugs
+     *         rather than silently return an all-zero record.
+     * @param  idx position in the `advances[]` array
+     * @return the AdvanceRecord (alphaMid, betaMid, speed, L1 block
+     *         number, L1 timestamp, commander address)
+     */
     function getAdvance(uint256 idx) external view returns (AdvanceRecord memory) {
         require(idx < advances.length, "CommandLog: invalid idx");
         return advances[idx];

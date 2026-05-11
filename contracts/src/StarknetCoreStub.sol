@@ -29,6 +29,22 @@ pragma solidity ^0.8.20;
 contract StarknetCoreStub {
     // ───────────────────────────────────────────────────────────────────
     //  State (read by Madara on startup + after each settlement round)
+    //
+    //  All three slots are public, so Solidity auto-generates an
+    //  external view getter for each. The orchestrator (and any
+    //  off-chain observer) reads them to learn the L1-anchored view
+    //  of L2 state:
+    //
+    //    stateRoot         — Patricia trie root of L2 storage after the
+    //                        most-recently-settled block.
+    //    stateBlockNumber  — int256 to allow the StarkWare convention
+    //                        of -1 = "no L2 block settled yet" (i.e.
+    //                        pre-genesis). Increases monotonically as
+    //                        the orchestrator settles each block.
+    //    stateBlockHash    — Poseidon block hash of the
+    //                        most-recently-settled L2 block. Together
+    //                        with `stateBlockNumber` it uniquely
+    //                        identifies the settled chain head.
     // ───────────────────────────────────────────────────────────────────
     uint256 public stateRoot;
     int256  public stateBlockNumber;

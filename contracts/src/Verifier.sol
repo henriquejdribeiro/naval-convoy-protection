@@ -46,12 +46,28 @@ contract Verifier is Ownable {
     // ───────────────────────────────────────────────────────────────────
     mapping(bytes32 => bool) public verifiedFacts;
 
+    /**
+     * @notice External entry point of the inline FactRegistry — mirrors
+     *         StarkWare's `FactRegistry.sol` `isValid(bytes32)` API.
+     * @dev    Read-only; off-chain orchestrators poll this to confirm a
+     *         fact has landed before issuing dependent transactions.
+     * @param  fact keccak256(programHash || outputHash)
+     * @return true iff the fact has been registered via a successful
+     *         `registerSafeProof()` call.
+     */
     function isValid(bytes32 fact) public view returns (bool) {
         return verifiedFacts[fact];
     }
 
+    /**
+     * @dev Internal write path of the inline FactRegistry. Idempotent —
+     *      a duplicate registration is a no-op (no revert, no second
+     *      event). Only callable from within `registerSafeProof()` so
+     *      every registered fact is necessarily backed by validated
+     *      public outputs.
+     * @param fact keccak256(programHash || outputHash)
+     */
     function _registerFact(bytes32 fact) internal {
-        // Idempotent: re-registering an already-known fact is a no-op.
         if (!verifiedFacts[fact]) {
             verifiedFacts[fact] = true;
             emit FactRegistered(fact);
@@ -149,6 +165,19 @@ contract Verifier is Ownable {
     // ───────────────────────────────────────────────────────────────────
     //  Operational: rotate a relay address (owner only)
     // ───────────────────────────────────────────────────────────────────
+
+    /**
+     * @notice Rotate the whitelisted relay address for a given drone
+     *         lane. Used for ship replacement (e.g. ship F sunk → another
+     *         escort assumes the α-relay role) without a full redeploy.
+     * @dev    Only the contract owner may call. The relay change takes
+     *         effect on the next `registerSafeProof()` call; in-flight
+     *         transactions from the prior relay address are unaffected
+     *         until they reach the mempool revert.
+     * @param  droneId  DRONE_ALPHA (1) or DRONE_BRAVO (2)
+     * @param  newRelay the L1 address authorised to submit facts for
+     *                  this drone going forward
+     */
     function setRelay(uint256 droneId, address newRelay) external onlyOwner {
         require(newRelay != address(0), "Verifier: relay = 0x0");
         require(droneId == registry.DRONE_ALPHA() || droneId == registry.DRONE_BRAVO(),
@@ -243,11 +272,29 @@ contract Verifier is Ownable {
     //  Read helpers (used by frontends + the dual-SAFE detector)
     // ───────────────────────────────────────────────────────────────────
 
+    /**
+     * @notice Read the full audit record for a previously registered
+     *         proof.
+     * @dev    Records are append-only; `proofId` is the index in the
+     *         `proofs[]` array and is also the value returned by
+     *         `registerSafeProof()`. Reverts on out-of-range index so
+     *         callers don't see an all-zero record by mistake.
+     * @param  proofId  index into `proofs[]`
+     * @return the 11-field ProofRecord (hashes, public outputs,
+     *         commitment, L1 timestamp + block number)
+     */
     function getProof(uint256 proofId) external view returns (ProofRecord memory) {
         require(proofId < proofs.length, "Verifier: invalid proofId");
         return proofs[proofId];
     }
 
+    /**
+     * @notice Convenience accessor for the most recent proof record.
+     * @dev    Used by the front-end and by D's orchestrator to display
+     *         the latest verification status without paginating through
+     *         the full `proofs[]` array.
+     * @return the ProofRecord at `proofs[proofs.length - 1]`
+     */
     function getLatestProof() external view returns (ProofRecord memory) {
         require(proofs.length > 0, "Verifier: no proofs");
         return proofs[proofs.length - 1];

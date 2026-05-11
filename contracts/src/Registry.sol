@@ -80,11 +80,20 @@ contract Registry is Ownable {
     // ───────────────────────────────────────────────────────────────────
     //  Modifiers
     // ───────────────────────────────────────────────────────────────────
+
+    /// @dev Restricts a function to the convoy commander key (ship D's
+    ///      separate signing key, NOT D's validator key). Used to gate
+    ///      `deploy()` so only the tactical commander may register
+    ///      missions.
     modifier onlyCommander() {
         require(msg.sender == commander, "Registry: onlyCommander");
         _;
     }
 
+    /// @dev Restricts a function to the bound Verifier contract. Used to
+    ///      gate `setVerdict()`: the Verifier is the only authority that
+    ///      may flip a (mid, drone_id) verdict to SAFE, and only after a
+    ///      successful STARK-proof registration.
     modifier onlyVerifier() {
         require(msg.sender == verifier, "Registry: onlyVerifier");
         _;
@@ -170,14 +179,47 @@ contract Registry is Ownable {
     //  View helpers (used by CommandLog.advance + frontends)
     // ───────────────────────────────────────────────────────────────────
 
+    /**
+     * @notice Read the spec a mission was deployed with.
+     * @dev    Returned by value (memory copy). The Verifier reads this
+     *         to re-assert SAFE_AREA thresholds before flipping a
+     *         verdict; UI front-ends read it to render mission cards.
+     * @param  mid     mission id minted by `deploy()`
+     * @param  droneId DRONE_ALPHA (1) or DRONE_BRAVO (2)
+     * @return the full MissionSpec; all fields are zero if the mission
+     *         does not exist.
+     */
     function getSpec(uint256 mid, uint256 droneId) external view returns (MissionSpec memory) {
         return specs[mid][droneId];
     }
 
+    /**
+     * @notice Whether a single lane's verdict has been written to SAFE.
+     * @dev    The verdict is only flipped to true by the Verifier after
+     *         a successful proof registration; there is no path to
+     *         unset it.
+     * @param  mid     mission id
+     * @param  droneId DRONE_ALPHA (1) or DRONE_BRAVO (2)
+     * @return true iff the proof for (mid, droneId) has been verified
+     *         on-chain and the verdict written.
+     */
     function isSafe(uint256 mid, uint256 droneId) external view returns (bool) {
         return verdict[mid][droneId];
     }
 
+    /**
+     * @notice Dual-SAFE convenience: both lanes SAFE for the convoy
+     *         advance precondition.
+     * @dev    Called by CommandLog.advance() to enforce that the
+     *         convoy only moves once both α and β lanes have
+     *         cryptographic SAFE verdicts. Pattern B — the commander
+     *         still has to explicitly invoke advance(); this view does
+     *         not auto-fire anything.
+     * @param  alphaMid mission id for the α lane
+     * @param  betaMid  mission id for the β lane
+     * @return true iff verdict[alphaMid][α] AND verdict[betaMid][β]
+     *         are both SAFE.
+     */
     function isDualSafe(uint256 alphaMid, uint256 betaMid) external view returns (bool) {
         return verdict[alphaMid][DRONE_ALPHA] && verdict[betaMid][DRONE_BRAVO];
     }
