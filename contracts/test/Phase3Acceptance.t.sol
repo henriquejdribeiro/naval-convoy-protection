@@ -202,7 +202,7 @@ contract Phase3AcceptanceTest is Test {
         assertEq(commandLog.advanceCount(), 1, "advance recorded");
         CommandLog.AdvanceRecord memory rec = commandLog.getAdvance(0);
         assertEq(rec.alphaMissionId, 1);
-        assertEq(rec.betaMissionId,  REAL_MISSION_ID);
+        assertEq(rec.bravoMissionId,  REAL_MISSION_ID);
         assertEq(rec.speed,    100);
     }
 

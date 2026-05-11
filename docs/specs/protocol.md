@@ -383,7 +383,7 @@ mirror on the alpha lane.
   POST /relay/submit
   body: {
     programHash, outputHash, mission_id, drone_id,
-    coveragePermille, maxContactBp, elapsedSeconds, H_beta, n_steps
+    coveragePermille, maxContactBp, elapsedSeconds, H_bravo, n_steps
   }
   ```
 - **Payload**:

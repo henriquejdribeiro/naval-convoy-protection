@@ -25,7 +25,7 @@ import "../src/StarknetCoreStub.sol";
  *   6. Ship B (bravo relay) registers a SAFE proof for (11, β)
  *      → Registry.verdict[11][β] = true; still no ConvoyAdvance
  *   7. Non-relay caller hits onlyRelay revert
- *   8. D fires CommandLog.advance(alphaMissionId, betaMissionId, 100) → ConvoyAdvance event
+ *   8. D fires CommandLog.advance(alphaMissionId, bravoMissionId, 100) → ConvoyAdvance event
  *   9. Non-commander advance attempt reverts
  *  10. Pre-dual-SAFE advance attempt reverts (using a fresh CommandLog
  *      against unverified mids)
@@ -242,7 +242,7 @@ contract Phase2AcceptanceTest is Test {
         assertEq(commandLog.advanceCount(), 1, "advance recorded");
         CommandLog.AdvanceRecord memory rec = commandLog.getAdvance(0);
         assertEq(rec.alphaMissionId,  mA);
-        assertEq(rec.betaMissionId,   mB);
+        assertEq(rec.bravoMissionId,   mB);
         assertEq(rec.commander, commander);
         assertEq(rec.speed,     100);
     }
@@ -271,10 +271,10 @@ contract Phase2AcceptanceTest is Test {
 
         // D tries to advance — must revert because β isn't SAFE yet
         vm.prank(commander);
-        vm.expectRevert(bytes("CommandLog: beta not SAFE"));
+        vm.expectRevert(bytes("CommandLog: bravo not SAFE"));
         commandLog.advance(mA, mB, 100);
 
-        // Now verify beta
+        // Now verify bravo
         vm.prank(bravoRelay);
         verifier.registerSafeProof(_validInputs(mB, BRAVO));
 

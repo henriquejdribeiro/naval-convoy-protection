@@ -37,7 +37,7 @@ contract CommandLog {
     // ───────────────────────────────────────────────────────────────────
     struct AdvanceRecord {
         uint256 alphaMissionId;
-        uint256 betaMissionId;
+        uint256 bravoMissionId;
         uint256 speed;
         uint256 blockNumber;
         uint256 timestamp;
@@ -52,7 +52,7 @@ contract CommandLog {
     event ConvoyAdvance(
         uint256 indexed blockNumber,
         uint256 indexed alphaMissionId,
-        uint256 indexed betaMissionId,
+        uint256 indexed bravoMissionId,
         uint256         speed,
         address         commander
     );
@@ -126,13 +126,13 @@ contract CommandLog {
     /**
      * @notice Record the convoy advance. Reverts unless:
      *         (1) caller is the commander, and
-     *         (2) Registry.verdict is SAFE for both (alphaMissionId, α) AND (betaMissionId, β).
+     *         (2) Registry.verdict is SAFE for both (alphaMissionId, α) AND (bravoMissionId, β).
      *
      * @param alphaMissionId  α-lane mission id whose verdict must be SAFE
-     * @param betaMissionId   β-lane mission id whose verdict must be SAFE
+     * @param bravoMissionId   β-lane mission id whose verdict must be SAFE
      * @param speed     opaque speed value carried in the event (convention: 100 = full ahead; any non-zero uint256 is accepted)
      */
-    function advance(uint256 alphaMissionId, uint256 betaMissionId, uint256 speed)
+    function advance(uint256 alphaMissionId, uint256 bravoMissionId, uint256 speed)
         external
         onlyCommander
     {
@@ -144,21 +144,21 @@ contract CommandLog {
             "CommandLog: alpha not SAFE"
         );
         require(
-            registry.verdict(betaMissionId, registry.DRONE_BRAVO()),
-            "CommandLog: beta not SAFE"
+            registry.verdict(bravoMissionId, registry.DRONE_BRAVO()),
+            "CommandLog: bravo not SAFE"
         );
 
         // Record the advance
         advances.push(AdvanceRecord({
             alphaMissionId:    alphaMissionId,
-            betaMissionId:     betaMissionId,
+            bravoMissionId:     bravoMissionId,
             speed:       speed,
             blockNumber: block.number,
             timestamp:   block.timestamp,
             commander:   msg.sender
         }));
 
-        emit ConvoyAdvance(block.number, alphaMissionId, betaMissionId, speed, msg.sender);
+        emit ConvoyAdvance(block.number, alphaMissionId, bravoMissionId, speed, msg.sender);
     }
 
     // ───────────────────────────────────────────────────────────────────
@@ -181,7 +181,7 @@ contract CommandLog {
      *         advance. Reverts on out-of-range to surface index bugs
      *         rather than silently return an all-zero record.
      * @param  idx position in the `advances[]` array
-     * @return the AdvanceRecord (alphaMissionId, betaMissionId, speed, L1 block
+     * @return the AdvanceRecord (alphaMissionId, bravoMissionId, speed, L1 block
      *         number, L1 timestamp, commander address)
      */
     function getAdvance(uint256 idx) external view returns (AdvanceRecord memory) {

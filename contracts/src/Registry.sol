@@ -216,11 +216,11 @@ contract Registry is Ownable {
      *         still has to explicitly invoke advance(); this view does
      *         not auto-fire anything.
      * @param  alphaMissionId mission id for the α lane
-     * @param  betaMissionId  mission id for the β lane
-     * @return true iff verdict[alphaMissionId][α] AND verdict[betaMissionId][β]
+     * @param  bravoMissionId  mission id for the β lane
+     * @return true iff verdict[alphaMissionId][α] AND verdict[bravoMissionId][β]
      *         are both SAFE.
      */
-    function isDualSafe(uint256 alphaMissionId, uint256 betaMissionId) external view returns (bool) {
-        return verdict[alphaMissionId][DRONE_ALPHA] && verdict[betaMissionId][DRONE_BRAVO];
+    function isDualSafe(uint256 alphaMissionId, uint256 bravoMissionId) external view returns (bool) {
+        return verdict[alphaMissionId][DRONE_ALPHA] && verdict[bravoMissionId][DRONE_BRAVO];
     }
 }
