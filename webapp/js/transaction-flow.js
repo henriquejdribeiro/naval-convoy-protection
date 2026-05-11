@@ -159,7 +159,7 @@ const MESSAGES = [
   {
     step: 1, kind: 'self', on: 'D',
     label: 'write deploy(EX-011) tx',
-    sig: 'Registry.deploy(MissionSpec spec) external onlyCommander returns (uint256 mid)',
+    sig: 'Registry.deploy(MissionSpec spec) external onlyCommander returns (uint256 missionId)',
     payload: [
       { f: 'spec.area_hash',    t: 'bytes32 — Poseidon hash of polygon vertices' },
       { f: 'spec.coverage_min', t: 'uint16 — permille (950 = ≥ 95% cells)' },
@@ -174,12 +174,12 @@ const MESSAGES = [
   {
     step: 2, kind: 'msg', from: 'D', to: 'L1Cluster',
     label: 'PoA fan-out → Registry stores + emits MissionDeployed',
-    sig: '(Clique PoA peer broadcast) → Registry.sol state write → emit MissionDeployed(mid, drone_id, spec)',
+    sig: '(Clique PoA peer broadcast) → Registry.sol state write → emit MissionDeployed(missionId, drone_id, spec)',
     payload: [
       { f: 'block N',  t: 'sealed PoA block including the deploy tx' },
       { f: 'signer',   t: 'rotating among the 6 ship validators (EIP-225)' },
-      { f: 'state Δ',  t: 'Registry storage updated with (mid → MissionSpec)' },
-      { f: 'event',    t: 'MissionDeployed(uint256 indexed mid, uint256 indexed drone_id, MissionSpec spec)' },
+      { f: 'state Δ',  t: 'Registry storage updated with (missionId → MissionSpec)' },
+      { f: 'event',    t: 'MissionDeployed(uint256 indexed missionId, uint256 indexed drone_id, MissionSpec spec)' },
       { f: 'indexed',  t: 'drone_id is indexed so off-chain subscribers (relay ships) can filter on it' }
     ],
     auth: 'secp256k1 — block sealer signs the block header. Other validators verify the signature against the pre-baked validator list in genesis.json. The deploy tx executing on every node is what causes the Registry state write + event emission, atomically with block inclusion.',
@@ -191,12 +191,12 @@ const MESSAGES = [
     step: 3, kind: 'self', on: 'ShipB',
     also: ['F'],     // ship F also acts in parallel on the alpha lane
     label: 'event filter dispatches mission to relay (B for β, F for α)',
-    sig: 'web3.eth.subscribe("logs", { address: Registry, topics: [MissionDeployed, mid, drone_id] })',
+    sig: 'web3.eth.subscribe("logs", { address: Registry, topics: [MissionDeployed, missionId, drone_id] })',
     payload: [
       { f: 'B\'s subscription', t: 'topic[0]=MissionDeployed, topic[2]=β  →  B\'s onMission(spec) handler runs' },
       { f: 'F\'s subscription', t: 'topic[0]=MissionDeployed, topic[2]=α  →  F\'s onMission(spec) handler runs' },
       { f: 'A, C, D, E',        t: 'no relay subscription — observe only' },
-      { f: 'extracted',         t: 'mid + drone_id + MissionSpec passed to the matching handler' }
+      { f: 'extracted',         t: 'missionId + drone_id + MissionSpec passed to the matching handler' }
     ],
     auth: 'No cryptographic auth on the read path — Geth\'s event log is local to each node. The relay assignment is enforced by which drone_id each ship\'s orchestrator subscribes to (configured in orchestrator.toml at deployment, not on-chain).',
     boundary: 'L1 internal',
@@ -207,12 +207,12 @@ const MESSAGES = [
     step: 4, kind: 'msg', from: 'ShipB', to: 'L2Banner',
     parallel: [{ from: 'ShipF', to: 'L2BannerA' }],
     label: 'B→L2-B / F→L2-A radio dispatch',
-    sig: 'POST /l2-{bravo|alpha}/admin/deploy_mission  body: { spec, mid }  (over convoy radio link)',
+    sig: 'POST /l2-{bravo|alpha}/admin/deploy_mission  body: { spec, missionId }  (over convoy radio link)',
     payload: [
       { f: 'spec',     t: 'MissionSpec — relayed verbatim' },
-      { f: 'mid',      t: 'uint256 — same mission id as on L1 (EX-010 for α, EX-011 for β)' },
-      { f: 'lane (β)', t: 'B → L2-B with mid = EX-011' },
-      { f: 'lane (α)', t: 'F → L2-A with mid = EX-010' }
+      { f: 'missionId',      t: 'uint256 — same mission id as on L1 (EX-010 for α, EX-011 for β)' },
+      { f: 'lane (β)', t: 'B → L2-B with missionId = EX-011' },
+      { f: 'lane (α)', t: 'F → L2-A with missionId = EX-010' }
     ],
     auth: 'TLS + relay-to-L2 mutual auth (Phase 3 detail). Ship B\'s relay key is whitelisted on Madara β; ship F\'s on Madara α. Each is the only off-chain dispatcher for its lane.',
     boundary: 'L1 → L2 (radio handoff)',
@@ -227,7 +227,7 @@ const MESSAGES = [
     label: 'submit_telemetry(...)  ×N  [drone-signed]',
     sig: 'fn submit_telemetry(mission_id: u128, cells: Array<TelemetryCell>) external',
     payload: [
-      { f: 'mission_id',           t: 'u128 — same mid the dispatch carried' },
+      { f: 'mission_id',           t: 'u128 — same missionId the dispatch carried' },
       { f: 'cells: Array<...>',    t: 'one tx per cell, dozens per sweep' },
       { f: '  cell.x, cell.y',     t: 'u16 — cell index in the area grid' },
       { f: '  cell.p_contact',     t: 'u16 — basis points (max-prob hit, 0–10000)' },
@@ -241,7 +241,7 @@ const MESSAGES = [
   {
     step: 6, kind: 'self', on: 'Madara',
     parallel: [{ on: 'MadaraA' }],
-    label: 'submit_sweep_commitment(mid, H_β | H_α)  [drone-signed]',
+    label: 'submit_sweep_commitment(missionId, H_β | H_α)  [drone-signed]',
     sig: 'fn submit_sweep_commitment(mission_id: u128, h: felt252) external',
     payload: [
       { f: 'mission_id', t: 'u128' },
@@ -404,7 +404,7 @@ const MESSAGES = [
     sig: '(returns proof bundle)',
     payload: [
       { f: 'π_β',          t: 'proof bytes (~100–500 KB)' },
-      { f: 'public_input', t: 'mid, H_β, area_hash, thresholds, drone_id=β' }
+      { f: 'public_input', t: 'missionId, H_β, area_hash, thresholds, drone_id=β' }
     ],
     auth: 'No signature — the proof itself is the credential.',
     boundary: 'L2 internal', crosses: false,
@@ -416,11 +416,11 @@ const MESSAGES = [
     step: 19, kind: 'msg', from: 'Orch', to: 'ShipB',
     parallel: [{ from: 'OrchA', to: 'ShipF' }],
     label: 'hand off π_β to B / π_α to F (radio)',
-    sig: 'POST /relay/submit  body: { proof: π_β, public_input, mid, drone_id=β }',
+    sig: 'POST /relay/submit  body: { proof: π_β, public_input, missionId, drone_id=β }',
     payload: [
       { f: 'proof',        t: 'π_β bytes' },
       { f: 'public_input', t: 'from step 18' },
-      { f: 'mid',          t: 'mission id' },
+      { f: 'missionId',          t: 'mission id' },
       { f: 'drone_id',     t: 'felt252 — β' }
     ],
     auth: 'Off-chain RPC over the convoy radio link. The relay ship trusts the Orchestrator only insofar as it forwards whatever proof it receives — soundness rests on the on-chain re-check (step 22), not on the relay\'s honesty.',
@@ -432,12 +432,12 @@ const MESSAGES = [
     step: 20, kind: 'self', on: 'ShipB',
     parallel: [{ on: 'ShipF' }],
     label: 'submitProof tx — B for π_β, F for π_α',
-    sig: 'Verifier.submitProof(bytes proof, bytes32[] public_inputs, uint256 mid, uint256 drone_id) external',
+    sig: 'Verifier.submitProof(bytes proof, bytes32[] public_inputs, uint256 missionId, uint256 drone_id) external',
     payload: [
       { f: 'proof (β)',     t: 'bytes — π_β  (signed by B)' },
       { f: 'proof (α)',     t: 'bytes — π_α  (signed by F)' },
       { f: 'public_inputs', t: 'bytes32[] — recomputed from each proof\'s public input array' },
-      { f: 'mid',           t: 'uint256 — EX-011 for β, EX-010 for α' },
+      { f: 'missionId',           t: 'uint256 — EX-011 for β, EX-010 for α' },
       { f: 'drone_id',      t: 'uint256 — β or α' }
     ],
     auth: 'secp256k1 ECDSA — each relay signs its own L1 tx envelope. B signs π_β\'s tx, F signs π_α\'s tx. The signature only authenticates "this ship submitted this tx" — proof correctness is checked by the contract logic, not the signature. Relay ships are deliberately not trusted to vouch for proof validity.',
@@ -457,7 +457,7 @@ const MESSAGES = [
     auth: 'secp256k1 — block sealer signs the header. Same PoA fan-out as step 2.',
     boundary: 'L1 internal',
     crosses: false,
-    desc: 'Both submitProof txs propagate to all 6 ships via Clique PoA. As each block executes on every Geth in lockstep, Verifier.submitProof internally runs FRI re-verification (the cryptographic gate — invalid proofs revert here) and writes the SAFE verdict to Registry under (mid, drone_id). After this step, Registry holds verdict[α] = SAFE and verdict[β] = SAFE on every node.'
+    desc: 'Both submitProof txs propagate to all 6 ships via Clique PoA. As each block executes on every Geth in lockstep, Verifier.submitProof internally runs FRI re-verification (the cryptographic gate — invalid proofs revert here) and writes the SAFE verdict to Registry under (missionId, drone_id). After this step, Registry holds verdict[α] = SAFE and verdict[β] = SAFE on every node.'
   },
 
   // ───────── Phase 6 — Commander activates advance ─────────

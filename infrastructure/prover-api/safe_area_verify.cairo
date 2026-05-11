@@ -17,7 +17,7 @@
 //   schema. Every field shown there is required.
 //
 // Public outputs (in this exact order, written by serialize_word):
-//   [mid, drone_id, coverage_permille, max_p_contact, elapsed_seconds, commitment]
+//   [mission_id, drone_id, coverage_permille, max_p_contact, elapsed_seconds, commitment]
 //
 // These six felt252 values are extracted by submit_proof_l1.py and passed
 // verbatim into Verifier.registerSafeProof on L1.
@@ -165,7 +165,7 @@ func main{output_ptr: felt*, range_check_ptr, poseidon_ptr: PoseidonBuiltin*}() 
     // to a specific L2 storage value (the Poseidon hash chain the drone
     // already wrote on convoy_protocol via submit_sweep_commitment).
     // Pass 0 to skip the binding (Phase 3.a's standalone-input mode).
-    local mid: felt;
+    local mission_id: felt;
     local drone_id: felt;
     local area_total_cells: felt;
     local coverage_min: felt;
@@ -175,7 +175,7 @@ func main{output_ptr: felt*, range_check_ptr, poseidon_ptr: PoseidonBuiltin*}() 
     local n_cells: felt;
     local expected_commitment: felt;
     %{
-        ids.mid                 = program_input['mid']
+        ids.mission_id                 = program_input['mission_id']
         ids.drone_id            = program_input['drone_id']
         ids.area_total_cells    = program_input['area_total_cells']
         ids.coverage_min        = program_input['coverage_min']
@@ -250,7 +250,7 @@ func main{output_ptr: felt*, range_check_ptr, poseidon_ptr: PoseidonBuiltin*}() 
 
     // 9. Serialise public outputs in fixed order. submit_proof_l1.py reads
     //    these in the same order to build the SafeProofInputs tuple.
-    serialize_word(mid);
+    serialize_word(mission_id);
     serialize_word(drone_id);
     serialize_word(coverage_permille);
     serialize_word(max_p);

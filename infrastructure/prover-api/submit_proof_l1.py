@@ -6,14 +6,14 @@ Adapted from verifiable_grid/infrastructure/prover-api/submit_proof_l1.py.
 Key differences:
 
   - Calls Verifier.registerSafeProof((bytes32 programHash, bytes32 outputHash,
-    uint256 mid, uint256 droneId, uint256 coveragePermille, uint256 maxContactBp,
+    uint256 mission_id, uint256 droneId, uint256 coveragePermille, uint256 maxContactBp,
     uint256 elapsedSeconds, bytes32 commitment, uint256 nSteps))  (a 9-field
     SafeProofInputs struct), instead of registerDroneProof's 6 separate args.
   - Pulls public outputs from cairo_run's public memory in the order written
     by safe_area_verify.cairo:
-        [mid, drone_id, coverage_permille, max_p_contact, elapsed_seconds, commitment]
+        [mission_id, drone_id, coverage_permille, max_p_contact, elapsed_seconds, commitment]
   - Signs with the relay-ship key for the lane (alpha_relay = ship F,
-    bravo_relay = ship B); rejects mid/drone_id mismatches.
+    bravo_relay = ship B); rejects mission_id/drone_id mismatches.
   - Writes a small JSON log next to the proof for the orchestrator + UI to
     consume (tx hash, block, factHash, gas).
 
@@ -92,7 +92,7 @@ def extract_public_outputs(public_input_path: Path, evm_proof_path: Path | None)
     Pull the 6 felt252 public outputs serialized by safe_area_verify.cairo.
 
     Order (must match the Cairo program's serialize_word calls):
-       [mid, drone_id, coverage_permille, max_p_contact, elapsed_seconds, commitment]
+       [mission_id, drone_id, coverage_permille, max_p_contact, elapsed_seconds, commitment]
 
     The values live in the output segment of public memory. We prefer
     evm_proof.json if available (clean public_memory list), falling back
@@ -155,7 +155,7 @@ def main() -> int:
     program_hash = keccak256(program_bytes)
 
     outputs = extract_public_outputs(public_input_path, evm_proof_path)
-    mid, drone_id, coverage_permille, max_p, elapsed, commitment = outputs
+    mission_id, drone_id, coverage_permille, max_p, elapsed, commitment = outputs
 
     # outputHash = keccak256(abi.encodePacked of all 6 output values, 32 bytes each)
     output_bytes = b"".join(v.to_bytes(32, "big") for v in outputs)
@@ -168,7 +168,7 @@ def main() -> int:
     proof_size = proof_path.stat().st_size if proof_path.exists() else 0
 
     print("[submit] ── public outputs from Cairo program ─────────")
-    print(f"  mid                {mid}")
+    print(f"  mission_id                {mission_id}")
     print(f"  drone_id           {drone_id}")
     print(f"  coverage_permille  {coverage_permille}")
     print(f"  max_p_contact      {max_p}")
@@ -196,7 +196,7 @@ def main() -> int:
     commitment_hex = f"0x{commitment:064x}"
     tuple_args = (
         f"({program_hash},{output_hash},"
-        f"{mid},{drone_id},"
+        f"{mission_id},{drone_id},"
         f"{coverage_permille},{max_p},{elapsed},"
         f"{commitment_hex},{n_steps})"
     )
@@ -222,7 +222,7 @@ def main() -> int:
         "programHash":      program_hash,
         "outputHash":       output_hash,
         "publicOutputs": {
-            "mid":              mid,
+            "mission_id":              mission_id,
             "drone_id":         drone_id,
             "coveragePermille": coverage_permille,
             "maxContactBp":     max_p,

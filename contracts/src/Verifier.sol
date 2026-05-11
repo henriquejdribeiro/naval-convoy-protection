@@ -92,7 +92,7 @@ contract Verifier is Ownable {
     struct ProofRecord {
         bytes32 programHash;       // keccak256 of safe_area_verify.cairo bytecode
         bytes32 outputHash;        // keccak256 of ABI-encoded program output
-        uint256 mid;               // mission id (matches Registry)
+        uint256 missionId;               // mission id (matches Registry)
         uint256 droneId;           // 1 = α, 2 = β
         uint256 coveragePermille;  // public output: ≥ MissionSpec.coverageMin
         uint256 maxContactBp;      // public output: < MissionSpec.pMin
@@ -112,7 +112,7 @@ contract Verifier is Ownable {
     event FactRegistered(bytes32 indexed factHash);
     event MissionVerified(
         uint256 indexed proofId,
-        uint256 indexed mid,
+        uint256 indexed missionId,
         uint256 indexed droneId,
         bytes32         factHash,
         uint256         coveragePermille,
@@ -127,7 +127,7 @@ contract Verifier is Ownable {
     struct SafeProofInputs {
         bytes32 programHash;
         bytes32 outputHash;
-        uint256 mid;
+        uint256 missionId;
         uint256 droneId;
         uint256 coveragePermille;
         uint256 maxContactBp;
@@ -211,7 +211,7 @@ contract Verifier is Ownable {
     {
         require(msg.sender == relayOf[inputs.droneId], "Verifier: onlyRelay");
 
-        Registry.MissionSpec memory spec = registry.getSpec(inputs.mid, inputs.droneId);
+        Registry.MissionSpec memory spec = registry.getSpec(inputs.missionId, inputs.droneId);
         require(spec.coverageMin > 0, "Verifier: unknown mission");
 
         // Threshold checks — these are exactly the SAFE_AREA criterion
@@ -240,7 +240,7 @@ contract Verifier is Ownable {
         proofs.push(ProofRecord({
             programHash:      inputs.programHash,
             outputHash:       inputs.outputHash,
-            mid:              inputs.mid,
+            missionId:              inputs.missionId,
             droneId:          inputs.droneId,
             coveragePermille: inputs.coveragePermille,
             maxContactBp:     inputs.maxContactBp,
@@ -254,12 +254,12 @@ contract Verifier is Ownable {
 
         // 3. Write the verdict to Registry (cross-contract call gated by
         //    onlyVerifier modifier on Registry.setVerdict)
-        registry.setVerdict(inputs.mid, inputs.droneId, true);
+        registry.setVerdict(inputs.missionId, inputs.droneId, true);
 
         // 4. Emit MissionVerified for D's orchestrator + frontend listeners
         emit MissionVerified(
             proofId,
-            inputs.mid,
+            inputs.missionId,
             inputs.droneId,
             factHash,
             inputs.coveragePermille,

@@ -11,7 +11,7 @@ import "./Registry.sol";
  * Two preconditions enforced on-chain when D calls `advance`:
  *   1. `msg.sender == commander` (the commander key, NOT D's validator key)
  *   2. Both the α-mission and the β-mission listed in the call must have
- *      `Registry.verdict[mid][droneId] == true` (dual-SAFE)
+ *      `Registry.verdict[missionId][droneId] == true` (dual-SAFE)
  *
  * The contract also retains a manual override path: if the commander
  * key is ever rotated (lost or compromised key recovery scenario), the
@@ -36,8 +36,8 @@ contract CommandLog {
     //  Stored advance records
     // ───────────────────────────────────────────────────────────────────
     struct AdvanceRecord {
-        uint256 alphaMid;
-        uint256 betaMid;
+        uint256 alphaMissionId;
+        uint256 betaMissionId;
         uint256 speed;
         uint256 blockNumber;
         uint256 timestamp;
@@ -51,8 +51,8 @@ contract CommandLog {
     // ───────────────────────────────────────────────────────────────────
     event ConvoyAdvance(
         uint256 indexed blockNumber,
-        uint256 indexed alphaMid,
-        uint256 indexed betaMid,
+        uint256 indexed alphaMissionId,
+        uint256 indexed betaMissionId,
         uint256         speed,
         address         commander
     );
@@ -126,13 +126,13 @@ contract CommandLog {
     /**
      * @notice Record the convoy advance. Reverts unless:
      *         (1) caller is the commander, and
-     *         (2) Registry.verdict is SAFE for both (alphaMid, α) AND (betaMid, β).
+     *         (2) Registry.verdict is SAFE for both (alphaMissionId, α) AND (betaMissionId, β).
      *
-     * @param alphaMid  α-lane mission id whose verdict must be SAFE
-     * @param betaMid   β-lane mission id whose verdict must be SAFE
+     * @param alphaMissionId  α-lane mission id whose verdict must be SAFE
+     * @param betaMissionId   β-lane mission id whose verdict must be SAFE
      * @param speed     opaque speed value carried in the event (convention: 100 = full ahead; any non-zero uint256 is accepted)
      */
-    function advance(uint256 alphaMid, uint256 betaMid, uint256 speed)
+    function advance(uint256 alphaMissionId, uint256 betaMissionId, uint256 speed)
         external
         onlyCommander
     {
@@ -140,25 +140,25 @@ contract CommandLog {
 
         // Dual-SAFE precondition (re-checked on every Geth as the tx executes)
         require(
-            registry.verdict(alphaMid, registry.DRONE_ALPHA()),
+            registry.verdict(alphaMissionId, registry.DRONE_ALPHA()),
             "CommandLog: alpha not SAFE"
         );
         require(
-            registry.verdict(betaMid, registry.DRONE_BRAVO()),
+            registry.verdict(betaMissionId, registry.DRONE_BRAVO()),
             "CommandLog: beta not SAFE"
         );
 
         // Record the advance
         advances.push(AdvanceRecord({
-            alphaMid:    alphaMid,
-            betaMid:     betaMid,
+            alphaMissionId:    alphaMissionId,
+            betaMissionId:     betaMissionId,
             speed:       speed,
             blockNumber: block.number,
             timestamp:   block.timestamp,
             commander:   msg.sender
         }));
 
-        emit ConvoyAdvance(block.number, alphaMid, betaMid, speed, msg.sender);
+        emit ConvoyAdvance(block.number, alphaMissionId, betaMissionId, speed, msg.sender);
     }
 
     // ───────────────────────────────────────────────────────────────────
@@ -181,7 +181,7 @@ contract CommandLog {
      *         advance. Reverts on out-of-range to surface index bugs
      *         rather than silently return an all-zero record.
      * @param  idx position in the `advances[]` array
-     * @return the AdvanceRecord (alphaMid, betaMid, speed, L1 block
+     * @return the AdvanceRecord (alphaMissionId, betaMissionId, speed, L1 block
      *         number, L1 timestamp, commander address)
      */
     function getAdvance(uint256 idx) external view returns (AdvanceRecord memory) {

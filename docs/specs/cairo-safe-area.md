@@ -104,7 +104,7 @@ func check_coverage{range_check_ptr}(cells, n, polygon, total_in_area):
 ```
 
 **Edge cases to flag here:**
-1. **Drone leaves the area mid-sweep** → cells outside the polygon are silently dropped from the count. They don't fail the proof; they just don't count toward coverage.
+1. **Drone leaves the area mission_id-sweep** → cells outside the polygon are silently dropped from the count. They don't fail the proof; they just don't count toward coverage.
 2. **Sensor overlap** → two drones swept the same cell. The `seen` set deduplicates by `cell_id` so we don't double-count.
 3. **A cell is claimed inside but is actually outside** → caught by the `ray_cast_test` failing; the cell doesn't contribute to coverage, which lowers the achieved %, which fails the threshold.
 4. **A cell with the same `cell_id` is reported twice with different telemetry** → hidden weakness. We need an additional assertion: `cells[i].cell_id < cells[i+1].cell_id` after sorting, OR `seen` set rejects duplicates and the second occurrence is ignored. **Decision needed:** which mitigation we adopt; doc this when the program is implemented.

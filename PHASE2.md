@@ -102,23 +102,23 @@ ALPHA_RELAY_PK=0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffb
 BRAVO_RELAY_PK=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d   # ship B
 RPC=http://127.0.0.1:8545
 
-# 1. D deploys α-mission (mid=1, droneId=1)
+# 1. D deploys α-mission (mission_id=1, droneId=1)
 cast send $REGISTRY \
     "deploy(uint256,(bytes32,uint16,uint16,uint64))" \
     1 "(0x0000...areahash,950,7000,360)" \
     --private-key $COMMANDER_PK --rpc-url $RPC
 
-# 2. D deploys β-mission (mid=2, droneId=2)
+# 2. D deploys β-mission (mission_id=2, droneId=2)
 cast send $REGISTRY \
     "deploy(uint256,(bytes32,uint16,uint16,uint64))" \
     2 "(0x0000...areahash,950,7000,360)" \
     --private-key $COMMANDER_PK --rpc-url $RPC
 
-# 3. Ship F (alpha relay) registers a SAFE proof for (mid=1, droneId=1)
+# 3. Ship F (alpha relay) registers a SAFE proof for (mission_id=1, droneId=1)
 # (use the SafeProofInputs tuple shape per Verifier.sol)
 # ...
 
-# 4. Ship B (bravo relay) registers a SAFE proof for (mid=2, droneId=2)
+# 4. Ship B (bravo relay) registers a SAFE proof for (mission_id=2, droneId=2)
 # ...
 
 # 5. D fires advance — only succeeds because both verdicts are SAFE.

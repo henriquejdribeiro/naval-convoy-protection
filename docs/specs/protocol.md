@@ -77,7 +77,7 @@ Four boundary crossings. Every other call is intra-domain.
   function deploy(MissionSpec spec)
       external
       onlyCommander
-      returns (uint256 mid);
+      returns (uint256 mission_id);
   ```
 - **Payload**:
   - `spec.area_hash` — `bytes32` Poseidon hash of polygon vertices
@@ -100,13 +100,13 @@ Four boundary crossings. Every other call is intra-domain.
   ```
   Clique PoA peer broadcast
     → Registry state write
-    → emit MissionDeployed(mid, drone_id, spec)
+    → emit MissionDeployed(mission_id, drone_id, spec)
   ```
 - **Payload**:
   - `block N` — sealed PoA block including the deploy tx
   - `signer` — rotating among the 6 ship validators (EIP-225)
-  - `state Δ` — Registry storage updated with `(mid → MissionSpec)`
-  - `event MissionDeployed(uint256 indexed mid, uint256 indexed drone_id, MissionSpec spec)`
+  - `state Δ` — Registry storage updated with `(mission_id → MissionSpec)`
+  - `event MissionDeployed(uint256 indexed mission_id, uint256 indexed drone_id, MissionSpec spec)`
   - `drone_id` is **indexed** so off-chain subscribers (relay ships) can
     filter on it
 - **Authentication**: `secp256k1` — block sealer signs the block header.
@@ -125,7 +125,7 @@ Four boundary crossings. Every other call is intra-domain.
   ```
   web3.eth.subscribe("logs", {
     address: Registry,
-    topics: [MissionDeployed, mid, drone_id]
+    topics: [MissionDeployed, mission_id, drone_id]
   })
   ```
 - **Payload**:
@@ -134,7 +134,7 @@ Four boundary crossings. Every other call is intra-domain.
   - F's subscription: `topic[0]=MissionDeployed`, `topic[2]=α` →
     F's `onMission(spec)` handler runs
   - A, C, D, E: no relay subscription — observe only
-  - Extracted: `mid + drone_id + MissionSpec` passed to the matching
+  - Extracted: `mission_id + drone_id + MissionSpec` passed to the matching
     handler
 - **Authentication**: No cryptographic auth on the read path — Geth's
   event log is local to each node. **The relay assignment is enforced by
@@ -154,14 +154,14 @@ Four boundary crossings. Every other call is intra-domain.
 - **Endpoint signature** (off-chain):
   ```
   POST /l2-{bravo|alpha}/admin/deploy_mission
-  body: { spec, mid }   (over convoy radio link)
+  body: { spec, mission_id }   (over convoy radio link)
   ```
 - **Payload**:
   - `spec` — `MissionSpec` relayed verbatim
-  - `mid` — `uint256` same mission id as on L1 (`EX-010` for α, `EX-011`
+  - `mission_id` — `uint256` same mission id as on L1 (`EX-010` for α, `EX-011`
     for β)
-  - Bravo lane: `B → L2-B` with `mid = EX-011`
-  - Alpha lane: `F → L2-A` with `mid = EX-010`
+  - Bravo lane: `B → L2-B` with `mission_id = EX-011`
+  - Alpha lane: `F → L2-A` with `mission_id = EX-010`
 - **Authentication**: TLS + relay-to-L2 mutual auth. Ship B's relay key
   is whitelisted on Madara β; ship F's on Madara α. **Each relay is the
   only off-chain dispatcher for its lane** (per `orchestrator.toml`).
@@ -169,7 +169,7 @@ Four boundary crossings. Every other call is intra-domain.
 - **What happens**: Both relay ships dispatch in parallel. B forwards
   `EX-011` to L2-B over the convoy radio link; F forwards `EX-010` to
   L2-A. Drones α and β now have their respective mission specs.
-- **Parallel lane**: F → L2-A (mid = `EX-010`)
+- **Parallel lane**: F → L2-A (mission_id = `EX-010`)
 
 ---
 
@@ -193,7 +193,7 @@ Four boundary crossings. Every other call is intra-domain.
     `0`–`10000`)
   - `ts: u64` — unix seconds
 - **Payload (per call)**:
-  - `mission_id` — same `mid` the dispatch carried
+  - `mission_id` — same `mission_id` the dispatch carried
   - `cells: Array<TelemetryCell>` — one tx per cell, dozens per sweep
 - **Authentication**: **Stark-curve ECDSA**. Drone β signs each L2 tx
   hash with its private key (`keystore/bravo.json`). The OpenZeppelin
@@ -209,7 +209,7 @@ Four boundary crossings. Every other call is intra-domain.
 - **Parallel lane**: drone α calls `submit_telemetry` on Madara α with
   its own swept cells.
 
-### Step 6 — `submit_sweep_commitment(mid, H_β)`
+### Step 6 — `submit_sweep_commitment(mission_id, H_β)`
 
 - **Self-action** on Madara β (parallel on Madara α with `H_α`)
 - **Endpoint signature** (Cairo on L2):
@@ -359,7 +359,7 @@ mirror on the alpha lane.
 
 - **Payload**:
   - `π_β` — proof bytes (~100–500 KB)
-  - `public_input` — `mid`, `H_β`, `area_hash`, thresholds, `drone_id=β`
+  - `public_input` — `mission_id`, `H_β`, `area_hash`, thresholds, `drone_id=β`
 
 ---
 
@@ -382,14 +382,14 @@ mirror on the alpha lane.
   ```
   POST /relay/submit
   body: {
-    programHash, outputHash, mid, drone_id,
+    programHash, outputHash, mission_id, drone_id,
     coveragePermille, maxContactBp, elapsedSeconds, H_beta, n_steps
   }
   ```
 - **Payload**:
   - `programHash` — `bytes32` `keccak256` of the compiled `safe_area_verify.cairo` program bytecode
   - `outputHash` — `bytes32` `keccak256` of the ABI-encoded program output
-  - `mid` — `uint256` mission id
+  - `mission_id` — `uint256` mission id
   - `drone_id` — `uint256` α or β
   - Public output fields — `coveragePermille`, `maxContactBp`,
     `elapsedSeconds`, `H_β`, `n_steps`
@@ -418,7 +418,7 @@ mirror on the alpha lane.
   function registerSafeProof(
       bytes32 programHash,
       bytes32 outputHash,
-      uint256 mid,
+      uint256 mission_id,
       uint256 drone_id,
       uint256 coveragePermille,
       uint256 maxContactBp,
@@ -432,7 +432,7 @@ mirror on the alpha lane.
   ```
 - **Payload** (per call):
   - `programHash, outputHash` — fact components from step 19
-  - `mid, drone_id` — same `mid` as deployed in step 1; `α` or `β`
+  - `mission_id, drone_id` — same `mission_id` as deployed in step 1; `α` or `β`
   - `coveragePermille` — must satisfy `≥ MissionSpec.coverage_min`
   - `maxContactBp` — must satisfy `< MissionSpec.p_min`
   - `elapsedSeconds` — must satisfy `≤ MissionSpec.time_window`
@@ -468,13 +468,13 @@ mirror on the alpha lane.
   1. Computes `factHash = keccak256(programHash, outputHash)`.
   2. Calls inherited `FactRegistry.registerFact(factHash)` — sets
      `verifiedFact[factHash] = true`.
-  3. Stores the proof metadata (mid, drone_id, coverage/contact/elapsed
+  3. Stores the proof metadata (mission_id, drone_id, coverage/contact/elapsed
      fields, `H_commitment`, `nSteps`, `block.timestamp`,
      `block.number`) in the `proofs[]` array.
-  4. Calls `Registry.setVerdict(mid, drone_id, SAFE)` (cross-contract,
+  4. Calls `Registry.setVerdict(mission_id, drone_id, SAFE)` (cross-contract,
      gated by `onlyVerifier` on Registry).
   5. Emits `FactRegistered(factHash, programHash, outputHash)` and
-     `MissionVerified(proofId, mid, drone_id, factHash, coveragePermille,
+     `MissionVerified(proofId, mission_id, drone_id, factHash, coveragePermille,
      maxContactBp, elapsedSeconds)`.
 
   After this step, Registry holds `verdict[α] = SAFE` and
@@ -578,7 +578,7 @@ channel is needed at the protocol level. (See `docs/decisions/`.)
 | 3 | 1 | B (also F) | self | self | — | event filter dispatches mission to relay |
 | 4 | 1 | B (and F) | L2-B (and L2-A) | msg | ⚠ L1→L2 | radio dispatch of spec |
 | 5 | 2 | drone β (and α) | Madara β (and α) | self | ⚠ drone→L2 | `submit_telemetry(...)` × N |
-| 6 | 2 | drone β (and α) | Madara β (and α) | self | ⚠ drone→L2 | `submit_sweep_commitment(mid, H_β)` |
+| 6 | 2 | drone β (and α) | Madara β (and α) | self | ⚠ drone→L2 | `submit_sweep_commitment(mission_id, H_β)` |
 | 7 | 2 | Madara | Madara | self | — | seal block N |
 | 8 | 3 | Madara | Pathfinder | msg | — | feeder gateway sync |
 | 9 | 4 | Orch | Pathfinder | msg | — | `starknet_getBlockWithTxs(N)` |

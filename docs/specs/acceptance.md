@@ -27,13 +27,13 @@
    → MissionDeployed(11, β, spec) event observed (drone_id is indexed)
 4. cast send Registry "deploy(MissionSpec)" from a non-commander ship key
    → tx REVERTS (onlyCommander)
-5. cast send Verifier "registerSafeProof(programHash, outputHash, mid=10, drone=α, ...)"
+5. cast send Verifier "registerSafeProof(programHash, outputHash, mission_id=10, drone=α, ...)"
    from ship F's relay key (whitelisted as alpha relay)
    → factHash = keccak256(programHash, outputHash) added to Verifier.verifiedFacts
    → Registry.verdict[10][α] == SAFE  (cross-contract setVerdict)
    → FactRegistered + MissionVerified events emitted
    → no ConvoyAdvance event yet (only one verdict so far)
-6. cast send Verifier "registerSafeProof(programHash, outputHash, mid=11, drone=β, ...)"
+6. cast send Verifier "registerSafeProof(programHash, outputHash, mission_id=11, drone=β, ...)"
    from ship B's relay key (whitelisted as bravo relay)
    → Registry.verdict[11][β] == SAFE
    → still no ConvoyAdvance event (Verifier does NOT auto-fire — Pattern B)
@@ -80,7 +80,7 @@
 8. Orchestrator-β hands the fact bundle to ship B over radio (RPC) —
    raw proof bytes do NOT travel to L1
 9. Ship B writes Verifier.registerSafeProof(programHash, outputHash,
-   mid=EX-011, drone=β, ...public outputs) to L1 with the ship's key
+   mission_id=EX-011, drone=β, ...public outputs) to L1 with the ship's key
 10. PoA fan-out propagates the tx; every Geth registers the fact in
     Verifier.verifiedFacts, calls Registry.setVerdict(EX-011, β, SAFE),
     emits FactRegistered + MissionVerified events

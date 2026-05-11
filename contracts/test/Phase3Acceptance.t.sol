@@ -20,8 +20,8 @@ import "../src/StarknetCoreStub.sol";
  *   outputHash   0xd8c56e2c4e4826426c446b712170944096b8992cf54ede3f2e63238624454f3c
  *   factHash     0xeee829d9db1bd7d7a9531da2c40599d1548de4d936a342245b8ef7f127d4ced1
  *
- *   public outputs (β lane, mid=2)
- *     mid                = 2
+ *   public outputs (β lane, missionId=2)
+ *     missionId                = 2
  *     drone_id           = 2
  *     coverage_permille  = 960   (≥ 950)
  *     max_p_contact      = 4500  (<  7000)
@@ -59,7 +59,7 @@ contract Phase3AcceptanceTest is Test {
     uint256 internal ALPHA;
     uint256 internal BRAVO;
 
-    // ─── Real values from prover-api run (β lane, mid=2) ────────────────
+    // ─── Real values from prover-api run (β lane, missionId=2) ────────────────
     bytes32 constant REAL_PROGRAM_HASH =
         0x974f1b4422464370d8d2d7b7bc19a9421fca2df08f6ecf4cb384f5e3a39d9be9;
     bytes32 constant REAL_OUTPUT_HASH =
@@ -69,7 +69,7 @@ contract Phase3AcceptanceTest is Test {
     bytes32 constant REAL_COMMITMENT =
         0x055d4a0e56c1875e13e8eff57589305bc5bcda38cce164d6bf2343f76c2ea427;
 
-    uint256 constant REAL_MID            = 2;
+    uint256 constant REAL_MISSION_ID            = 2;
     uint256 constant REAL_DRONE_ID       = 2;          // β
     uint256 constant REAL_COVERAGE       = 960;
     uint256 constant REAL_MAX_P          = 4500;
@@ -88,12 +88,12 @@ contract Phase3AcceptanceTest is Test {
         BRAVO = registry.DRONE_BRAVO();
 
         // Mint missions matching the prover-api run: deploy ALPHA first
-        // (mid=1), then BRAVO (mid=2). This mirrors docker-compose.l1.yml's
+        // (missionId=1), then BRAVO (missionId=2). This mirrors docker-compose.l1.yml's
         // deploy-l1 service.
         Registry.MissionSpec memory spec = _spec();
         vm.startPrank(commander);
-        registry.deploy(ALPHA, spec);   // mints mid=1
-        registry.deploy(BRAVO, spec);   // mints mid=2
+        registry.deploy(ALPHA, spec);   // mints missionId=1
+        registry.deploy(BRAVO, spec);   // mints missionId=2
         vm.stopPrank();
     }
 
@@ -127,10 +127,10 @@ contract Phase3AcceptanceTest is Test {
         // submit_proof_l1.py:
         //     output_bytes = b"".join(v.to_bytes(32, "big") for v in outputs)
         //     output_hash  = keccak256(output_bytes)
-        // = abi.encodePacked of six uint256s in (mid, drone_id, coverage,
+        // = abi.encodePacked of six uint256s in (missionId, drone_id, coverage,
         //   max_p, elapsed, commitment) order.
         bytes32 computed = keccak256(abi.encodePacked(
-            REAL_MID,
+            REAL_MISSION_ID,
             REAL_DRONE_ID,
             REAL_COVERAGE,
             REAL_MAX_P,
@@ -155,7 +155,7 @@ contract Phase3AcceptanceTest is Test {
         assertEq(proofId, 0,                "first proof on this chain");
         assertEq(factHash, REAL_FACT_HASH,  "on-chain factHash must equal off-chain factHash");
         assertTrue(verifier.isValid(factHash),       "fact registered");
-        assertTrue(registry.isSafe(REAL_MID, BRAVO), "bravo verdict SAFE");
+        assertTrue(registry.isSafe(REAL_MISSION_ID, BRAVO), "bravo verdict SAFE");
 
         // Sanity: re-submitting the same fact stays idempotent
         vm.prank(bravoRelay);
@@ -171,13 +171,13 @@ contract Phase3AcceptanceTest is Test {
         vm.prank(bravoRelay);
         verifier.registerSafeProof(_realBravoInputs());
 
-        // Synthetic α proof against mid=1 (a real α proof would be the
+        // Synthetic α proof against missionId=1 (a real α proof would be the
         // same shape; we only have one Stone run captured. Same encoding,
         // different lane.)
         Verifier.SafeProofInputs memory alpha = Verifier.SafeProofInputs({
             programHash:      keccak256("alpha-program"),
             outputHash:       keccak256("alpha-output"),
-            mid:              1,
+            missionId:              1,
             droneId:          ALPHA,
             coveragePermille: 955,
             maxContactBp:     3800,
@@ -188,21 +188,21 @@ contract Phase3AcceptanceTest is Test {
         vm.prank(alphaRelay);
         verifier.registerSafeProof(alpha);
 
-        assertTrue(registry.isDualSafe(1, REAL_MID), "dual-SAFE must hold");
+        assertTrue(registry.isDualSafe(1, REAL_MISSION_ID), "dual-SAFE must hold");
 
         // D fires advance — this is the moment Pattern B closes.
         uint256 startBlock = block.number;
         vm.roll(startBlock + 1);
 
         vm.expectEmit(true, true, true, true, address(commandLog));
-        emit CommandLog.ConvoyAdvance(startBlock + 1, 1, REAL_MID, 100, commander);
+        emit CommandLog.ConvoyAdvance(startBlock + 1, 1, REAL_MISSION_ID, 100, commander);
         vm.prank(commander);
-        commandLog.advance(1, REAL_MID, 100);
+        commandLog.advance(1, REAL_MISSION_ID, 100);
 
         assertEq(commandLog.advanceCount(), 1, "advance recorded");
         CommandLog.AdvanceRecord memory rec = commandLog.getAdvance(0);
-        assertEq(rec.alphaMid, 1);
-        assertEq(rec.betaMid,  REAL_MID);
+        assertEq(rec.alphaMissionId, 1);
+        assertEq(rec.betaMissionId,  REAL_MISSION_ID);
         assertEq(rec.speed,    100);
     }
 
@@ -235,7 +235,7 @@ contract Phase3AcceptanceTest is Test {
         vm.expectRevert(bytes("Verifier: time > window"));
         verifier.registerSafeProof(inputs);
 
-        assertFalse(registry.isSafe(REAL_MID, BRAVO),
+        assertFalse(registry.isSafe(REAL_MISSION_ID, BRAVO),
                     "no verdict written for any rejected proof");
     }
 
@@ -248,7 +248,7 @@ contract Phase3AcceptanceTest is Test {
         return Verifier.SafeProofInputs({
             programHash:      REAL_PROGRAM_HASH,
             outputHash:       REAL_OUTPUT_HASH,
-            mid:              REAL_MID,
+            missionId:              REAL_MISSION_ID,
             droneId:          REAL_DRONE_ID,
             coveragePermille: REAL_COVERAGE,
             maxContactBp:     REAL_MAX_P,

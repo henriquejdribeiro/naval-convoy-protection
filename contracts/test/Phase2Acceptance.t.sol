@@ -25,7 +25,7 @@ import "../src/StarknetCoreStub.sol";
  *   6. Ship B (bravo relay) registers a SAFE proof for (11, β)
  *      → Registry.verdict[11][β] = true; still no ConvoyAdvance
  *   7. Non-relay caller hits onlyRelay revert
- *   8. D fires CommandLog.advance(alphaMid, betaMid, 100) → ConvoyAdvance event
+ *   8. D fires CommandLog.advance(alphaMissionId, betaMissionId, 100) → ConvoyAdvance event
  *   9. Non-commander advance attempt reverts
  *  10. Pre-dual-SAFE advance attempt reverts (using a fresh CommandLog
  *      against unverified mids)
@@ -46,16 +46,16 @@ contract Phase2AcceptanceTest is Test {
     address internal stranger  = address(0xDEAD);      // a non-privileged caller
 
     // Cached drone-id constants. Public Solidity constants are exposed as
-    // auto-generated external getter functions, so reading them mid-test
+    // auto-generated external getter functions, so reading them missionId-test
     // (e.g. registry.DRONE_ALPHA()) consumes any in-flight vm.prank.
     // Cache once in setUp() to avoid that footgun.
     uint256 internal ALPHA;
     uint256 internal BRAVO;
 
     // Mission ids (deploy() auto-increments starting at 1; each lane's
-    // mid will be different per call)
-    uint256 internal mid_alpha;
-    uint256 internal mid_beta;
+    // missionId will be different per call)
+    uint256 internal missionIdAlpha;
+    uint256 internal missionIdBeta;
 
     // ───────────────────────────────────────────────────────────────────
     //  setUp — deploy the full stack just like DeployL1.s.sol does
@@ -89,13 +89,13 @@ contract Phase2AcceptanceTest is Test {
     }
 
     // Helper: build a representative SafeProofInputs that satisfies the spec.
-    function _validInputs(uint256 mid, uint256 droneId)
+    function _validInputs(uint256 missionId, uint256 droneId)
         internal pure returns (Verifier.SafeProofInputs memory)
     {
         return Verifier.SafeProofInputs({
             programHash:      keccak256(abi.encodePacked("safe_area_verify.cairo", droneId)),
-            outputHash:       keccak256(abi.encodePacked("output", mid, droneId)),
-            mid:              mid,
+            outputHash:       keccak256(abi.encodePacked("output", missionId, droneId)),
+            missionId:              missionId,
             droneId:          droneId,
             coveragePermille: 952,    // satisfies ≥ 950
             maxContactBp:     4500,   // satisfies < 7000
@@ -114,16 +114,16 @@ contract Phase2AcceptanceTest is Test {
         vm.expectEmit(true, true, false, true, address(registry));
         emit Registry.MissionDeployed(1, ALPHA, spec);
         vm.prank(commander);
-        mid_alpha = registry.deploy(ALPHA, spec);
-        assertEq(mid_alpha, 1, "first mission should mint mid=1");
+        missionIdAlpha = registry.deploy(ALPHA, spec);
+        assertEq(missionIdAlpha, 1, "first mission should mint missionId=1");
 
         vm.expectEmit(true, true, false, true, address(registry));
         emit Registry.MissionDeployed(2, BRAVO, spec);
         vm.prank(commander);
-        mid_beta = registry.deploy(BRAVO, spec);
-        assertEq(mid_beta, 2, "second mission should mint mid=2");
+        missionIdBeta = registry.deploy(BRAVO, spec);
+        assertEq(missionIdBeta, 2, "second mission should mint missionId=2");
 
-        // Specs persisted under (mid, droneId)
+        // Specs persisted under (missionId, droneId)
         Registry.MissionSpec memory got = registry.getSpec(1, ALPHA);
         assertEq(got.coverageMin, 950);
         assertEq(got.pMin,        7000);
@@ -241,8 +241,8 @@ contract Phase2AcceptanceTest is Test {
 
         assertEq(commandLog.advanceCount(), 1, "advance recorded");
         CommandLog.AdvanceRecord memory rec = commandLog.getAdvance(0);
-        assertEq(rec.alphaMid,  mA);
-        assertEq(rec.betaMid,   mB);
+        assertEq(rec.alphaMissionId,  mA);
+        assertEq(rec.betaMissionId,   mB);
         assertEq(rec.commander, commander);
         assertEq(rec.speed,     100);
     }

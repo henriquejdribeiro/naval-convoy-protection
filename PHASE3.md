@@ -73,7 +73,7 @@ replay so no proof is produced**:
 Public outputs (in order, written by `serialize_word`):
 
 ```
-[mid, drone_id, coverage_permille, max_p_contact, elapsed_seconds, commitment]
+[mission_id, drone_id, coverage_permille, max_p_contact, elapsed_seconds, commitment]
 ```
 
 These six felts are extracted by `submit_proof_l1.py` and passed verbatim

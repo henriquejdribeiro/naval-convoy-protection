@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-fetch_l2_cells.py — pull telemetry cells + commitment for (mid, drone_id)
+fetch_l2_cells.py — pull telemetry cells + commitment for (mission_id, drone_id)
 out of convoy_protocol's storage on Madara, via starkli (which calls
 Pathfinder JSON-RPC under the hood).
 
@@ -15,7 +15,7 @@ Usage:
     python3 fetch_l2_cells.py \\
         --rpc http://convoy-pathfinder:9545/rpc/v0_8 \\
         --contract 0x04f37310...ad09 \\
-        --mid 2 --drone-id 2 \\
+        --mission_id 2 --drone-id 2 \\
         --coverage-min 950 --p-min 7000 --time-window 360 \\
         --area-total-cells 50 --ts-start 1700000000 \\
         --output /proofs/l2_input.json
@@ -50,7 +50,7 @@ def main() -> int:
     ap.add_argument("--rpc", required=True,
                     help="Pathfinder RPC URL including /rpc/vX_Y suffix")
     ap.add_argument("--contract", required=True)
-    ap.add_argument("--mid", type=int, required=True)
+    ap.add_argument("--mission_id", type=int, required=True)
     ap.add_argument("--drone-id", type=int, required=True)
     ap.add_argument("--coverage-min", type=int, required=True)
     ap.add_argument("--p-min", type=int, required=True)
@@ -65,23 +65,23 @@ def main() -> int:
     if not shutil.which("starkli"):
         raise SystemExit("[fetch] starkli not on PATH — install or run from cairo-builder")
 
-    # 1. cell_count(mid, drone_id)
-    print(f"[fetch] reading get_cell_count({args.mid}, {args.drone_id}) "
+    # 1. cell_count(mission_id, drone_id)
+    print(f"[fetch] reading get_cell_count({args.mission_id}, {args.drone_id}) "
           f"from {args.contract} via {args.rpc}")
     n_cells = starkli_call(
         args.rpc, args.contract, "get_cell_count",
-        [str(args.mid), str(args.drone_id)],
+        [str(args.mission_id), str(args.drone_id)],
     )[0]
     print(f"[fetch]   n_cells = {n_cells}")
     if n_cells == 0:
-        raise SystemExit("[fetch] no telemetry on L2 for this (mid, drone_id)")
+        raise SystemExit("[fetch] no telemetry on L2 for this (mission_id, drone_id)")
 
-    # 2. each cell via get_cell(mid, drone_id, i) -> (x, y, p, ts)
+    # 2. each cell via get_cell(mission_id, drone_id, i) -> (x, y, p, ts)
     cells_x, cells_y, cells_p, cells_ts = [], [], [], []
     for i in range(n_cells):
         x, y, p, ts = starkli_call(
             args.rpc, args.contract, "get_cell",
-            [str(args.mid), str(args.drone_id), str(i)],
+            [str(args.mission_id), str(args.drone_id), str(i)],
         )[:4]
         cells_x.append(x)
         cells_y.append(y)
@@ -92,7 +92,7 @@ def main() -> int:
     # 3. on-chain commitment (felt252)
     commitment = starkli_call(
         args.rpc, args.contract, "get_commitment",
-        [str(args.mid), str(args.drone_id)],
+        [str(args.mission_id), str(args.drone_id)],
     )[0]
     if commitment == 0:
         msg = ("[fetch] convoy_protocol.get_commitment is 0 — the drone hasn't "
@@ -108,7 +108,7 @@ def main() -> int:
         "_contract":           args.contract,
         "_l2_block":           "latest",
 
-        "mid":                 args.mid,
+        "mission_id":                 args.mission_id,
         "drone_id":            args.drone_id,
         "area_total_cells":    args.area_total_cells,
         "coverage_min":        args.coverage_min,

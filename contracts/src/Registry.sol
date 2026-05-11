@@ -5,22 +5,22 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title  Registry
- * @notice Mission specs and per-(mid, drone_id) verdicts.
+ * @notice Mission specs and per-(missionId, drone_id) verdicts.
  *
  * Two responsibilities:
  *
  *   1. **Mission deployment** — only the commander (D) may call
  *      `deploy()`. The mission spec encodes the SAFE_AREA criterion
  *      thresholds (coverage, p_min, time_window) plus the polygon hash.
- *      Each deploy mints a fresh `mid`.
+ *      Each deploy mints a fresh `missionId`.
  *
  *   2. **Verdict storage** — only the Verifier contract may call
  *      `setVerdict()`. The Verifier writes here as a side-effect of
  *      successfully registering a SAFE proof; D's orchestrator polls
- *      `verdict[mid][drone_id]` to know when both lanes are SAFE before
+ *      `verdict[missionId][drone_id]` to know when both lanes are SAFE before
  *      firing the convoy advance (Pattern B).
  *
- * The `MissionDeployed` event uses **indexed** `mid` and `drone_id` so the
+ * The `MissionDeployed` event uses **indexed** `missionId` and `drone_id` so the
  * relay-ship orchestrators (B for β, F for α) can subscribe to just their
  * own lane via topic filtering. No on-chain dispatch — the contract emits;
  * off-chain handlers act per `orchestrator.toml` config.
@@ -54,24 +54,24 @@ contract Registry is Ownable {
 
     uint256 public nextMissionId = 1;        // 0 reserved as "missing"
 
-    // mid → (drone_id → spec).  Storing per-(mid, drone) keeps the schema
+    // missionId → (drone_id → spec).  Storing per-(missionId, drone) keeps the schema
     // identical for both lanes; the deploy() call writes one slot per
-    // (mid, drone_id) tuple.
+    // (missionId, drone_id) tuple.
     mapping(uint256 => mapping(uint256 => MissionSpec)) public specs;
 
-    // mid → (drone_id → SAFE flag).  False until Verifier sets it true.
+    // missionId → (drone_id → SAFE flag).  False until Verifier sets it true.
     mapping(uint256 => mapping(uint256 => bool)) public verdict;
 
     // ───────────────────────────────────────────────────────────────────
     //  Events
     // ───────────────────────────────────────────────────────────────────
     event MissionDeployed(
-        uint256 indexed mid,
+        uint256 indexed missionId,
         uint256 indexed droneId,
         MissionSpec     spec
     );
     event VerdictSet(
-        uint256 indexed mid,
+        uint256 indexed missionId,
         uint256 indexed droneId,
         bool            safe
     );
@@ -92,7 +92,7 @@ contract Registry is Ownable {
 
     /// @dev Restricts a function to the bound Verifier contract. Used to
     ///      gate `setVerdict()`: the Verifier is the only authority that
-    ///      may flip a (mid, drone_id) verdict to SAFE, and only after a
+    ///      may flip a (missionId, drone_id) verdict to SAFE, and only after a
     ///      successful STARK-proof registration.
     modifier onlyVerifier() {
         require(msg.sender == verifier, "Registry: onlyVerifier");
@@ -137,13 +137,13 @@ contract Registry is Ownable {
     /**
      * @notice Register a new mission for a specific drone lane.
      * @dev    Only the commander (D) may call. Each call increments
-     *         `nextMissionId` and stores the spec under (mid, droneId).
-     * @return mid the freshly-minted mission id.
+     *         `nextMissionId` and stores the spec under (missionId, droneId).
+     * @return missionId the freshly-minted mission id.
      */
     function deploy(uint256 droneId, MissionSpec calldata spec)
         external
         onlyCommander
-        returns (uint256 mid)
+        returns (uint256 missionId)
     {
         require(
             droneId == DRONE_ALPHA || droneId == DRONE_BRAVO,
@@ -153,10 +153,10 @@ contract Registry is Ownable {
         require(spec.pMin > 0 && spec.pMin <= 10000, "Registry: bad pMin");
         require(spec.timeWindow > 0, "Registry: bad timeWindow");
 
-        mid = nextMissionId++;
-        specs[mid][droneId] = spec;
+        missionId = nextMissionId++;
+        specs[missionId][droneId] = spec;
 
-        emit MissionDeployed(mid, droneId, spec);
+        emit MissionDeployed(missionId, droneId, spec);
     }
 
     // ───────────────────────────────────────────────────────────────────
@@ -164,15 +164,15 @@ contract Registry is Ownable {
     // ───────────────────────────────────────────────────────────────────
 
     /**
-     * @notice Mark a (mid, droneId) verdict as SAFE.
+     * @notice Mark a (missionId, droneId) verdict as SAFE.
      * @dev    Only the bound Verifier contract may call. Idempotent —
      *         re-setting an already-SAFE verdict is a no-op.
      */
-    function setVerdict(uint256 mid, uint256 droneId, bool safe) external onlyVerifier {
-        require(specs[mid][droneId].coverageMin > 0, "Registry: unknown mission");
+    function setVerdict(uint256 missionId, uint256 droneId, bool safe) external onlyVerifier {
+        require(specs[missionId][droneId].coverageMin > 0, "Registry: unknown mission");
         require(safe, "Registry: only SAFE verdicts written");
-        verdict[mid][droneId] = true;
-        emit VerdictSet(mid, droneId, true);
+        verdict[missionId][droneId] = true;
+        emit VerdictSet(missionId, droneId, true);
     }
 
     // ───────────────────────────────────────────────────────────────────
@@ -184,13 +184,13 @@ contract Registry is Ownable {
      * @dev    Returned by value (memory copy). The Verifier reads this
      *         to re-assert SAFE_AREA thresholds before flipping a
      *         verdict; UI front-ends read it to render mission cards.
-     * @param  mid     mission id minted by `deploy()`
+     * @param  missionId     mission id minted by `deploy()`
      * @param  droneId DRONE_ALPHA (1) or DRONE_BRAVO (2)
      * @return the full MissionSpec; all fields are zero if the mission
      *         does not exist.
      */
-    function getSpec(uint256 mid, uint256 droneId) external view returns (MissionSpec memory) {
-        return specs[mid][droneId];
+    function getSpec(uint256 missionId, uint256 droneId) external view returns (MissionSpec memory) {
+        return specs[missionId][droneId];
     }
 
     /**
@@ -198,13 +198,13 @@ contract Registry is Ownable {
      * @dev    The verdict is only flipped to true by the Verifier after
      *         a successful proof registration; there is no path to
      *         unset it.
-     * @param  mid     mission id
+     * @param  missionId     mission id
      * @param  droneId DRONE_ALPHA (1) or DRONE_BRAVO (2)
-     * @return true iff the proof for (mid, droneId) has been verified
+     * @return true iff the proof for (missionId, droneId) has been verified
      *         on-chain and the verdict written.
      */
-    function isSafe(uint256 mid, uint256 droneId) external view returns (bool) {
-        return verdict[mid][droneId];
+    function isSafe(uint256 missionId, uint256 droneId) external view returns (bool) {
+        return verdict[missionId][droneId];
     }
 
     /**
@@ -215,12 +215,12 @@ contract Registry is Ownable {
      *         cryptographic SAFE verdicts. Pattern B — the commander
      *         still has to explicitly invoke advance(); this view does
      *         not auto-fire anything.
-     * @param  alphaMid mission id for the α lane
-     * @param  betaMid  mission id for the β lane
-     * @return true iff verdict[alphaMid][α] AND verdict[betaMid][β]
+     * @param  alphaMissionId mission id for the α lane
+     * @param  betaMissionId  mission id for the β lane
+     * @return true iff verdict[alphaMissionId][α] AND verdict[betaMissionId][β]
      *         are both SAFE.
      */
-    function isDualSafe(uint256 alphaMid, uint256 betaMid) external view returns (bool) {
-        return verdict[alphaMid][DRONE_ALPHA] && verdict[betaMid][DRONE_BRAVO];
+    function isDualSafe(uint256 alphaMissionId, uint256 betaMissionId) external view returns (bool) {
+        return verdict[alphaMissionId][DRONE_ALPHA] && verdict[betaMissionId][DRONE_BRAVO];
     }
 }

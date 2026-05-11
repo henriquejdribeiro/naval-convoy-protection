@@ -4,7 +4,7 @@
 #
 # This is the "the proof comes from the L2 block" flow. It:
 #
-#   1. Picks a fresh (mid, drone_id) on convoy_protocol so we don't collide
+#   1. Picks a fresh (mission_id, drone_id) on convoy_protocol so we don't collide
 #      with state from earlier smoke tests.
 #   2. Submits N telemetry cells via submit_telemetry on Madara (one tx
 #      per cell — Madara block_time is 30 s so this takes a few minutes).
@@ -35,8 +35,8 @@ CONTRACT="${CONVOY_PROTOCOL_ADDR}"
 RPC="http://convoy-pathfinder:9545/rpc/v0_8"
 MADARA_RPC="http://convoy-madara:9944/rpc/v0.8.1"
 
-# Fresh slot — pick a (mid, drone_id) the contract has never seen
-MID="${MID:-100}"
+# Fresh slot — pick a (mission_id, drone_id) the contract has never seen
+MISSION_ID="${MISSION_ID:-100}"
 DRONE_ID="${DRONE_ID:-2}"     # bravo lane
 
 # Compact 8-cell sweep so the demo runs in a few minutes (8 * 30s = 4 min
@@ -78,15 +78,15 @@ starkli_pf() {
 echo "================================================================"
 echo "  prove-from-l2.sh"
 echo "  contract:  ${CONTRACT}"
-echo "  (mid, drone_id) = (${MID}, ${DRONE_ID})"
+echo "  (mission_id, drone_id) = (${MISSION_ID}, ${DRONE_ID})"
 echo "  cells:     ${#CELLS_X[@]}"
 echo "================================================================"
 
 # ── 1. Confirm slot is empty (no prior commitment) ───────────────────
-existing=$(starkli_pf call "${CONTRACT}" get_commitment "${MID}" "${DRONE_ID}" 2>/dev/null \
+existing=$(starkli_pf call "${CONTRACT}" get_commitment "${MISSION_ID}" "${DRONE_ID}" 2>/dev/null \
     | tr -d ' \n[]"' | head -c 66)
 if [ -n "${existing}" ] && [ "${existing}" != "0x0000000000000000000000000000000000000000000000000000000000000000" ]; then
-    echo "[!] slot already has a commitment ${existing} — pick a different MID/DRONE_ID"
+    echo "[!] slot already has a commitment ${existing} — pick a different MISSION_ID/DRONE_ID"
     exit 2
 fi
 
@@ -94,9 +94,9 @@ fi
 echo
 echo "── Step 1/6: submit ${#CELLS_X[@]} telemetry cells to L2 ────────"
 for i in "${!CELLS_X[@]}"; do
-    echo "[L2] submit_telemetry(mid=${MID}, drone=${DRONE_ID}, x=${CELLS_X[$i]}, y=${CELLS_Y[$i]}, p=${CELLS_P[$i]}, ts=${CELLS_TS[$i]})"
+    echo "[L2] submit_telemetry(mission_id=${MISSION_ID}, drone=${DRONE_ID}, x=${CELLS_X[$i]}, y=${CELLS_Y[$i]}, p=${CELLS_P[$i]}, ts=${CELLS_TS[$i]})"
     starkli invoke "${CONTRACT}" submit_telemetry \
-        "${MID}" "${DRONE_ID}" "${CELLS_X[$i]}" "${CELLS_Y[$i]}" "${CELLS_P[$i]}" "${CELLS_TS[$i]}" \
+        "${MISSION_ID}" "${DRONE_ID}" "${CELLS_X[$i]}" "${CELLS_Y[$i]}" "${CELLS_P[$i]}" "${CELLS_TS[$i]}" \
         --watch 2>&1 | tail -2
 done
 
@@ -107,7 +107,7 @@ INPUT_NOBIND="$(mktemp /tmp/l2_input_nobind.XXXXXX.json)"
 python3 - <<EOF > "${INPUT_NOBIND}"
 import json
 print(json.dumps({
-    "mid":              ${MID},
+    "mission_id":              ${MISSION_ID},
     "drone_id":         ${DRONE_ID},
     "area_total_cells": ${AREA_TOTAL_CELLS},
     "coverage_min":     ${COVERAGE_MIN},
@@ -152,9 +152,9 @@ echo "[L2] commitment = ${COMMITMENT_HEX}"
 
 # ── 4. Publish commitment on L2 ─────────────────────────────────────
 echo
-echo "── Step 3/6: submit_sweep_commitment(${MID}, ${DRONE_ID}, ${COMMITMENT_HEX}) ──"
+echo "── Step 3/6: submit_sweep_commitment(${MISSION_ID}, ${DRONE_ID}, ${COMMITMENT_HEX}) ──"
 starkli invoke "${CONTRACT}" submit_sweep_commitment \
-    "${MID}" "${DRONE_ID}" "${COMMITMENT_HEX}" \
+    "${MISSION_ID}" "${DRONE_ID}" "${COMMITMENT_HEX}" \
     --watch 2>&1 | tail -3
 
 # ── 5. Fetch from L2 to build the bound input.json ──────────────────
@@ -163,7 +163,7 @@ echo "── Step 4/6: fetch cells + commitment from L2 via Pathfinder ──"
 docker exec convoy-prover-api python3 /app/fetch_l2_cells.py \
     --rpc "${RPC}" \
     --contract "${CONTRACT}" \
-    --mid "${MID}" --drone-id "${DRONE_ID}" \
+    --mission_id "${MISSION_ID}" --drone-id "${DRONE_ID}" \
     --coverage-min "${COVERAGE_MIN}" --p-min "${P_MIN}" --time-window "${TIME_WINDOW}" \
     --area-total-cells "${AREA_TOTAL_CELLS}" --ts-start "${TS_START}" \
     --output /proofs/l2_input.json

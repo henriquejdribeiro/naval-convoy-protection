@@ -45,9 +45,9 @@ const VIEW_BOX_H = VIEW_H - VIEW_Y0;   // 1360 — total visible vertical span
 const SHIPS = {
     A: { x: 440, y: 520, role: 'forward',         relays: ['alpha', 'bravo'] },
     B: { x: 560, y: 600, role: 'forward-right',   relays: ['bravo']          },
-    C: { x: 560, y: 680, role: 'mid-right',       relays: ['bravo']          },
+    C: { x: 560, y: 680, role: 'missionId-right',       relays: ['bravo']          },
     D: { x: 440, y: 760, role: 'commander',       relays: []                 },
-    E: { x: 320, y: 680, role: 'mid-left',        relays: ['alpha']          },
+    E: { x: 320, y: 680, role: 'missionId-left',        relays: ['alpha']          },
     F: { x: 320, y: 600, role: 'forward-left',    relays: ['alpha']          },
 };
 
@@ -802,7 +802,7 @@ $ ship-A     | orchestrator up · watching L1 events</pre>
 $ ship-B     | orchestrator up · L2-B link nominal</pre>
                 </div>
                 <div class="cs-node" data-node="C">
-                  <div class="cs-node-head"><span class="cs-node-id node-C">C</span><span class="cs-node-role">mid-right</span><span class="cs-node-state">idle</span></div>
+                  <div class="cs-node-head"><span class="cs-node-id node-C">C</span><span class="cs-node-role">missionId-right</span><span class="cs-node-state">idle</span></div>
                   <ul class="cs-node-log"></ul>
                   <pre class="cs-node-terminal" data-source="geth-C · ship-C">$ geth-C     | clique PoA · validator key loaded
 $ ship-C     | orchestrator up · idle</pre>
@@ -815,7 +815,7 @@ $ ship-D     | commander mode · waiting for SAFE × 2
 $ ship-D     | advance gate: armed</pre>
                 </div>
                 <div class="cs-node" data-node="E">
-                  <div class="cs-node-head"><span class="cs-node-id node-E">E</span><span class="cs-node-role">mid-left</span><span class="cs-node-state">idle</span></div>
+                  <div class="cs-node-head"><span class="cs-node-id node-E">E</span><span class="cs-node-role">missionId-left</span><span class="cs-node-state">idle</span></div>
                   <ul class="cs-node-log"></ul>
                   <pre class="cs-node-terminal" data-source="geth-E · ship-E">$ geth-E     | clique PoA · validator key loaded
 $ ship-E     | orchestrator up · idle</pre>
