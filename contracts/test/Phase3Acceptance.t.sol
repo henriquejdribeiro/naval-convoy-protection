@@ -7,6 +7,7 @@ import "../src/Registry.sol";
 import "../src/Verifier.sol";
 import "../src/CommandLog.sol";
 import "../src/StarknetCoreStub.sol";
+import "../src/MockStarkVerifier.sol";
 
 /**
  * @title  Phase3Acceptance
@@ -76,10 +77,20 @@ contract Phase3AcceptanceTest is Test {
     uint256 constant REAL_ELAPSED        = 340;
     uint256 constant REAL_NSTEPS         = 65536;
 
+    MockStarkVerifier internal mockStark;
+
     function setUp() public {
         vm.startPrank(deployer);
         registry   = new Registry(deployer, commander);
-        verifier   = new Verifier(deployer, address(registry), alphaRelay, bravoRelay);
+        mockStark  = new MockStarkVerifier();
+        verifier   = new Verifier(
+            deployer,
+            address(registry),
+            alphaRelay,
+            bravoRelay,
+            address(mockStark),
+            0
+        );
         commandLog = new CommandLog(deployer, address(registry), commander);
         registry.setVerifier(address(verifier));
         vm.stopPrank();
@@ -95,6 +106,19 @@ contract Phase3AcceptanceTest is Test {
         registry.deploy(ALPHA, spec);   // mints missionId=1
         registry.deploy(BRAVO, spec);   // mints missionId=2
         vm.stopPrank();
+    }
+
+    /// @dev Build the proof-bytes args MockStarkVerifier expects
+    ///      (cairoAuxInput[0,1] = programHash, outputHash).
+    function _doRegister(Verifier.SafeProofInputs memory inputs)
+        internal
+        returns (uint256 proofId, bytes32 factHash)
+    {
+        uint256[] memory empty = new uint256[](0);
+        uint256[] memory aux   = new uint256[](2);
+        aux[0] = uint256(inputs.programHash);
+        aux[1] = uint256(inputs.outputHash);
+        return verifier.registerSafeProof(inputs, empty, empty, empty, aux);
     }
 
     function _spec() internal pure returns (Registry.MissionSpec memory) {
@@ -150,7 +174,7 @@ contract Phase3AcceptanceTest is Test {
         vm.expectEmit(true, false, false, true, address(verifier));
         emit Verifier.FactRegistered(REAL_FACT_HASH);
         vm.prank(bravoRelay);
-        (uint256 proofId, bytes32 factHash) = verifier.registerSafeProof(inputs);
+        (uint256 proofId, bytes32 factHash) = _doRegister(inputs);
 
         assertEq(proofId, 0,                "first proof on this chain");
         assertEq(factHash, REAL_FACT_HASH,  "on-chain factHash must equal off-chain factHash");
@@ -159,7 +183,7 @@ contract Phase3AcceptanceTest is Test {
 
         // Sanity: re-submitting the same fact stays idempotent
         vm.prank(bravoRelay);
-        verifier.registerSafeProof(inputs);
+        _doRegister(inputs);
         assertTrue(verifier.isValid(factHash));
     }
 
@@ -169,7 +193,7 @@ contract Phase3AcceptanceTest is Test {
     function test_04_dualSafeFromRealBravoFiresAdvance() public {
         // Real β proof
         vm.prank(bravoRelay);
-        verifier.registerSafeProof(_realBravoInputs());
+        _doRegister(_realBravoInputs());
 
         // Synthetic α proof against missionId=1 (a real α proof would be the
         // same shape; we only have one Stone run captured. Same encoding,
@@ -186,7 +210,7 @@ contract Phase3AcceptanceTest is Test {
             nSteps:           65536
         });
         vm.prank(alphaRelay);
-        verifier.registerSafeProof(alpha);
+        _doRegister(alpha);
 
         assertTrue(registry.isDualSafe(1, REAL_MISSION_ID), "dual-SAFE must hold");
 
@@ -217,7 +241,7 @@ contract Phase3AcceptanceTest is Test {
         inputs.coveragePermille = 949;
         vm.prank(bravoRelay);
         vm.expectRevert(bytes("Verifier: coverage < threshold"));
-        verifier.registerSafeProof(inputs);
+        _doRegister(inputs);
 
         // max_p 7000 = exactly at threshold (Cairo enforces strict <, so this
         // case is unreachable from a real prover, but the on-chain check
@@ -226,14 +250,14 @@ contract Phase3AcceptanceTest is Test {
         inputs.maxContactBp = 7000;
         vm.prank(bravoRelay);
         vm.expectRevert(bytes("Verifier: maxContact >= pMin"));
-        verifier.registerSafeProof(inputs);
+        _doRegister(inputs);
 
         // elapsed 361 = 1 second over the 360 window
         inputs = _realBravoInputs();
         inputs.elapsedSeconds = 361;
         vm.prank(bravoRelay);
         vm.expectRevert(bytes("Verifier: time > window"));
-        verifier.registerSafeProof(inputs);
+        _doRegister(inputs);
 
         assertFalse(registry.isSafe(REAL_MISSION_ID, BRAVO),
                     "no verdict written for any rejected proof");

@@ -127,7 +127,7 @@ EOF
 docker cp "${INPUT_NOBIND}" convoy-prover-api:/proofs/_nobind_input.json
 docker exec convoy-prover-api bash -c "
 cairo-compile /app/safe_area_verify.cairo --output /proofs/safe_area_verify.json --proof_mode > /dev/null 2>&1
-cairo-run --program=/proofs/safe_area_verify.json --layout=starknet_with_keccak \
+cairo-run --program=/proofs/safe_area_verify.json --layout=starknet \
     --program_input=/proofs/_nobind_input.json --print_output \
     --proof_mode --trace_file=/tmp/_t --memory_file=/tmp/_m \
     --air_public_input=/tmp/_pub.json --air_private_input=/tmp/_priv.json \

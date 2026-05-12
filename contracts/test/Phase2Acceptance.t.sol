@@ -7,6 +7,7 @@ import "../src/Registry.sol";
 import "../src/Verifier.sol";
 import "../src/CommandLog.sol";
 import "../src/StarknetCoreStub.sol";
+import "../src/MockStarkVerifier.sol";
 
 /**
  * @title  Phase2Acceptance
@@ -34,10 +35,11 @@ import "../src/StarknetCoreStub.sol";
  * --match-contract Phase2Acceptance` passes, Phase 2 is done.
  */
 contract Phase2AcceptanceTest is Test {
-    StarknetCoreStub internal starknet;
-    Registry         internal registry;
-    Verifier         internal verifier;
-    CommandLog       internal commandLog;
+    StarknetCoreStub  internal starknet;
+    Registry          internal registry;
+    Verifier          internal verifier;
+    CommandLog        internal commandLog;
+    MockStarkVerifier internal mockStark;
 
     address internal deployer  = address(0xA11CE);     // ship A — owner
     address internal commander = address(0xC0DE);      // D's commander key
@@ -65,7 +67,15 @@ contract Phase2AcceptanceTest is Test {
 
         starknet   = new StarknetCoreStub();
         registry   = new Registry(deployer, commander);
-        verifier   = new Verifier(deployer, address(registry), alphaRelay, bravoRelay);
+        mockStark  = new MockStarkVerifier();
+        verifier   = new Verifier(
+            deployer,
+            address(registry),
+            alphaRelay,
+            bravoRelay,
+            address(mockStark),    // STARK verifier delegate (mock in tests)
+            0                      // cairoVerifierId — unused by the mock
+        );
         commandLog = new CommandLog(deployer, address(registry), commander);
 
         registry.setVerifier(address(verifier));
@@ -74,6 +84,46 @@ contract Phase2AcceptanceTest is Test {
 
         ALPHA = registry.DRONE_ALPHA();
         BRAVO = registry.DRONE_BRAVO();
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    //  Helper: build the proof-bytes calldata the MockStarkVerifier
+    //  needs. The mock reads cairoAuxInput[0] = programHash and
+    //  cairoAuxInput[1] = outputHash and accepts any proof. We pack
+    //  these into uint256s; the empty proofParams/proof/taskMetadata
+    //  arrays stand in for real STARK proof bytes that Stone would
+    //  emit in production.
+    // ───────────────────────────────────────────────────────────────────
+    function _mockProofArgs(Verifier.SafeProofInputs memory inputs)
+        internal pure
+        returns (
+            uint256[] memory proofParams,
+            uint256[] memory proof,
+            uint256[] memory taskMetadata,
+            uint256[] memory cairoAuxInput
+        )
+    {
+        proofParams  = new uint256[](0);
+        proof        = new uint256[](0);
+        taskMetadata = new uint256[](0);
+        cairoAuxInput = new uint256[](2);
+        cairoAuxInput[0] = uint256(inputs.programHash);
+        cairoAuxInput[1] = uint256(inputs.outputHash);
+    }
+
+    /// @dev Wrapper around verifier.registerSafeProof that auto-builds
+    ///      the proof-bytes calldata against the MockStarkVerifier.
+    ///      Replaces the old single-arg call signature throughout the
+    ///      test suite without changing any test logic.
+    function _doRegister(Verifier.SafeProofInputs memory inputs)
+        internal
+        returns (uint256 proofId, bytes32 factHash)
+    {
+        (uint256[] memory pp,
+         uint256[] memory p,
+         uint256[] memory tm,
+         uint256[] memory aux) = _mockProofArgs(inputs);
+        return verifier.registerSafeProof(inputs, pp, p, tm, aux);
     }
 
     // ───────────────────────────────────────────────────────────────────
@@ -152,7 +202,7 @@ contract Phase2AcceptanceTest is Test {
         Verifier.SafeProofInputs memory inputs = _validInputs(mA, ALPHA);
 
         vm.prank(alphaRelay);
-        (uint256 proofId, bytes32 factHash) = verifier.registerSafeProof(inputs);
+        (uint256 proofId, bytes32 factHash) = _doRegister(inputs);
 
         assertEq(proofId, 0,                "first proof should be id 0");
         assertTrue(verifier.isValid(factHash), "fact should be registered");
@@ -164,7 +214,7 @@ contract Phase2AcceptanceTest is Test {
         // Sanity: re-registering the same fact is idempotent (no revert,
         // verifiedFacts stays true)
         vm.prank(alphaRelay);
-        verifier.registerSafeProof(inputs);
+        _doRegister(inputs);
         assertTrue(verifier.isValid(factHash));
     }
 
@@ -179,11 +229,11 @@ contract Phase2AcceptanceTest is Test {
 
         // α-fact via ship F
         vm.prank(alphaRelay);
-        verifier.registerSafeProof(_validInputs(mA, ALPHA));
+        _doRegister(_validInputs(mA, ALPHA));
 
         // β-fact via ship B
         vm.prank(bravoRelay);
-        verifier.registerSafeProof(_validInputs(mB, BRAVO));
+        _doRegister(_validInputs(mB, BRAVO));
 
         assertTrue(registry.isSafe(mA, ALPHA));
         assertTrue(registry.isSafe(mB, BRAVO));
@@ -203,12 +253,12 @@ contract Phase2AcceptanceTest is Test {
 
         vm.prank(stranger);
         vm.expectRevert(bytes("Verifier: onlyRelay"));
-        verifier.registerSafeProof(_validInputs(mA, ALPHA));
+        _doRegister(_validInputs(mA, ALPHA));
 
         // Also: bravo relay cannot submit α-facts (wrong lane)
         vm.prank(bravoRelay);
         vm.expectRevert(bytes("Verifier: onlyRelay"));
-        verifier.registerSafeProof(_validInputs(mA, ALPHA));
+        _doRegister(_validInputs(mA, ALPHA));
     }
 
     // ───────────────────────────────────────────────────────────────────
@@ -221,9 +271,9 @@ contract Phase2AcceptanceTest is Test {
         vm.stopPrank();
 
         vm.prank(alphaRelay);
-        verifier.registerSafeProof(_validInputs(mA, ALPHA));
+        _doRegister(_validInputs(mA, ALPHA));
         vm.prank(bravoRelay);
-        verifier.registerSafeProof(_validInputs(mB, BRAVO));
+        _doRegister(_validInputs(mB, BRAVO));
 
         // Roll forward a block so block.number is past the verifier txs
         vm.roll(block.number + 1);
@@ -267,7 +317,7 @@ contract Phase2AcceptanceTest is Test {
 
         // Verify ONLY alpha
         vm.prank(alphaRelay);
-        verifier.registerSafeProof(_validInputs(mA, ALPHA));
+        _doRegister(_validInputs(mA, ALPHA));
 
         // D tries to advance — must revert because β isn't SAFE yet
         vm.prank(commander);
@@ -276,7 +326,7 @@ contract Phase2AcceptanceTest is Test {
 
         // Now verify bravo
         vm.prank(bravoRelay);
-        verifier.registerSafeProof(_validInputs(mB, BRAVO));
+        _doRegister(_validInputs(mB, BRAVO));
 
         // Now the same call must succeed
         vm.prank(commander);
@@ -296,21 +346,21 @@ contract Phase2AcceptanceTest is Test {
         bad.coveragePermille = 940;
         vm.prank(alphaRelay);
         vm.expectRevert(bytes("Verifier: coverage < threshold"));
-        verifier.registerSafeProof(bad);
+        _doRegister(bad);
 
         // Contact too high (8000 bp >= 7000)
         bad = _validInputs(mA, ALPHA);
         bad.maxContactBp = 8000;
         vm.prank(alphaRelay);
         vm.expectRevert(bytes("Verifier: maxContact >= pMin"));
-        verifier.registerSafeProof(bad);
+        _doRegister(bad);
 
         // Time over window (400 > 360)
         bad = _validInputs(mA, ALPHA);
         bad.elapsedSeconds = 400;
         vm.prank(alphaRelay);
         vm.expectRevert(bytes("Verifier: time > window"));
-        verifier.registerSafeProof(bad);
+        _doRegister(bad);
 
         // Verdict was never set
         assertFalse(registry.isSafe(mA, ALPHA));

@@ -28,8 +28,14 @@
 set -e
 
 OUTPUT_DIR="${STONE_OUTPUT_DIR:-/proofs}"
-LAYOUT="starknet-with-keccak"
-CAIRO_LAYOUT="starknet_with_keccak"
+# Cairo layout — matches StarkWare's pre-generated on-chain verifier
+# at lib/starkex-contracts/evm-verifier/.../cpu/layout6 ("starknet"
+# layout, LAYOUT_CODE = 8319381555716711796 = ASCII "starknet"). Our
+# safe_area_verify.cairo only uses {output, range_check, poseidon},
+# all three of which are in layout6; the keccak builtin (previously
+# enabled via `starknet_with_keccak`) was never used by our program.
+LAYOUT="starknet"
+CAIRO_LAYOUT="starknet"
 INPUT_FILE_DEFAULT="${OUTPUT_DIR}/program_input.json"
 
 mkdir -p "${OUTPUT_DIR}"

@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 import "./Registry.sol";
+import "./IStarkVerifier.sol";
 
 /**
  * @title  Verifier
@@ -87,6 +88,22 @@ contract Verifier is Ownable {
     Registry public immutable registry;
 
     // ───────────────────────────────────────────────────────────────────
+    //  Bound STARK verifier — performs the cryptographic proof check
+    //
+    //  In production this is the GpsStarkVerifierAdapter wrapping
+    //  StarkWare's GpsStatementVerifier (solc 0.6.12, layout6 =
+    //  "starknet"). In tests it is a MockStarkVerifier that accepts
+    //  any proof. The Verifier never calls a built-in `ecverify` or
+    //  similar — all STARK math goes through this delegate.
+    // ───────────────────────────────────────────────────────────────────
+    IStarkVerifier public immutable starkVerifier;
+
+    /// @notice Identifier of the registered Cairo verifier instance
+    ///         inside the GpsStatementVerifier (one per layout). Set
+    ///         to 0 when using the MockStarkVerifier.
+    uint256 public immutable cairoVerifierId;
+
+    // ───────────────────────────────────────────────────────────────────
     //  Per-proof metadata (kept alongside the fact for audit + replay)
     // ───────────────────────────────────────────────────────────────────
     struct ProofRecord {
@@ -141,23 +158,36 @@ contract Verifier is Ownable {
     // ───────────────────────────────────────────────────────────────────
 
     /**
-     * @param initialOwner  operational owner (may rotate relay whitelist)
-     * @param registryAddr  the Registry contract this Verifier writes verdicts to
-     * @param alphaRelay    ship F's address — only this address may submit α facts
-     * @param bravoRelay    ship B's address — only this address may submit β facts
+     * @param initialOwner       operational owner (may rotate relay whitelist)
+     * @param registryAddr       the Registry contract this Verifier writes verdicts to
+     * @param alphaRelay         ship F's address — only this address may submit α facts
+     * @param bravoRelay         ship B's address — only this address may submit β facts
+     * @param starkVerifierAddr  the IStarkVerifier instance delegating
+     *                           the cryptographic STARK check. May be
+     *                           the GpsStarkVerifierAdapter (production)
+     *                           or the MockStarkVerifier (tests).
+     * @param cairoVerifierId_   identifier of the registered Cairo
+     *                           verifier (one per layout) inside the
+     *                           underlying GpsStatementVerifier; pass 0
+     *                           for MockStarkVerifier.
      */
     constructor(
         address initialOwner,
         address registryAddr,
         address alphaRelay,
-        address bravoRelay
+        address bravoRelay,
+        address starkVerifierAddr,
+        uint256 cairoVerifierId_
     )
         Ownable(initialOwner)
     {
-        require(registryAddr != address(0), "Verifier: registry = 0x0");
-        require(alphaRelay   != address(0), "Verifier: alphaRelay = 0x0");
-        require(bravoRelay   != address(0), "Verifier: bravoRelay = 0x0");
-        registry            = Registry(registryAddr);
+        require(registryAddr      != address(0), "Verifier: registry = 0x0");
+        require(alphaRelay        != address(0), "Verifier: alphaRelay = 0x0");
+        require(bravoRelay        != address(0), "Verifier: bravoRelay = 0x0");
+        require(starkVerifierAddr != address(0), "Verifier: starkVerifier = 0x0");
+        registry        = Registry(registryAddr);
+        starkVerifier   = IStarkVerifier(starkVerifierAddr);
+        cairoVerifierId = cairoVerifierId_;
         relayOf[Registry(registryAddr).DRONE_ALPHA()] = alphaRelay;
         relayOf[Registry(registryAddr).DRONE_BRAVO()] = bravoRelay;
     }
@@ -196,28 +226,57 @@ contract Verifier is Ownable {
      *
      * Restrictions enforced on-chain:
      *   - Caller must be the whitelisted relay for `inputs.droneId`.
+     *   - The STARK proof must verify under the bound IStarkVerifier
+     *     (production: GpsStatementVerifier; tests: MockStarkVerifier).
      *   - Mission must exist in Registry (spec written by `Registry.deploy`).
      *   - Public outputs must satisfy the mission's thresholds:
      *     * `coveragePermille ≥ spec.coverageMin`
      *     * `maxContactBp     <  spec.pMin`
      *     * `elapsedSeconds   ≤  spec.timeWindow`
      *
+     * @param  inputs         the 9-field SafeProofInputs struct (compact
+     *                        public outputs of the STARK proof)
+     * @param  proofParams    FRI configuration produced by stark_evm_adapter
+     * @param  proof          raw STARK proof bytes packed as uint256[]
+     * @param  taskMetadata   memory-page layout metadata
+     * @param  cairoAuxInput  Cairo public-input array; for the mock,
+     *                        slot 0 = programHash, slot 1 = outputHash;
+     *                        for the real GPS adapter, the full
+     *                        layout-6 cairoAuxInput
      * @return proofId index in the `proofs[]` array (audit trail)
      * @return factHash the `keccak256(programHash, outputHash)` fact registered
      */
-    function registerSafeProof(SafeProofInputs calldata inputs)
+    function registerSafeProof(
+        SafeProofInputs    calldata inputs,
+        uint256[]          calldata proofParams,
+        uint256[]          calldata proof,
+        uint256[]          calldata taskMetadata,
+        uint256[]          calldata cairoAuxInput
+    )
         external
         returns (uint256 proofId, bytes32 factHash)
     {
         require(msg.sender == relayOf[inputs.droneId], "Verifier: onlyRelay");
 
+        // 1. Cryptographic gate: delegate STARK verification to the
+        //    bound IStarkVerifier. Reverts on rejection. After the
+        //    call, the verifier's FactRegistry must hold the fact we
+        //    are about to register.
+        factHash = keccak256(abi.encodePacked(inputs.programHash, inputs.outputHash));
+        starkVerifier.verifyProofAndRegister(
+            proofParams, proof, taskMetadata, cairoAuxInput, cairoVerifierId
+        );
+        require(starkVerifier.isValid(factHash), "Verifier: STARK proof rejected");
+
         Registry.MissionSpec memory spec = registry.getSpec(inputs.missionId, inputs.droneId);
         require(spec.coverageMin > 0, "Verifier: unknown mission");
 
-        // Threshold checks — these are exactly the SAFE_AREA criterion
-        // re-asserted on-chain. The Cairo program already enforced them
-        // off-chain (otherwise no proof would exist), but re-asserting
-        // here means tampered facts can't smuggle in lower thresholds.
+        // 2. Threshold checks — defence in depth. The Cairo program
+        //    already enforced them off-chain (otherwise no proof
+        //    would have verified above), but re-asserting on-chain
+        //    means a tampered SafeProofInputs cannot smuggle lower
+        //    thresholds past the L1 gate even if the prover-side
+        //    machinery is compromised.
         require(
             inputs.coveragePermille >= spec.coverageMin,
             "Verifier: coverage < threshold"
@@ -231,11 +290,10 @@ contract Verifier is Ownable {
             "Verifier: time > window"
         );
 
-        // 1. Register the fact (idempotent)
-        factHash = keccak256(abi.encodePacked(inputs.programHash, inputs.outputHash));
+        // 3. Register the fact locally (idempotent FactRegistry mirror)
         _registerFact(factHash);
 
-        // 2. Store extended metadata
+        // 4. Store extended metadata
         proofId = proofs.length;
         proofs.push(ProofRecord({
             programHash:      inputs.programHash,
@@ -252,11 +310,11 @@ contract Verifier is Ownable {
         }));
         proofCount = proofs.length;
 
-        // 3. Write the verdict to Registry (cross-contract call gated by
+        // 5. Write the verdict to Registry (cross-contract call gated by
         //    onlyVerifier modifier on Registry.setVerdict)
         registry.setVerdict(inputs.missionId, inputs.droneId, true);
 
-        // 4. Emit MissionVerified for D's orchestrator + frontend listeners
+        // 6. Emit MissionVerified for D's orchestrator + frontend listeners
         emit MissionVerified(
             proofId,
             inputs.missionId,

@@ -7,6 +7,7 @@ import "../src/StarknetCoreStub.sol";
 import "../src/Registry.sol";
 import "../src/Verifier.sol";
 import "../src/CommandLog.sol";
+import "../src/MockStarkVerifier.sol";
 
 /**
  * @title  DeployL1
@@ -46,12 +47,23 @@ contract DeployL1 is Script {
         Registry registry = new Registry(deployer, commanderAddr);
         console2.log("Registry         deployed at:", address(registry));
 
-        // 3. Verifier — owner is deployer; binds Registry; whitelists relay ships
+        // 3a. MockStarkVerifier — STARK verifier delegate. In production
+        //     this would be a GpsStarkVerifierAdapter wrapping
+        //     StarkWare's GpsStatementVerifier (layout6 = "starknet")
+        //     from lib/starkex-contracts/evm-verifier/. The mock
+        //     unconditionally accepts proofs for development.
+        MockStarkVerifier mockStark = new MockStarkVerifier();
+        console2.log("MockStarkVerifier deployed at:", address(mockStark));
+
+        // 3b. Verifier — owner is deployer; binds Registry; whitelists relay ships;
+        //     delegates STARK math to mockStark.
         Verifier verifier = new Verifier(
             deployer,
             address(registry),
             alphaRelayAddr,
-            bravoRelayAddr
+            bravoRelayAddr,
+            address(mockStark),
+            0                             // cairoVerifierId — unused by the mock
         );
         console2.log("Verifier         deployed at:", address(verifier));
 
