@@ -110,7 +110,21 @@ git clone --recurse-submodules https://github.com/henriquejdribeiro/naval-convoy
 git submodule update --init --recursive
 ```
 
-Without the submodules, `forge build` still works for Phase 2 (the convoy contracts) because the StarkWare contracts aren't imported into the build graph yet — but the `GpsStarkVerifierAdapter` (and any production deployment of the on-chain STARK verifier) requires the `starkex-contracts` submodule present, and the `stark_evm_adapter` binary built from the `vendor/` submodule is consumed by `infrastructure/prover-api/entrypoint.sh` at runtime.
+### Windows only — materialise symlinks after submodule init
+
+`starkex-contracts` uses cross-tree filesystem symlinks (`evm-verifier/.../FactRegistry.sol` → `scalable-dex/.../FactRegistry.sol`). On Linux they resolve naturally. **On Windows without Developer Mode enabled at clone time**, Git checks 68 of them out as plain text files containing the target path — `forge build` cannot follow those.
+
+Run this once after submodule init:
+
+```bash
+./scripts/materialize-starkex-symlinks.sh
+```
+
+The script reads each fake-symlink file, resolves the target relative to the symlink's directory, and overwrites the file with a real copy of the target's content. Idempotent — re-running on an already-materialised tree is a no-op. On Linux it detects real symlinks and exits without changes.
+
+After running, the submodule's working tree shows those 68 files as "modified" relative to its index — that's expected and harmless. `.gitmodules` is configured with `ignore = dirty` on this submodule so the parent repo's `git status` doesn't surface it.
+
+Without the submodules, `forge build` still works for Phase 2 (the convoy contracts) because the StarkWare contracts aren't imported into the build graph yet — but the `GpsStarkVerifierAdapter` (and any production deployment of the on-chain STARK verifier) requires the `starkex-contracts` submodule present *and the symlinks materialised on Windows*. The `stark_evm_adapter` binary built from the `vendor/` submodule is consumed by `infrastructure/prover-api/entrypoint.sh` at runtime.
 
 ## Quickstart (Phase 1)
 

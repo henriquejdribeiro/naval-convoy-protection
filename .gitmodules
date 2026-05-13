@@ -1,6 +1,14 @@
 [submodule "contracts/lib/starkex-contracts"]
 	path = contracts/lib/starkex-contracts
 	url = https://github.com/starkware-libs/starkex-contracts.git
+	# The upstream repo uses cross-tree symlinks (e.g. evm-verifier/.../FactRegistry.sol
+	# -> scalable-dex/.../FactRegistry.sol). On Windows without Developer Mode,
+	# git checks symlinks out as plain text files containing the target path,
+	# which breaks forge build. scripts/materialize-starkex-symlinks.sh fixes
+	# that by overwriting each fake symlink with a real copy of the target.
+	# That leaves the submodule's working tree "modified" relative to its
+	# index — expected, and the line below tells the parent repo to ignore it.
+	ignore = dirty
 [submodule "vendor/stark-evm-adapter"]
 	path = vendor/stark-evm-adapter
 	url = https://github.com/zksecurity/stark-evm-adapter.git
