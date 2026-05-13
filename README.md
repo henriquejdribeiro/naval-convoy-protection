@@ -91,6 +91,20 @@ This repository follows a phased build:
 - **Phase 3 — Two L2 stacks + drones** — Madara α and β, Pathfinder, SNOS, Stone, orchestrators, ten drone containers (5 Alpha + 5 Bravo), real STARK proofs flowing.
 - **Phase 4 — Polish** — ArduPilot SITL flight dynamics per drone, network impairment chaos (`tc`/`netem`), live-data WebSocket bridge into the visualization.
 
+## Cloning the repo
+
+The L1 settlement layer (Phase 2+) delegates STARK verification to StarkWare's [evm-verifier](https://github.com/starkware-libs/starkex-contracts) contracts, vendored under `contracts/lib/starkex-contracts/` as a **git submodule** pinned to a specific upstream commit. Clone with `--recurse-submodules`, or fetch the submodule after a normal clone:
+
+```bash
+# Fresh clone (recommended)
+git clone --recurse-submodules https://github.com/henriquejdribeiro/naval-convoy-protection.git
+
+# Already cloned without --recurse-submodules?
+git submodule update --init --recursive
+```
+
+Without the submodule, `forge build` still works for Phase 2 (the convoy contracts) because the StarkWare contracts aren't imported into the build graph yet — but the `GpsStarkVerifierAdapter` (and any production deployment of the on-chain STARK verifier) requires them present.
+
 ## Quickstart (Phase 1)
 
 No installation. Open `webapp/index.html` directly in a modern browser, or serve the folder over HTTP if your browser blocks local module imports:
