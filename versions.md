@@ -46,9 +46,10 @@ ship keys) are baked into `genesis.json`.
 | `starkware-libs/stone-prover` | `main` (cloned `--depth 1`) |
 | Bazel (used by stone-prover's `WORKSPACE`) | `5.4.1` |
 | `Moonsong-Labs/stone-prover-cli` | `main` (cloned `--depth 1`) |
-| `stark-evm-adapter` (StarkWare) | unmodified, `main` |
+| [`zksecurity/stark-evm-adapter`](https://github.com/zksecurity/stark-evm-adapter) | git submodule at `vendor/stark-evm-adapter`, pinned to [`e044116`](https://github.com/zksecurity/stark-evm-adapter/commit/e044116e3cf4e3cbca11cce7b9e508a0f3e6870b) (`v0.1.0-alpha-33-ge044116`) |
 | Cairo bootloader (Rust crate) | bundled with `stone-prover-cli` |
 | Madara orchestrator (Rust) | derived from `madara-alliance/madara` orchestrator |
+| [`Moonsong-Labs/madara-prover-api`](https://github.com/Moonsong-Labs/madara-prover-api) | **design reference only** — the architecture of `infrastructure/prover-api/entrypoint.sh` (Cairo run → PIE → cpu_air_prover → cpu_air_verifier → stark_evm_adapter pipeline) is inspired by this project. Not vendored; no code dependency. |
 
 ## Build toolchains
 

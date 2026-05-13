@@ -93,7 +93,14 @@ This repository follows a phased build:
 
 ## Cloning the repo
 
-The L1 settlement layer (Phase 2+) delegates STARK verification to StarkWare's [evm-verifier](https://github.com/starkware-libs/starkex-contracts) contracts, vendored under `contracts/lib/starkex-contracts/` as a **git submodule** pinned to a specific upstream commit. Clone with `--recurse-submodules`, or fetch the submodule after a normal clone:
+Two upstream projects are vendored as **git submodules**, each pinned to a specific commit so the cryptographic stack stays reproducible:
+
+| Submodule | Path | What it provides |
+|---|---|---|
+| [`starkware-libs/starkex-contracts`](https://github.com/starkware-libs/starkex-contracts) | `contracts/lib/starkex-contracts/` | L1 STARK verifier contracts (`GpsStatementVerifier`, `FactRegistry`) that `GpsStarkVerifierAdapter` wraps |
+| [`zksecurity/stark-evm-adapter`](https://github.com/zksecurity/stark-evm-adapter) | `vendor/stark-evm-adapter/` | The `stark_evm_adapter` binary the prover-api container runs at step 5 of the proof pipeline — converts a Stone-prover annotated proof into the EVM-format calldata the L1 verifier consumes |
+
+Clone with `--recurse-submodules`, or fetch them after a normal clone:
 
 ```bash
 # Fresh clone (recommended)
@@ -103,7 +110,7 @@ git clone --recurse-submodules https://github.com/henriquejdribeiro/naval-convoy
 git submodule update --init --recursive
 ```
 
-Without the submodule, `forge build` still works for Phase 2 (the convoy contracts) because the StarkWare contracts aren't imported into the build graph yet — but the `GpsStarkVerifierAdapter` (and any production deployment of the on-chain STARK verifier) requires them present.
+Without the submodules, `forge build` still works for Phase 2 (the convoy contracts) because the StarkWare contracts aren't imported into the build graph yet — but the `GpsStarkVerifierAdapter` (and any production deployment of the on-chain STARK verifier) requires the `starkex-contracts` submodule present, and the `stark_evm_adapter` binary built from the `vendor/` submodule is consumed by `infrastructure/prover-api/entrypoint.sh` at runtime.
 
 ## Quickstart (Phase 1)
 
