@@ -1,0 +1,3 @@
+[submodule "contracts/lib/starkex-contracts"]
+	path = contracts/lib/starkex-contracts
+	url = https://github.com/starkware-libs/starkex-contracts.git

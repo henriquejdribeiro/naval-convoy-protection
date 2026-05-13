@@ -47,7 +47,11 @@ infrastructure/geth/keys/*.json
 contracts/out/
 contracts/cache/
 contracts/broadcast/
-contracts/lib/
+# Forge auto-installed deps — gitignored per-subdir so the
+# starkex-contracts submodule isn't blanket-blocked by a parent rule
+# (git ignores parent-dir excludes even with `!` re-include).
+contracts/lib/openzeppelin-contracts/
+contracts/lib/forge-std/
 
 # Temp dir used during keystore generation
 .tmp-keys/

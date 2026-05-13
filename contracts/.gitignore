@@ -3,8 +3,11 @@ out/
 cache/
 broadcast/
 
-# Dependencies (installed via `forge install`)
-lib/
+# Dependencies (installed via `forge install`).
+# starkex-contracts is a tracked submodule — gitignore per-subdir
+# instead of blanket-ignoring lib/, so the submodule entry sticks.
+lib/openzeppelin-contracts/
+lib/forge-std/
 
 # Coverage / debug
 *.dbg.json
