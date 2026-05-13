@@ -10,14 +10,21 @@ libs             = ["lib"]
 cache_path       = "cache"
 broadcast        = "broadcast"
 
-solc             = "0.8.33"
+# Multi-solc: our convoy contracts pin pragma ^0.8.20 (compile at 0.8.33),
+# the vendored StarkWare evm-verifier under contracts/lib/starkex-contracts/
+# pins pragma ^0.6.12. auto_detect_solc lets forge pick the matching
+# compiler per-file based on each file's pragma directive. evm_version
+# stays at "paris" because Geth v1.10.17 (our L1 target) cannot execute
+# Shanghai (PUSH0) or later opcodes.
 evm_version      = "paris"
 optimizer        = true
 optimizer_runs   = 200
-auto_detect_solc = false
+auto_detect_solc = true
 # viaIR routes through the new compilation pipeline. Required for
 # Verifier.registerSafeProof which carries 5 calldata arrays + locals
 # (exceeds the EVM stack-16 limit under the legacy codegen pipeline).
+# Silently ignored by solc < 0.8.13 (i.e. the starkex 0.6.12 files);
+# affects only our own 0.8.x sources.
 via_ir           = true
 
 # Verbose test output by default; gas snapshots help track regressions.
