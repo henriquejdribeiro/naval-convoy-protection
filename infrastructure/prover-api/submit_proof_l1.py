@@ -2,20 +2,44 @@
 """
 submit_proof_l1.py — submit a Stone proof's fact to the convoy Verifier on L1.
 
-Adapted from verifiable_grid/infrastructure/prover-api/submit_proof_l1.py.
-Key differences:
+Calls Verifier.registerSafeProof(SafeProofInputs, uint256[] proofParams,
+uint256[] proof, uint256[] taskMetadata, uint256[] cairoAuxInput) on the L1
+Verifier contract. The first argument is the 9-field SafeProofInputs struct
+extracted from the Cairo program's public outputs; the remaining four arrays
+are the EVM-format proof payload produced by `stark_evm_adapter`.
 
-  - Calls Verifier.registerSafeProof((bytes32 programHash, bytes32 outputHash,
-    uint256 mission_id, uint256 droneId, uint256 coveragePermille, uint256 maxContactBp,
-    uint256 elapsedSeconds, bytes32 commitment, uint256 nSteps))  (a 9-field
-    SafeProofInputs struct), instead of registerDroneProof's 6 separate args.
-  - Pulls public outputs from cairo_run's public memory in the order written
-    by safe_area_verify.cairo:
-        [mission_id, drone_id, coverage_permille, max_p_contact, elapsed_seconds, commitment]
-  - Signs with the relay-ship key for the lane (alpha_relay = ship F,
-    bravo_relay = ship B); rejects mission_id/drone_id mismatches.
-  - Writes a small JSON log next to the proof for the orchestrator + UI to
-    consume (tx hash, block, factHash, gas).
+Pipeline this script sits at the end of:
+
+  1. cairo-compile + cairo-run               (cairo-lang)
+  2. cpu_air_prover                          (Stone)
+  3. cpu_air_verifier                        (Stone off-chain sanity check)
+  4. stark_evm_adapter gen-annotated-proof   → /proofs/evm_proof.json
+  5. SPLIT STEP — produces:
+        /proofs/main_proof_contract_args.json
+     containing fields { proof_params, proof, task_metadata,
+     cairo_aux_input, cairo_verifier_id }. Today this file must be
+     produced by an external tool (the stark_evm_adapter Rust crate's
+     `split_fri_merkle_statements()` library function, exposed via a
+     small Rust helper binary planned alongside this script). Once
+     that helper lands, entrypoint.sh will run it automatically; for
+     now this script errors clearly if the file is missing.
+  6. *this script*: reads the contract-args JSON, builds the cast
+     send call to Verifier.registerSafeProof with the full 5-arg
+     ABI, and writes submit_log.json.
+
+NOTE: this is step 6 (the final, application-level call). For a real
+proof to verify on-chain against StarkWare's GpsStatementVerifier, three
+additional pre-registration phases must run *before* this script:
+
+  (a) Trace Merkle commits → MerkleStatementContract.verifyMerkle()
+  (b) FRI layer commits    → FriStatementContract.verifyFRI()
+  (c) Memory page facts    → MemoryPageFactRegistry.registerContinuousMemoryPage()
+
+Those calls are also planned in the same Rust helper binary; they target
+StarkWare contracts directly, not the convoy Verifier. The MockStarkVerifier
+path does not require them (it accepts any contract-args payload). The real
+GpsStatementVerifier path will fail at registerPublicMemoryMainPage until
+phases (a)-(c) are wired.
 
 Usage:
     python3 submit_proof_l1.py <proofs_dir> <program_input_path>
@@ -87,6 +111,67 @@ def cast_call(rpc: str, contract: str, sig: str, *args: str) -> str:
     return r.stdout.strip()
 
 
+def load_contract_args(contract_args_path: Path) -> dict[str, list[str]]:
+    """
+    Read the 4 calldata arrays Verifier.registerSafeProof requires, from the
+    JSON produced by stark_evm_adapter's split step.
+
+    Expected file shape (matches stark-evm-adapter's main_proof_contract_args):
+
+        {
+          "proof_params":      [<12 hex strings>],
+          "proof":             [<hundreds of hex strings>],
+          "task_metadata":     [<few hex strings>],
+          "cairo_aux_input":   [<~30 hex strings>],
+          "cairo_verifier_id": "0x6"           # informational only;
+                                               # Verifier.sol stores its
+                                               # cairoVerifierId immutably
+                                               # at deploy time, so this
+                                               # field is NOT passed in
+                                               # the per-call args.
+        }
+
+    Returns a dict with normalised hex strings for the four arrays we need.
+    Raises SystemExit with a clear message if the file is missing or malformed,
+    so the caller can be steered toward the Rust split-helper that produces it.
+    """
+    if not contract_args_path.exists():
+        raise SystemExit(
+            f"[submit] missing {contract_args_path}\n"
+            "        Run the stark_evm_adapter split helper before this script.\n"
+            "        The helper takes evm_proof.json (annotated) and emits the\n"
+            "        per-task contract-args JSONs; without it, registerSafeProof\n"
+            "        cannot be called with the correct ABI."
+        )
+
+    args = json.loads(contract_args_path.read_text())
+    for key in ("proof_params", "proof", "task_metadata", "cairo_aux_input"):
+        if key not in args:
+            raise SystemExit(
+                f"[submit] {contract_args_path} missing field '{key}' "
+                "— is this the right file format?"
+            )
+
+    def norm(v: str | int) -> str:
+        """Coerce element to 0x-prefixed lowercase hex for cast."""
+        if isinstance(v, int):
+            return f"0x{v:x}"
+        s = str(v).strip().lower()
+        return s if s.startswith("0x") else f"0x{s}"
+
+    return {
+        "proof_params":    [norm(x) for x in args["proof_params"]],
+        "proof":           [norm(x) for x in args["proof"]],
+        "task_metadata":   [norm(x) for x in args["task_metadata"]],
+        "cairo_aux_input": [norm(x) for x in args["cairo_aux_input"]],
+    }
+
+
+def format_uint256_array(arr: list[str]) -> str:
+    """Format a list of hex strings as the bracket notation cast expects for uint256[]."""
+    return "[" + ",".join(arr) + "]"
+
+
 def extract_public_outputs(public_input_path: Path, evm_proof_path: Path | None) -> list[int]:
     """
     Pull the 6 felt252 public outputs serialized by safe_area_verify.cairo.
@@ -141,13 +226,18 @@ def main() -> int:
     if not verifier_addr:
         raise SystemExit("[submit] VERIFIER_ADDR env var required")
 
-    program_path     = proofs_dir / "safe_area_verify.json"
-    public_input_path = proofs_dir / "public_input.json"
-    proof_path       = proofs_dir / "proof.json"
-    evm_proof_path   = proofs_dir / "evm_proof.json"
+    program_path        = proofs_dir / "safe_area_verify.json"
+    public_input_path   = proofs_dir / "public_input.json"
+    proof_path          = proofs_dir / "proof.json"
+    evm_proof_path      = proofs_dir / "evm_proof.json"
+    contract_args_path  = proofs_dir / "main_proof_contract_args.json"
 
     if not program_path.exists() or not public_input_path.exists():
         raise SystemExit("[submit] required artefacts missing — has the prover run?")
+
+    # Load the four calldata arrays for Verifier.registerSafeProof.
+    # See load_contract_args() docstring for where this file comes from.
+    contract_args = load_contract_args(contract_args_path)
 
     # ── Compute fact hashes ───────────────────────────────────────────
     program_data = json.loads(program_path.read_text()).get("data", [])
@@ -192,7 +282,21 @@ def main() -> int:
     else:
         raise SystemExit(f"[submit] invalid drone_id from program output: {drone_id}")
 
-    # ── Build the SafeProofInputs tuple for cast ─────────────────────
+    # ── Build the SafeProofInputs tuple + the four uint256[] arrays ──
+    #
+    # Verifier.registerSafeProof signature (Verifier.sol):
+    #
+    #   registerSafeProof(
+    #       SafeProofInputs calldata inputs,        // 9-field struct
+    #       uint256[]       calldata proofParams,   // FRI configuration
+    #       uint256[]       calldata proof,         // STARK proof body
+    #       uint256[]       calldata taskMetadata,  // per-task metadata
+    #       uint256[]       calldata cairoAuxInput  // Cairo public inputs
+    #   )
+    #
+    # cairoVerifierId is NOT passed per-call — it lives as an immutable
+    # state variable on the Verifier, set at deploy time to the layout
+    # index (0 for our single layout-6 CpuFrilessVerifier).
     commitment_hex = f"0x{commitment:064x}"
     tuple_args = (
         f"({program_hash},{output_hash},"
@@ -200,13 +304,34 @@ def main() -> int:
         f"{coverage_permille},{max_p},{elapsed},"
         f"{commitment_hex},{n_steps})"
     )
+    proof_params_arr   = format_uint256_array(contract_args["proof_params"])
+    proof_arr          = format_uint256_array(contract_args["proof"])
+    task_metadata_arr  = format_uint256_array(contract_args["task_metadata"])
+    cairo_aux_input_arr = format_uint256_array(contract_args["cairo_aux_input"])
+
     sig = (
         "registerSafeProof("
-        "(bytes32,bytes32,uint256,uint256,uint256,uint256,uint256,bytes32,uint256))"
+        "(bytes32,bytes32,uint256,uint256,uint256,uint256,uint256,bytes32,uint256),"
+        "uint256[],"
+        "uint256[],"
+        "uint256[],"
+        "uint256[])"
     )
 
     print(f"\n[submit] sending registerSafeProof from {lane} relay key")
-    tx_hash = cast_send(rpc, pk, verifier_addr, sig, tuple_args, label=f"{lane} fact")
+    print(f"[submit]   proofParams:    {len(contract_args['proof_params'])} elements")
+    print(f"[submit]   proof:          {len(contract_args['proof'])} elements")
+    print(f"[submit]   taskMetadata:   {len(contract_args['task_metadata'])} elements")
+    print(f"[submit]   cairoAuxInput:  {len(contract_args['cairo_aux_input'])} elements")
+    tx_hash = cast_send(
+        rpc, pk, verifier_addr, sig,
+        tuple_args,
+        proof_params_arr,
+        proof_arr,
+        task_metadata_arr,
+        cairo_aux_input_arr,
+        label=f"{lane} fact",
+    )
 
     # Confirm fact registered
     is_valid_raw = cast_call(rpc, verifier_addr, "isValid(bytes32)(bool)", fact_hash)
