@@ -76,7 +76,7 @@ contract Phase2AcceptanceTest is Test {
             address(mockStark),    // STARK verifier delegate (mock in tests)
             0                      // cairoVerifierId — unused by the mock
         );
-        commandLog = new CommandLog(deployer, address(registry), commander);
+        commandLog = new CommandLog(address(registry), commander);
 
         registry.setVerifier(address(verifier));
 

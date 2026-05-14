@@ -91,9 +91,9 @@ contract DeployL1 is Script {
         );
         console2.log("Verifier         deployed at:", address(verifier));
 
-        // 4. CommandLog — owner is deployer; binds Registry; commander is D's key
+        // 4. CommandLog — binds Registry; commander is D's key, set
+        //    immutably at deployment (no rotation path on-chain).
         CommandLog commandLog = new CommandLog(
-            deployer,
             address(registry),
             commanderAddr
         );

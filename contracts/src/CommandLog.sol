@@ -13,11 +13,13 @@ import "./Registry.sol";
  *   2. Both the α-mission and the β-mission listed in the call must have
  *      `Registry.verdict[missionId][droneId] == true` (dual-SAFE)
  *
- * The contract also retains a manual override path: if the commander
- * key is ever rotated (lost or compromised key recovery scenario), the
- * owner can update the `commander` slot. This mirrors the role
- * separation D has on the validator side (regular ship key for sealing,
- * commander key for issuing commands).
+ * The `commander` slot is set once at deployment and is **immutable**.
+ * The protocol provides no on-chain rotation path: if the commander
+ * key is lost or compromised, the entire contract suite must be
+ * re-deployed. This is a deliberate fail-closed semantic chosen to
+ * remove any administrative-vector attack on the highest-privilege
+ * role; the convoy commits at deploy time to a single, unambiguous
+ * authority for issuing the advance order.
  *
  * Emits `ConvoyAdvance` after a successful call. Event includes the L1
  * block where the advance was recorded — relay ships use this as the
@@ -29,8 +31,8 @@ contract CommandLog {
     //  External binding
     // ───────────────────────────────────────────────────────────────────
     Registry public immutable registry;
-    address  public           commander;       // D's commander key
-    address  public           owner;           // operational owner (rotates commander)
+    /// @dev D's commander key, set once at deployment. No rotation path.
+    address public immutable commander;
 
     // ───────────────────────────────────────────────────────────────────
     //  Stored advance records
@@ -56,7 +58,6 @@ contract CommandLog {
         uint256         speed,
         address         commander
     );
-    event CommanderRotated(address indexed previous, address indexed current);
 
     // ───────────────────────────────────────────────────────────────────
     //  Modifiers
@@ -70,53 +71,24 @@ contract CommandLog {
         _;
     }
 
-    /// @dev Restricts a function to the operational owner. Owner power
-    ///      is limited to commander-key rotation (key-loss / compromise
-    ///      recovery); the owner cannot issue an advance themselves.
-    modifier onlyOwner() {
-        require(msg.sender == owner, "CommandLog: onlyOwner");
-        _;
-    }
-
     // ───────────────────────────────────────────────────────────────────
     //  Constructor
     // ───────────────────────────────────────────────────────────────────
 
     /**
-     * @param initialOwner     operational owner (can rotate commander)
      * @param registryAddr     Registry contract — read for dual-SAFE check
-     * @param commanderAddress D's commander key (NOT D's validator key)
+     * @param commanderAddress D's commander key (NOT D's validator key).
+     *                         Set once and immutable; the protocol does
+     *                         not provide a rotation path.
      */
     constructor(
-        address initialOwner,
         address registryAddr,
         address commanderAddress
     ) {
-        require(initialOwner     != address(0), "CommandLog: owner = 0x0");
         require(registryAddr     != address(0), "CommandLog: registry = 0x0");
         require(commanderAddress != address(0), "CommandLog: commander = 0x0");
-        owner     = initialOwner;
         registry  = Registry(registryAddr);
         commander = commanderAddress;
-    }
-
-    // ───────────────────────────────────────────────────────────────────
-    //  Operational: rotate the commander address
-    // ───────────────────────────────────────────────────────────────────
-
-    /**
-     * @notice Replace the commander key. Owner-only — used when the
-     *         existing commander key is lost, suspected compromised, or
-     *         the tactical-command role is transferred to another ship.
-     * @dev    Emits CommanderRotated for off-chain auditing. The new
-     *         commander takes effect immediately on the next
-     *         `advance()` call.
-     * @param  newCommander the new commander key's L1 address
-     */
-    function rotateCommander(address newCommander) external onlyOwner {
-        require(newCommander != address(0), "CommandLog: commander = 0x0");
-        emit CommanderRotated(commander, newCommander);
-        commander = newCommander;
     }
 
     // ───────────────────────────────────────────────────────────────────

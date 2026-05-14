@@ -49,7 +49,15 @@ contract Registry is Ownable {
     // ───────────────────────────────────────────────────────────────────
     //  Storage
     // ───────────────────────────────────────────────────────────────────
-    address public commander;       // D's commander key (separate from validator key)
+    /// @dev D's commander key, distinct from D's validator key. Set
+    ///      once at deployment and immutable thereafter — by design,
+    ///      the protocol provides no on-chain rotation path. If the
+    ///      commander key is lost or compromised, the entire contract
+    ///      suite must be re-deployed. This is a deliberate fail-closed
+    ///      semantic: it removes any administrative-vector attack on
+    ///      the highest-privilege role and gives the convoy a single,
+    ///      unambiguous authority for mission deployment.
+    address public immutable commander;
     address public verifier;        // Verifier contract address (set after Verifier deploy)
 
     uint256 public nextMissionId = 1;        // 0 reserved as "missing"

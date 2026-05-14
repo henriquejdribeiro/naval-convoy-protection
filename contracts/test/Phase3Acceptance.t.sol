@@ -91,7 +91,7 @@ contract Phase3AcceptanceTest is Test {
             address(mockStark),
             0
         );
-        commandLog = new CommandLog(deployer, address(registry), commander);
+        commandLog = new CommandLog(address(registry), commander);
         registry.setVerifier(address(verifier));
         vm.stopPrank();
 
