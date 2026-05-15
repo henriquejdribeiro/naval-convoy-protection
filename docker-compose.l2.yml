@@ -32,8 +32,11 @@ services:
   # ═══ Phase 3.a — direct STARK prover (no Madara) ═══════════════════════
   prover-api:
     build:
-      context: ./infrastructure/prover-api
-      dockerfile: Dockerfile
+      # Build context is the repo root so the Dockerfile's Stage 1 can
+      # reach infrastructure/bootloader-cli/ and vendor/cairo-bootloader/
+      # to compile the convoy-bootloader-cli binary.
+      context: .
+      dockerfile: infrastructure/prover-api/Dockerfile
     image: convoy-prover-api:latest
     container_name: convoy-prover-api
     depends_on:

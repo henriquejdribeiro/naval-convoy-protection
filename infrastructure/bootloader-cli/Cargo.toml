@@ -1,0 +1,49 @@
+[package]
+name = "convoy-bootloader-cli"
+version = "0.1.0"
+edition = "2021"
+authors = ["Henrique Ribeiro"]
+description = """
+CLI wrapper around Moonsong-Labs/cairo-bootloader. Wraps a compiled
+Cairo task program (in our case safe_area_verify.json) in the simple
+bootloader and runs it through the Rust Cairo VM in proof mode,
+producing the standard set of artefacts Stone consumes:
+
+  trace.bin
+  memory.bin
+  public_input.json
+  private_input.json
+  fact_topologies.json
+
+This replaces the direct `cairo-run` invocation in entrypoint.sh.
+The downstream cpu_air_prover/cpu_air_verifier/stark_evm_adapter chain
+is unchanged — they just receive a bootloader-wrapped trace instead
+of a naked one, which is what GpsStatementVerifier expects.
+"""
+
+[[bin]]
+name = "convoy-bootloader-cli"
+path = "src/main.rs"
+
+[dependencies]
+cairo-bootloader = { path = "../../vendor/cairo-bootloader" }
+
+# Match cairo-bootloader's cairo-vm pin exactly to avoid duplicate-crate
+# version conflicts and to ensure trace/memory serialisation is identical
+# to what the bootloader run produced internally.
+cairo-vm = { git = "https://github.com/lambdaclass/cairo-vm", rev = "05352b1c67859a4d8cd128575c1e68ca7e300341", features = ["extensive_hints"] }
+
+clap          = { version = "4", features = ["derive"] }
+serde         = { version = "1.0", features = ["derive"] }
+serde_json    = "1.0"
+anyhow        = "1.0"
+starknet-crypto = "0.6.2"
+starknet-types-core = "0.1.2"
+# bincode 2.x — needed to access the Writer trait + EncodeError so we
+# can implement an io::Write -> bincode::Writer adapter inline.
+bincode = "2"
+
+[profile.release]
+# Optimise binary size + speed; bootloader run is CPU-bound on the trace.
+lto = "thin"
+codegen-units = 1

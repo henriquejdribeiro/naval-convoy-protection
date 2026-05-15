@@ -85,18 +85,51 @@ prove_one() {
     echo "  input: ${INPUT_PATH}"
     echo "============================================"
 
-    # 2. cairo-run → trace + public input
-    echo "[*] Step 2/6: cairo-run"
+    # 2a. cairo-run → produce a PIE (Position-Independent Executable) of
+    #     safe_area_verify with program_input baked in. The bootloader
+    #     consumes this PIE rather than a raw program JSON, because raw
+    #     programs cannot carry per-run program_input through the
+    #     bootloader interface.
+    echo "[*] Step 2a/6: cairo-run → PIE for the bootloader"
     cairo-run \
         --program="${OUTPUT_DIR}/safe_area_verify.json" \
         --layout="${CAIRO_LAYOUT}" \
         --program_input="${INPUT_PATH}" \
         --print_output \
-        --proof_mode \
-        --trace_file="${OUTPUT_DIR}/trace.bin" \
-        --memory_file="${OUTPUT_DIR}/memory.bin" \
-        --air_public_input="${OUTPUT_DIR}/public_input.json" \
-        --air_private_input="${OUTPUT_DIR}/private_input.json"
+        --cairo_pie_output="${OUTPUT_DIR}/safe_area_verify.pie"
+
+    # 2b. convoy-bootloader-cli → wrap the task PIE in the simple bootloader.
+    #     The bootloader's public output starts with the SIMPLE_BOOTLOADER_HASH
+    #     and HASHED_CAIRO_VERIFIERS constants that GpsStatementVerifier was
+    #     deployed with — without this wrap, the on-chain verifier rejects
+    #     the proof at registerPublicMemoryMainPage. Also emits
+    #     fact_topologies.json for the Rust submitter.
+    echo "[*] Step 2b/6: convoy-bootloader-cli (bootloader wraps the PIE)"
+    convoy-bootloader-cli \
+        --task-pie    "${OUTPUT_DIR}/safe_area_verify.pie" \
+        --output-dir  "${OUTPUT_DIR}" \
+        --layout      "${CAIRO_LAYOUT}" \
+        --bootloader-hash 0xd875840ac697dbeedb3d4c8f2a61889bc1d5f1af91e67a7cc7360e8faf35bf
+
+    # 2c. Normalise public_input.json for Stone — cairo-vm's Rust serialiser
+    #     emits public_memory values as bare hex strings (e.g. "40780017fff7fff")
+    #     but Stone's cpu_air_prover requires the 0x prefix
+    #     (rejects with "String does not start with '0x'"). Add the prefix
+    #     to every public_memory value.
+    echo "[*] Step 2c/6: normalise public_input for Stone (0x prefix)"
+    python3 -c "
+import json, pathlib
+p = pathlib.Path('${OUTPUT_DIR}/public_input.json')
+pi = json.loads(p.read_text())
+fixed = 0
+for entry in pi.get('public_memory', []):
+    v = entry.get('value')
+    if isinstance(v, str) and not v.startswith('0x'):
+        entry['value'] = '0x' + v
+        fixed += 1
+p.write_text(json.dumps(pi, indent=2))
+print(f'    fixed {fixed} memory values')
+"
 
     N_STEPS=$(python3 -c "import json; print(json.load(open('${OUTPUT_DIR}/public_input.json'))['n_steps'])")
     echo "    n_steps: ${N_STEPS}"

@@ -12,3 +12,6 @@
 [submodule "vendor/stark-evm-adapter"]
 	path = vendor/stark-evm-adapter
 	url = https://github.com/zksecurity/stark-evm-adapter.git
+[submodule "vendor/cairo-bootloader"]
+	path = vendor/cairo-bootloader
+	url = https://github.com/Moonsong-Labs/cairo-bootloader.git
