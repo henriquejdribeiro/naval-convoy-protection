@@ -30,12 +30,13 @@ use stark_evm_adapter::{
 use std::{convert::TryFrom, env, fs::read_to_string, str::FromStr, sync::Arc};
 
 // ── Deployed addresses on the local Geth Clique chain (DeployStarkVerifier) ──
-// Updated after re-deploy with cairoVerifiers[6] = layout-6 verifier
-// (so cairoVerifierId = 6 from stark_evm_adapter is in range).
-const MERKLE_STATEMENT_CONTRACT: &str = "0x7969c5eD335650692Bc04293B07F5BF2e7A673C0";
-const FRI_STATEMENT_CONTRACT:    &str = "0x7bc06c482DEAd17c0e297aFbC32f6e63d3846650";
-const MEMORY_PAGE_FACT_REGISTRY: &str = "0x2bdCC0de6bE1f7D2ee689a0342D76F52E8EFABa3";
-const GPS_STATEMENT_VERIFIER:    &str = "0xcbEAF3BDe82155F56486Fb5a1072cb8baAf547cc";
+// Updated after re-deploy with v0.13.0-aligned CairoBootloaderProgram
+// (PROGRAM_SIZE = 718) and bootloader hash matching the cairo-bootloader
+// library's bundled bytecode.
+const MERKLE_STATEMENT_CONTRACT: &str = "0x4EE6eCAD1c2Dae9f525404De8555724e3c35d07B";
+const FRI_STATEMENT_CONTRACT:    &str = "0xBEc49fA140aCaA83533fB00A2BB19bDdd0290f25";
+const MEMORY_PAGE_FACT_REGISTRY: &str = "0x172076E0166D1F9Cc711C77Adf8488051744980C";
+const GPS_STATEMENT_VERIFIER:    &str = "0xfbC22278A96299D91d41C453234d97b4F5Eb9B2d";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

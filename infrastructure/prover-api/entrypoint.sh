@@ -109,7 +109,7 @@ prove_one() {
         --task-pie    "${OUTPUT_DIR}/safe_area_verify.pie" \
         --output-dir  "${OUTPUT_DIR}" \
         --layout      "${CAIRO_LAYOUT}" \
-        --bootloader-hash 0xd875840ac697dbeedb3d4c8f2a61889bc1d5f1af91e67a7cc7360e8faf35bf
+        --bootloader-hash 0x3106b7628a3cbddadb733ea96284977cc21e890d61aa6dee00badcbd90065ce
 
     # 2c. Normalise public_input.json for Stone — cairo-vm's Rust serialiser
     #     emits public_memory values as bare hex strings (e.g. "40780017fff7fff")
