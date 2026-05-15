@@ -230,11 +230,20 @@ contract DeployStarkVerifier is Script {
         //   uint256   hashedSupportedCairoVerifiers,
         //   uint256   simpleBootloaderProgramHash
         //
-        // cairoVerifierContracts is indexed by `cairoVerifierId`. We
-        // register the layout-6 CpuFrilessVerifier as index 0, so the
-        // Verifier.sol constructor takes `cairoVerifierId = 0`.
-        address[] memory cairoVerifiers = new address[](1);
-        cairoVerifiers[0] = d.cpuFrilessVerifier;
+        // cairoVerifierContracts is indexed by `cairoVerifierId`.
+        // stark_evm_adapter's contract_function_call hardcodes
+        // cairoVerifierId = 6 for layout-6 proofs (matching StarkWare's
+        // mainnet GpsStatementVerifier deployment, which has all 8
+        // layout verifiers registered at indices 0-7). To stay
+        // ABI-compatible with that library without forking it, we
+        // register our layout-6 CpuFrilessVerifier at index 6 and
+        // leave indices 0-5 as the zero address (we don't support
+        // those layouts on this deployment).
+        address[] memory cairoVerifiers = new address[](7);
+        for (uint256 i = 0; i < 6; i++) {
+            cairoVerifiers[i] = address(0);
+        }
+        cairoVerifiers[6] = d.cpuFrilessVerifier;
 
         d.gpsStatementVerifier = vm.deployCode(
             "GpsStatementVerifier.sol:GpsStatementVerifier",

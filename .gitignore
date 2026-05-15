@@ -71,3 +71,7 @@ out/
 # Stray copy of the orchestrator binary used for one-shot strings(1)
 # inspection (yesterday's `cp /usr/bin/orchestrator ./_orch`)
 _orch
+infrastructure/path-a-runner/target/
+infrastructure/path-a-runner/Cargo.lock
+infrastructure/bootloader-cli/target/
+infrastructure/submitter/target/
