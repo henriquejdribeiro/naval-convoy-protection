@@ -4,22 +4,26 @@ pragma solidity ^0.8.20;
 /**
  * @title  IStarkVerifier
  * @notice Abstract interface to the on-chain STARK verifier the convoy
- *         protocol delegates cryptographic verification to.
+ *         protocol queries for cryptographic acceptance.
  *
- * The convoy `Verifier.sol` calls `verifyAndRegister(...)` and then
- * polls `isValid(factHash)` to confirm the verifier accepted the
- * proof. Two concrete implementations are intended:
+ * Stage A / Stage B split (see Verifier.sol):
  *
- *   1. **GpsStarkVerifierAdapter** (production path) — thin shim around
- *      StarkWare's `GpsStatementVerifier` at
- *      `lib/starkex-contracts/evm-verifier/solidity/contracts/gps/
- *      GpsStatementVerifier.sol`. Forwards proof bytes verbatim and
- *      reads back the registered fact via the FactRegistry interface.
+ *   - Stage A (path-a-runner) calls verifyProofAndRegister(...) on the
+ *     underlying GpsStatementVerifier. This is the heavy crypto path.
  *
- *   2. **MockStarkVerifier** (development path) — unconditionally
- *      registers any fact passed to it. Used by the existing test
- *      suite and during demos while the layout-6 deployment of the
- *      StarkWare verifier stack is being brought up.
+ *   - Stage B (the convoy Verifier.sol) calls isValid(factHash) only.
+ *     It NEVER calls verifyProofAndRegister — that's not its job.
+ *
+ * Two concrete implementations:
+ *
+ *   1. **GpsStatementVerifier** (production) — StarkWare mainnet source
+ *      vendored under contracts/lib/starkware-mainnet/. Deployed via
+ *      DeployStarkVerifier.s.sol. ALL non-test deployments wire this.
+ *
+ *   2. **MockStarkVerifier** (contracts/test/ — UNIT TESTS ONLY) —
+ *      lets tests pre-flag facts via setFactValid(factHash, true) so
+ *      the convoy Verifier's isValid() assertion succeeds without a
+ *      real proof. NEVER deployed to a real chain.
  *
  * The interface lives at the 0.8.20 pragma so the convoy contracts can
  * import it cleanly. The underlying GpsStatementVerifier compiles
@@ -27,6 +31,10 @@ pragma solidity ^0.8.20;
  * the address is injected into Verifier.sol at construction time. The
  * solc-version split is transparent to this interface --- ABI calls
  * cross pragma boundaries without any Solidity-level coupling.
+ *
+ * verifyProofAndRegister is kept in this interface so the mock can
+ * still expose it for tests that exercise the legacy single-tx flow,
+ * but the convoy Verifier no longer calls it directly.
  */
 interface IStarkVerifier {
     /**

@@ -60,7 +60,7 @@ struct Args {
     /// Bootloader program hash to embed in the bootloader's public output.
     /// MUST match the SIMPLE_BOOTLOADER_HASH constant the on-chain
     /// GpsStatementVerifier was deployed with (scripts/bootloader-hashes.env).
-    #[arg(long, default_value = "0x3106b7628a3cbddadb733ea96284977cc21e890d61aa6dee00badcbd90065ce")]
+    #[arg(long, default_value = "0x4cead953c896211bb4c5f6de2f3993f179afdd256bc69140e2449b24e36a78f")]
     bootloader_hash: String,
 }
 

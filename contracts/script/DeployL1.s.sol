@@ -7,7 +7,6 @@ import "../src/StarknetCoreStub.sol";
 import "../src/Registry.sol";
 import "../src/Verifier.sol";
 import "../src/CommandLog.sol";
-import "../src/MockStarkVerifier.sol";
 
 /**
  * @title  DeployL1
@@ -22,41 +21,35 @@ import "../src/MockStarkVerifier.sol";
  *
  * Required env vars (loaded via forge's `--env-file` or `vm.envAddress`):
  *
- *   COMMANDER_ADDR     D's commander key address
- *   ALPHA_RELAY_ADDR   ship F's address (alpha lane relay)
- *   BRAVO_RELAY_ADDR   ship B's address (bravo lane relay)
+ *   COMMANDER_ADDR        D's commander key address
+ *   ALPHA_RELAY_ADDR      ship F's address (alpha lane relay)
+ *   BRAVO_RELAY_ADDR      ship B's address (bravo lane relay)
  *
- * Optional env vars — STARK verifier mode switch:
- *
- *   STARK_VERIFIER_ADDR   if set, points to an already-deployed
- *                         GpsStatementVerifier (run DeployStarkVerifier
- *                         first to obtain it). Verifier.sol delegates
- *                         real STARK math to that address — every byte
- *                         of the submitted proof goes through audited
- *                         StarkWare layout-6 verification on-chain.
- *                         **Production / thesis-defence deploys should
- *                         always set this.**
- *
- *                         If unset, a MockStarkVerifier is deployed and
- *                         used instead. The mock accepts any proof
- *                         unconditionally — useful for fast unit tests
- *                         that don't carry real proof bytes.
- *
- *   CAIRO_VERIFIER_ID     index of the CpuFrilessVerifier inside the
- *                         GpsStatementVerifier's `cairoVerifierContracts`
- *                         array. Defaults to 0 (DeployStarkVerifier
- *                         registers layout-6 at index 0). Ignored when
- *                         STARK_VERIFIER_ADDR is unset.
+ *   STARK_VERIFIER_ADDR   GpsStatementVerifier address from a prior
+ *                         DeployStarkVerifier run. **REQUIRED.** No
+ *                         mock fallback — production / thesis-defence
+ *                         posture is real STARK verification end-to-end.
+ *                         Verifier.sol only calls isValid(factHash)
+ *                         on this address; verifyProofAndRegister is
+ *                         called separately by path-a-runner during
+ *                         Stage A of the two-stage verification model.
  *
  * The deploy account (loaded via --private-key or --keystore) becomes the
- * initial owner of Registry, Verifier, and CommandLog. In Phase 2 dev this
- * is typically anvil[0] / ship A's key.
+ * initial owner of Registry, Verifier, and CommandLog. In dev this is
+ * typically anvil[0] / ship A's key.
  */
 contract DeployL1 is Script {
     function run() external {
         address commanderAddr   = vm.envAddress("COMMANDER_ADDR");
         address alphaRelayAddr  = vm.envAddress("ALPHA_RELAY_ADDR");
         address bravoRelayAddr  = vm.envAddress("BRAVO_RELAY_ADDR");
+        // Fail-loud: no mock fallback. Run DeployStarkVerifier first and
+        // pipe its GpsStatementVerifier address into STARK_VERIFIER_ADDR.
+        address starkVerifierAddr = vm.envAddress("STARK_VERIFIER_ADDR");
+        require(
+            starkVerifierAddr != address(0),
+            "DeployL1: STARK_VERIFIER_ADDR must be set (run DeployStarkVerifier first)"
+        );
 
         vm.startBroadcast();
         address deployer = msg.sender;
@@ -69,25 +62,17 @@ contract DeployL1 is Script {
         Registry registry = new Registry(deployer, commanderAddr);
         console2.log("Registry         deployed at:", address(registry));
 
-        // 3a. STARK verifier delegate — production GpsStatementVerifier
-        //     (supplied via STARK_VERIFIER_ADDR after running
-        //     DeployStarkVerifier) or a fresh MockStarkVerifier as
-        //     fallback for fast unit tests. The Gps address is castable
-        //     to our IStarkVerifier directly: GpsStatementVerifier
-        //     inherits FactRegistry via GpsOutputParser, so it natively
-        //     exposes both verifyProofAndRegister(...) and
-        //     isValid(bytes32) at the ABI level — no adapter needed.
-        (address starkVerifierAddr, uint256 cairoVerifierId) = _resolveStarkVerifier();
-
-        // 3b. Verifier — owner is deployer; binds Registry; whitelists relay ships;
-        //     delegates STARK math to whichever verifier we resolved above.
+        // 3. Verifier — Stage B of the two-stage verification model.
+        //    Only calls starkVerifier.isValid(factHash); never sees the
+        //    proof bytes. Path-a-runner (Stage A) is what actually
+        //    submits the proof to GpsStatementVerifier off-chain via
+        //    the Rust binary.
         Verifier verifier = new Verifier(
             deployer,
             address(registry),
             alphaRelayAddr,
             bravoRelayAddr,
-            starkVerifierAddr,
-            cairoVerifierId
+            starkVerifierAddr
         );
         console2.log("Verifier         deployed at:", address(verifier));
 
@@ -113,53 +98,9 @@ contract DeployL1 is Script {
         console2.log("Verifier:        ", address(verifier));
         console2.log("CommandLog:      ", address(commandLog));
         console2.log("STARK verifier:  ", starkVerifierAddr);
-        console2.log("cairoVerifierId: ", cairoVerifierId);
         console2.log("Owner / deployer:", deployer);
         console2.log("Commander (D):   ", commanderAddr);
         console2.log("Alpha relay (F): ", alphaRelayAddr);
         console2.log("Bravo relay (B): ", bravoRelayAddr);
-    }
-
-    /**
-     * @dev Resolves which STARK verifier address to wire into Verifier.sol.
-     *      Three branches:
-     *
-     *      A. STARK_VERIFIER_ADDR set → production path. Use the
-     *         supplied GpsStatementVerifier address. Optional
-     *         CAIRO_VERIFIER_ID overrides the index (defaults to 0).
-     *         Emits a log noting we're using real on-chain verification.
-     *
-     *      B. STARK_VERIFIER_ADDR unset → dev/test path. Deploy a fresh
-     *         MockStarkVerifier and return its address. cairoVerifierId
-     *         is forced to 0 (the mock ignores it). Logs a clear warning
-     *         that proofs are NOT cryptographically verified.
-     */
-    function _resolveStarkVerifier()
-        internal
-        returns (address starkVerifierAddr, uint256 cairoVerifierId)
-    {
-        try vm.envAddress("STARK_VERIFIER_ADDR") returns (address production) {
-            starkVerifierAddr = production;
-            // CAIRO_VERIFIER_ID is optional; default to 0 (layout-6
-            // is the only CpuFrilessVerifier our DeployStarkVerifier
-            // registers, and it's at index 0).
-            try vm.envUint("CAIRO_VERIFIER_ID") returns (uint256 id) {
-                cairoVerifierId = id;
-            } catch {
-                cairoVerifierId = 0;
-            }
-            console2.log("Using production STARK verifier at:", starkVerifierAddr);
-            console2.log("cairoVerifierId:                  ", cairoVerifierId);
-        } catch {
-            MockStarkVerifier mockStark = new MockStarkVerifier();
-            starkVerifierAddr = address(mockStark);
-            cairoVerifierId   = 0;
-            console2.log("==============================================");
-            console2.log("WARNING: STARK_VERIFIER_ADDR not set - using MockStarkVerifier.");
-            console2.log("Proofs will NOT be cryptographically verified.");
-            console2.log("For thesis-defence deploys, run DeployStarkVerifier first.");
-            console2.log("MockStarkVerifier deployed at:", starkVerifierAddr);
-            console2.log("==============================================");
-        }
     }
 }

@@ -1,286 +1,493 @@
 // =============================================================================
-// convoy_protocol — Cairo 1 contract for L2 (Madara α / β)
+// convoy_protocol — Cairo 1 starknet contract for L2 (Madara)
 // =============================================================================
-// Stores per-(mission_id, drone_id) sweep state and sweep commitments. The drone is
-// the only client of this contract; its OZ account contract on Madara
-// authenticates each tx via Stark-curve ECDSA.
+// 5-drone-per-swarm architecture (rev 2026-05).
 //
-// Three entry points map directly to the protocol.md steps:
+// Each mission = a swarm of N drones (typically 5). Each drone covers a
+// vertical strip of the swarm's frontal area. The contract:
 //
-//   - submit_telemetry(mission_id, drone_id, cells)         protocol step 5  (×N)
-//   - submit_sweep_commitment(mission_id, drone_id, h)      protocol step 6
-//   - get_cells / get_commitment / mission_status    view helpers
+//   1. Receives mission spec from L1 via #[l1_handler] open_mission
+//   2. Records the N drone account addresses (one per drone_id 1..N)
+//   3. Accepts a STARK proof per drone via submit_commitment, delegating
+//      the cryptographic check to a STARK verifier contract whose address
+//      is stored at construction time (Stwo-cairo or Stone-cairo)
+//   4. Aggregates verdicts; emits L1 message when all N drones SAFE
 //
-// Storage strategy: cells are stored append-only via four parallel
-// Map<(mission_id, drone_id, idx), uint> tables (one per field). cell_count keeps
-// the active length per mission. The Cairo program (safe_area_verify.cairo,
-// run by SNOS) reads the same fields as a witness — we don't need an
-// in-contract Array<TelemetryCell> primitive.
+// Strip derivation (deterministic, computed in-contract):
 //
-// Events are emitted on every state change so the off-chain orchestrator
-// (running on the relay ship) can subscribe and pick up new sweeps without
-// polling.
+//   strip_width      = spec.zone_w / spec.n_drones        (enforced exact)
+//   strip[i].x_start = spec.zone_x + (i-1) * strip_width  (drone_id i ∈ 1..N)
+//   strip[i].x_end   = strip[i].x_start + strip_width
+//   strip[i].y_start = spec.zone_y
+//   strip[i].y_end   = spec.zone_y + spec.zone_h
 //
-// Adapted from verifiable_grid/contracts/cairo/src/lib.cairo's structure.
-// Same Cairo 1 dialect, same `#[starknet::interface]` + `#[starknet::contract]`
-// pattern.
+// The Cairo program (safe_area_verify.cairo) MUST write the strip bounds
+// to [output_ptr] in the same order this contract builds them as proof
+// public inputs. Any mismatch (e.g. drone sweeps its neighbour's strip)
+// causes the verifier call to revert.
+//
+// Privacy: the public output schema is intentionally minimal — only
+//   (mission_id, drone_id, strip bounds, verdict_bool, H)
+// crosses the L3→L2 boundary. Cell-level telemetry stays in the drone's
+// volatile memory as Cairo hints. With Stwo enabled (strict ZK at the
+// prover) plus a hiding Pedersen commitment H (cells_nonce added in
+// safe_area_verify), the proof reveals nothing about the cells beyond
+// the swarm-level verdict.
+//
+// Replaces the previous submit_telemetry/submit_sweep_commitment model
+// (rev pre-2026-05) which stored cell data on-chain. That model leaked
+// telemetry through chain history; this one keeps it hint-private.
 // =============================================================================
 
-#[starknet::interface]
-trait IConvoyProtocol<TContractState> {
-    // ── Mutating entry points (called by drone) ─────────────────────────
+use core::starknet::ContractAddress;
 
-    /// Append one telemetry cell to (mission_id, drone_id)'s sweep.
-    /// Reverts if mission is already closed (commitment present).
-    fn submit_telemetry(
-        ref self: TContractState,
-        mission_id: u128,
-        drone_id: felt252,
-        x: u16,
-        y: u16,
-        p_contact: u16,
-        ts: u64,
-    );
+// ── Public types (visible to dispatchers, ABI, off-chain callers) ──────────
 
-    /// Close the sweep with the Poseidon hash chain over all submitted cells.
-    /// Reverts if mission_id/drone_id has no submitted cells, or if commitment is
-    /// already set.
-    fn submit_sweep_commitment(
-        ref self: TContractState,
-        mission_id: u128,
-        drone_id: felt252,
-        commitment: felt252,
-    );
-
-    // ── Read-only views ─────────────────────────────────────────────────
-
-    /// Number of cells submitted under (mission_id, drone_id).
-    fn get_cell_count(self: @TContractState, mission_id: u128, drone_id: felt252) -> u32;
-
-    /// The i-th cell as (x, y, p_contact, ts). Reverts if i >= count.
-    fn get_cell(
-        self: @TContractState,
-        mission_id: u128,
-        drone_id: felt252,
-        i: u32,
-    ) -> (u16, u16, u16, u64);
-
-    /// The submitted commitment (felt252). Returns 0 before
-    /// submit_sweep_commitment is called.
-    fn get_commitment(self: @TContractState, mission_id: u128, drone_id: felt252) -> felt252;
-
-    /// Whether the sweep is finalised (commitment set + non-zero).
-    fn is_sweep_closed(self: @TContractState, mission_id: u128, drone_id: felt252) -> bool;
+/// All parameters defining one mission. Stored verbatim on chain.
+/// Field order matters — it's how the L1 bridge serialises the payload.
+#[derive(Drop, Copy, Serde, starknet::Store)]
+pub struct MissionSpec {
+    pub mission_id:   felt252,
+    pub swarm_id:     felt252,    // 1 = Alpha, 2 = Bravo
+    pub zone_x:       u32,        // grid origin
+    pub zone_y:       u32,
+    pub zone_w:       u32,        // cells wide  (15 for Alpha, 20 for Bravo)
+    pub zone_h:       u32,        // cells tall  (8 for both)
+    pub n_drones:     u8,         // 5
+    pub strip_width:  u32,        // = zone_w / n_drones (must be exact)
+    pub coverage_min: u16,        // permille; e.g. 950 = 95%
+    pub p_min:        u16,        // basis points; e.g. 7000 = 70%
+    pub time_window:  u64,        // seconds
+    pub ts_start:     u64,        // mission-start timestamp
 }
 
-// ---------------------------------------------------------------------------
-//  Contract module
-// ---------------------------------------------------------------------------
+/// One drone's assigned sub-area (derived deterministically from MissionSpec).
+#[derive(Drop, Copy, Serde)]
+pub struct StripBounds {
+    pub x_start: u32,
+    pub x_end:   u32,
+    pub y_start: u32,
+    pub y_end:   u32,
+}
+
+// Verdict codes used by the verdicts storage map and emitted in events.
+pub const VERDICT_PENDING: u8 = 0;
+pub const VERDICT_SAFE:    u8 = 1;
+pub const VERDICT_UNSAFE:  u8 = 2;
+
+// ── Interfaces ─────────────────────────────────────────────────────────────
+
+/// Abstract STARK verifier contract. The address is supplied at
+/// construction; this can be:
+///   - The Stwo-cairo verifier  (strict ZK at L3→L2, recommended)
+///   - The Stone-cairo verifier (soundness only, legacy)
+///
+/// `public_inputs` is the EXACT felt252 sequence the proof's [output_ptr]
+/// committed to. The contract builds it from (mission_id, drone_id, strip
+/// bounds, verdict_bool, commitment_H). Any divergence triggers a revert.
+#[starknet::interface]
+pub trait ICairoVerifier<TContractState> {
+    fn verify_stark_proof(
+        self: @TContractState,
+        proof:         Span<felt252>,
+        public_inputs: Span<felt252>,
+    );
+}
+
+#[starknet::interface]
+pub trait IConvoyProtocol<TContractState> {
+    // ── Mutating entry points ───────────────────────────────────────
+    //
+    // open_mission is invoked via #[l1_handler]; it is NOT part of the
+    // public interface but lives in the contract module.
+
+    /// L3→L2 submission of a single drone's commitment + ZK proof.
+    /// Reverts if:
+    ///   - mission_id not deployed
+    ///   - drone_id out of range or already submitted
+    ///   - caller is not the registered drone account
+    ///   - verify_stark_proof rejects the proof
+    fn submit_commitment(
+        ref self: TContractState,
+        mission_id:    felt252,
+        drone_id:      u8,
+        commitment_H:  felt252,
+        verdict_bool:  u8,
+        proof:         Span<felt252>,
+    );
+
+    // ── Read-only views ─────────────────────────────────────────────
+
+    /// Full mission spec. Reverts if not deployed.
+    fn get_mission(self: @TContractState, mission_id: felt252) -> MissionSpec;
+
+    /// Account address authorised to submit for (mission_id, drone_id).
+    fn get_drone_addr(self: @TContractState, mission_id: felt252, drone_id: u8)
+        -> ContractAddress;
+
+    /// Sub-area assigned to (mission_id, drone_id), derived in-contract.
+    fn get_strip(self: @TContractState, mission_id: felt252, drone_id: u8)
+        -> StripBounds;
+
+    /// Verdict code (0=PENDING, 1=SAFE, 2=UNSAFE) for one drone.
+    fn verdict(self: @TContractState, mission_id: felt252, drone_id: u8) -> u8;
+
+    /// True iff every drone in the mission has submitted SAFE.
+    fn mission_safe(self: @TContractState, mission_id: felt252) -> bool;
+
+    /// Number of drones currently in SAFE state for the mission.
+    fn safe_count(self: @TContractState, mission_id: felt252) -> u8;
+
+    /// The hiding-Pedersen commitment H this drone submitted (0 if pending).
+    fn get_commitment(self: @TContractState, mission_id: felt252, drone_id: u8)
+        -> felt252;
+
+    /// The address of the configured STARK verifier (for off-chain reference).
+    fn get_cairo_verifier(self: @TContractState) -> ContractAddress;
+}
+
+// ── Contract module ────────────────────────────────────────────────────────
+
 #[starknet::contract]
 mod ConvoyProtocol {
-    use starknet::storage::{
-        Map,
-        StorageMapReadAccess,
-        StorageMapWriteAccess,
-        StoragePointerReadAccess,
-        StoragePointerWriteAccess,
+    use core::starknet::{
+        ContractAddress, get_caller_address,
+    };
+    use core::starknet::storage::{
+        Map, StoragePointerReadAccess, StoragePointerWriteAccess,
+        StorageMapReadAccess, StorageMapWriteAccess,
+    };
+    use core::starknet::syscalls::send_message_to_l1_syscall;
+    use core::pedersen::pedersen;
+
+    use super::{
+        MissionSpec, StripBounds,
+        ICairoVerifierDispatcher, ICairoVerifierDispatcherTrait,
+        VERDICT_PENDING, VERDICT_SAFE, VERDICT_UNSAFE,
     };
 
-    // Storage layout
+    // ── Storage ────────────────────────────────────────────────────────────
     //
-    //  cells_x  / cells_y  / cells_p_contact / cells_ts:
-    //      Map<(mission_id, drone_id, idx) → primitive>
-    //  cell_count:
-    //      Map<(mission_id, drone_id) → u32>
-    //  commitments:
-    //      Map<(mission_id, drone_id) → felt252>   (0 = unset)
-    //
-    // Cairo 1's Map can't take a tuple key directly, so we encode
-    // (mission_id, drone_id, idx) into a single felt252 via a stable hash —
-    // here we use a simple bit-packed felt: hi-bits = mission_id, lo-bits = idx,
-    // with drone_id mixed in. For dev purposes a small hash function suffices;
-    // collisions across α / β are impossible because mission_id is unique.
+    // Storage keys for the per-(mission, drone) maps are computed via
+    // `encode_drone_key(mid, did)` so the four parallel maps share the
+    // same slot space without colliding.
     #[storage]
     struct Storage {
-        cells_x:         Map<felt252, u16>,
-        cells_y:         Map<felt252, u16>,
-        cells_p_contact: Map<felt252, u16>,
-        cells_ts:        Map<felt252, u64>,
-        cell_count:      Map<felt252, u32>,         // key = (mission_id << 1) | (drone_id - 1)
-        commitments:     Map<felt252, felt252>,
+        // Per-mission specs
+        missions:       Map<felt252, MissionSpec>,
+        mission_exists: Map<felt252, bool>,
+
+        // Per-drone state — keyed by encode_drone_key(mid, did)
+        drone_addr:  Map<felt252, ContractAddress>,
+        commitments: Map<felt252, felt252>,
+        verdicts:    Map<felt252, u8>,
+
+        // Per-mission aggregates
+        safe_count: Map<felt252, u8>,
+        l1_emitted: Map<felt252, bool>,
+
+        // Configuration (set at constructor, immutable thereafter)
+        cairo_verifier:    ContractAddress,
+        l1_commander_addr: felt252,    // L1 address authorised to call open_mission
+        l1_verifier_addr:  felt252,    // L1 destination for the all-SAFE message
     }
 
-    // ── Events ──────────────────────────────────────────────────────────
+    // ── Events ─────────────────────────────────────────────────────────────
     #[event]
     #[derive(Drop, starknet::Event)]
     enum Event {
-        TelemetrySubmitted: TelemetrySubmitted,
-        SweepCommitted:     SweepCommitted,
+        MissionDeployed:     MissionDeployed,
+        CommitmentSubmitted: CommitmentSubmitted,
+        MissionSafe:         MissionSafeEvent,
+        MissionUnsafe:       MissionUnsafeEvent,
     }
 
     #[derive(Drop, starknet::Event)]
-    struct TelemetrySubmitted {
-        #[key] mission_id: u128,
-        #[key] drone_id: felt252,
-        idx: u32,
-        x: u16,
-        y: u16,
-        p_contact: u16,
-        ts: u64,
+    struct MissionDeployed {
+        #[key] mission_id: felt252,
+        swarm_id: felt252,
+        n_drones: u8,
     }
 
     #[derive(Drop, starknet::Event)]
-    struct SweepCommitted {
-        #[key] mission_id: u128,
-        #[key] drone_id: felt252,
+    struct CommitmentSubmitted {
+        #[key] mission_id: felt252,
+        #[key] drone_id:   u8,
+        verdict:    u8,
         commitment: felt252,
-        n_cells: u32,
     }
 
-    // ── Constants — must match contracts/src/Registry.sol ───────────────
-    const DRONE_ALPHA: felt252 = 1;
-    const DRONE_BRAVO: felt252 = 2;
-
-    // ─────────────────────────────────────────────────────────────────────
-    //  Internal key helpers — encode (mission_id, drone_id) and (mission_id, drone_id, idx)
-    //  into single felt252 keys for the Map storage. Domain-separated by a
-    //  prefix tag so the four parallel maps never collide with the count
-    //  map even if the bit-packing aliases.
-    // ─────────────────────────────────────────────────────────────────────
-
-    /// Assert that `drone_id` is one of the two valid lane identifiers
-    /// (1 = α, 2 = β). Used as the first line of every public entry
-    /// point so off-lane writes are impossible.
-    ///
-    /// The arithmetic identity `(d - 1)·(d - 2) == 0` is zero iff
-    /// `d ∈ {1, 2}`. Using multiplication rather than `==` makes the
-    /// check portable across Cairo 1 toolchain versions that did not
-    /// expose equality on `felt252`.
-    fn _validate_drone(drone_id: felt252) {
-        let valid = (drone_id - DRONE_ALPHA) * (drone_id - DRONE_BRAVO);
-        assert(valid == 0, 'invalid drone_id');
+    #[derive(Drop, starknet::Event)]
+    struct MissionSafeEvent {
+        #[key] mission_id: felt252,
+        aggregate_commitment: felt252,
     }
 
-    /// Compose a single `felt252` key from `(mission_id, drone_id)` for the
-    /// per-mission storage maps (`cell_count`, `commitments`).
-    ///
-    /// Encoding: `(mission_id << 4) | drone_id`. The 4-bit shift gives a wide
-    /// margin around the 2-valued drone_id so different `mission_id`s never
-    /// alias under any drone, even though `mission_id` is `u128`.
-    fn _key_mission(mission_id: u128, drone_id: felt252) -> felt252 {
-        let mission_id_felt: felt252 = mission_id.into();
-        mission_id_felt * 16 + drone_id
+    #[derive(Drop, starknet::Event)]
+    struct MissionUnsafeEvent {
+        #[key] mission_id: felt252,
+        failing_drone: u8,
     }
 
-    /// Compose a single `felt252` key from `(mission_id, drone_id, idx)` for
-    /// the per-cell storage maps (`cells_x`, `cells_y`,
-    /// `cells_p_contact`, `cells_ts`).
-    ///
-    /// Encoding: `_key_mission(mission_id, drone_id) * 2^40 + idx`. `u32`'s
-    /// max value (2^32 − 1) sits comfortably below the 2^40 gap, so
-    /// adjacent missions cannot collide with each other's cells.
-    fn _key_cell(mission_id: u128, drone_id: felt252, idx: u32) -> felt252 {
-        let base = _key_mission(mission_id, drone_id);
-        let idx_felt: felt252 = idx.into();
-        base * 1099511627776 + idx_felt   // 1099511627776 = 2^40
+    // ── L1 → L2 handler — mission deployment ───────────────────────────────
+    //
+    // Triggered when the L1 Commander bridge calls L1's
+    // `StarknetCore.sendMessageToL2(this_contract, selector, payload)`. The
+    // Madara block builder routes the message to this function. `from_address`
+    // is the L1 sender, which we lock to the configured Commander bridge.
+    //
+    // For Cairo 1 #[l1_handler], complex struct/array payloads are decoded
+    // automatically by the Serde derive on MissionSpec and Array<...>.
+    #[l1_handler]
+    fn open_mission(
+        ref self: ContractState,
+        from_address: felt252,
+        spec:            MissionSpec,
+        drone_addresses: Array<ContractAddress>,
+    ) {
+        // 1. Authorisation
+        assert(
+            from_address == self.l1_commander_addr.read(),
+            'unauthorised L1 sender',
+        );
+
+        // 2. Idempotency
+        assert(
+            !self.mission_exists.read(spec.mission_id),
+            'mission already deployed',
+        );
+
+        // 3. Spec sanity
+        assert(spec.n_drones > 0_u8, 'n_drones must be > 0');
+        let n_drones_u32: u32 = spec.n_drones.into();
+        assert(spec.zone_w == spec.strip_width * n_drones_u32, 'zone_w not divisible');
+        assert(spec.zone_h > 0_u32, 'zone_h must be > 0');
+        assert(spec.strip_width > 0_u32, 'strip_width must be > 0');
+        assert(drone_addresses.len() == n_drones_u32, 'drone addr count mismatch');
+
+        // 4. Persist spec
+        self.missions.write(spec.mission_id, spec);
+        self.mission_exists.write(spec.mission_id, true);
+
+        // 5. Register each drone's account address against (mid, did)
+        let mut i: u32 = 0;
+        loop {
+            if i >= n_drones_u32 { break; }
+            let drone_id_u8: u8 = (i + 1_u32).try_into().unwrap();
+            let key = encode_drone_key(spec.mission_id, drone_id_u8);
+            self.drone_addr.write(key, *drone_addresses.at(i));
+            i += 1_u32;
+        };
+
+        self.emit(MissionDeployed {
+            mission_id: spec.mission_id,
+            swarm_id:   spec.swarm_id,
+            n_drones:   spec.n_drones,
+        });
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    //  Implementation
-    // ─────────────────────────────────────────────────────────────────────
+    // ── External entry points ──────────────────────────────────────────────
     #[abi(embed_v0)]
     impl ConvoyProtocolImpl of super::IConvoyProtocol<ContractState> {
-        fn submit_telemetry(
+
+        fn submit_commitment(
             ref self: ContractState,
-            mission_id: u128,
-            drone_id: felt252,
-            x: u16,
-            y: u16,
-            p_contact: u16,
-            ts: u64,
+            mission_id:   felt252,
+            drone_id:     u8,
+            commitment_H: felt252,
+            verdict_bool: u8,
+            proof:        Span<felt252>,
         ) {
-            _validate_drone(drone_id);
+            // 1. Mission must exist
+            assert(self.mission_exists.read(mission_id), 'mission not deployed');
+            let spec = self.missions.read(mission_id);
 
-            let mkey = _key_mission(mission_id, drone_id);
+            // 2. drone_id ∈ [1, n_drones]
+            assert(drone_id >= 1_u8,            'drone_id < 1');
+            assert(drone_id <= spec.n_drones,   'drone_id > n_drones');
 
-            // Refuse new cells once sweep is closed
-            let already_committed = self.commitments.read(mkey);
-            assert(already_committed == 0, 'sweep already closed');
+            // 3. Caller must be the registered drone account
+            let dkey = encode_drone_key(mission_id, drone_id);
+            let expected_caller = self.drone_addr.read(dkey);
+            assert(get_caller_address() == expected_caller, 'wrong drone caller');
 
-            let count = self.cell_count.read(mkey);
-            let ckey = _key_cell(mission_id, drone_id, count);
+            // 4. Not yet submitted
+            let prior = self.verdicts.read(dkey);
+            assert(prior == VERDICT_PENDING, 'already submitted');
 
-            self.cells_x.write(ckey, x);
-            self.cells_y.write(ckey, y);
-            self.cells_p_contact.write(ckey, p_contact);
-            self.cells_ts.write(ckey, ts);
-            self.cell_count.write(mkey, count + 1);
+            // 5. verdict_bool must be 0 or 1
+            assert(verdict_bool == 0_u8 || verdict_bool == 1_u8, 'verdict_bool not 0/1');
 
-            self.emit(TelemetrySubmitted {
-                mission_id:       mission_id,
-                drone_id:  drone_id,
-                idx:       count,
-                x:         x,
-                y:         y,
-                p_contact: p_contact,
-                ts:        ts,
+            // 6. Derive this drone's strip bounds from the spec
+            let strip = derive_strip(spec, drone_id);
+
+            // 7. Compose the proof's expected public-input vector.
+            //    safe_area_verify.cairo writes EXACTLY these felts to
+            //    [output_ptr]; the verifier confirms the proof attests to
+            //    a Cairo run whose serialised outputs match.
+            let public_inputs = array![
+                mission_id,
+                drone_id.into(),
+                strip.x_start.into(),
+                strip.x_end.into(),
+                strip.y_start.into(),
+                strip.y_end.into(),
+                verdict_bool.into(),
+                commitment_H,
+            ];
+
+            // 8. Delegate cryptographic verification to the configured
+            //    Cairo verifier contract (Stwo-cairo or Stone-cairo).
+            let verifier = ICairoVerifierDispatcher {
+                contract_address: self.cairo_verifier.read(),
+            };
+            verifier.verify_stark_proof(proof, public_inputs.span());
+
+            // 9. Record commitment + verdict
+            self.commitments.write(dkey, commitment_H);
+            let new_verdict = if verdict_bool == 1_u8 { VERDICT_SAFE }
+                              else                    { VERDICT_UNSAFE };
+            self.verdicts.write(dkey, new_verdict);
+
+            self.emit(CommitmentSubmitted {
+                mission_id, drone_id,
+                verdict:    new_verdict,
+                commitment: commitment_H,
             });
+
+            // 10. Aggregate updates
+            if new_verdict == VERDICT_SAFE {
+                let new_count = self.safe_count.read(mission_id) + 1_u8;
+                self.safe_count.write(mission_id, new_count);
+
+                if new_count == spec.n_drones && !self.l1_emitted.read(mission_id) {
+                    // All drones SAFE — emit the L1 message exactly once.
+                    self.l1_emitted.write(mission_id, true);
+                    let agg = self.aggregate_commitment(mission_id, spec.n_drones);
+
+                    let payload = array![mission_id, agg].span();
+                    let _ = send_message_to_l1_syscall(
+                        self.l1_verifier_addr.read(),
+                        payload,
+                    );
+
+                    self.emit(MissionSafeEvent {
+                        mission_id,
+                        aggregate_commitment: agg,
+                    });
+                }
+            } else {
+                self.emit(MissionUnsafeEvent {
+                    mission_id,
+                    failing_drone: drone_id,
+                });
+            }
         }
 
-        fn submit_sweep_commitment(
-            ref self: ContractState,
-            mission_id: u128,
-            drone_id: felt252,
-            commitment: felt252,
-        ) {
-            _validate_drone(drone_id);
-            assert(commitment != 0, 'commitment must be non-zero');
+        // ── Views ──────────────────────────────────────────────────────────
 
-            let mkey = _key_mission(mission_id, drone_id);
-
-            let n_cells = self.cell_count.read(mkey);
-            assert(n_cells > 0, 'no telemetry submitted');
-
-            let already = self.commitments.read(mkey);
-            assert(already == 0, 'commitment already set');
-
-            self.commitments.write(mkey, commitment);
-
-            self.emit(SweepCommitted {
-                mission_id:        mission_id,
-                drone_id:   drone_id,
-                commitment: commitment,
-                n_cells:    n_cells,
-            });
+        fn get_mission(self: @ContractState, mission_id: felt252) -> MissionSpec {
+            assert(self.mission_exists.read(mission_id), 'mission not deployed');
+            self.missions.read(mission_id)
         }
 
-        fn get_cell_count(self: @ContractState, mission_id: u128, drone_id: felt252) -> u32 {
-            self.cell_count.read(_key_mission(mission_id, drone_id))
+        fn get_drone_addr(
+            self: @ContractState, mission_id: felt252, drone_id: u8,
+        ) -> ContractAddress {
+            self.drone_addr.read(encode_drone_key(mission_id, drone_id))
         }
 
-        fn get_cell(
+        fn get_strip(
+            self: @ContractState, mission_id: felt252, drone_id: u8,
+        ) -> StripBounds {
+            let spec = self.missions.read(mission_id);
+            derive_strip(spec, drone_id)
+        }
+
+        fn verdict(self: @ContractState, mission_id: felt252, drone_id: u8) -> u8 {
+            self.verdicts.read(encode_drone_key(mission_id, drone_id))
+        }
+
+        fn mission_safe(self: @ContractState, mission_id: felt252) -> bool {
+            if !self.mission_exists.read(mission_id) { return false; }
+            let spec = self.missions.read(mission_id);
+            self.safe_count.read(mission_id) == spec.n_drones
+        }
+
+        fn safe_count(self: @ContractState, mission_id: felt252) -> u8 {
+            self.safe_count.read(mission_id)
+        }
+
+        fn get_commitment(
+            self: @ContractState, mission_id: felt252, drone_id: u8,
+        ) -> felt252 {
+            self.commitments.read(encode_drone_key(mission_id, drone_id))
+        }
+
+        fn get_cairo_verifier(self: @ContractState) -> ContractAddress {
+            self.cairo_verifier.read()
+        }
+    }
+
+    // ── Internal helpers (instance methods, can read storage) ──────────────
+
+    #[generate_trait]
+    impl PrivateImpl of PrivateTrait {
+        /// Pedersen-chain the per-drone commitments into a single felt
+        /// that L1 receives in the all-SAFE message.
+        ///
+        ///   agg = pedersen(...pedersen(pedersen(0, H_1), H_2)..., H_N)
+        fn aggregate_commitment(
             self: @ContractState,
-            mission_id: u128,
-            drone_id: felt252,
-            i: u32,
-        ) -> (u16, u16, u16, u64) {
-            let n = self.cell_count.read(_key_mission(mission_id, drone_id));
-            assert(i < n, 'cell index out of range');
-            let ckey = _key_cell(mission_id, drone_id, i);
-            (
-                self.cells_x.read(ckey),
-                self.cells_y.read(ckey),
-                self.cells_p_contact.read(ckey),
-                self.cells_ts.read(ckey),
-            )
+            mission_id: felt252,
+            n_drones:   u8,
+        ) -> felt252 {
+            let mut acc: felt252 = 0;
+            let mut i: u8 = 1_u8;
+            loop {
+                if i > n_drones { break; }
+                let c = self.commitments.read(encode_drone_key(mission_id, i));
+                acc = pedersen(acc, c);
+                i += 1_u8;
+            };
+            acc
         }
+    }
 
-        fn get_commitment(self: @ContractState, mission_id: u128, drone_id: felt252) -> felt252 {
-            self.commitments.read(_key_mission(mission_id, drone_id))
-        }
+    // ── Pure helpers ───────────────────────────────────────────────────────
 
-        fn is_sweep_closed(self: @ContractState, mission_id: u128, drone_id: felt252) -> bool {
-            self.commitments.read(_key_mission(mission_id, drone_id)) != 0
+    /// Encode `(mission_id, drone_id)` into a single felt252 storage key.
+    /// 8-bit slot for drone_id (well above any practical n_drones; we use 5).
+    /// Collisions between missions impossible because mission_ids are unique.
+    fn encode_drone_key(mission_id: felt252, drone_id: u8) -> felt252 {
+        let drone_felt: felt252 = drone_id.into();
+        mission_id * 256 + drone_felt
+    }
+
+    /// Derive the sub-area assigned to `drone_id ∈ [1, n_drones]`.
+    /// strip_width was validated equal to zone_w / n_drones at open_mission,
+    /// so this division is exact.
+    fn derive_strip(spec: MissionSpec, drone_id: u8) -> StripBounds {
+        let i_u32: u32 = (drone_id - 1_u8).into();
+        let x_start = spec.zone_x + i_u32 * spec.strip_width;
+        StripBounds {
+            x_start: x_start,
+            x_end:   x_start + spec.strip_width,
+            y_start: spec.zone_y,
+            y_end:   spec.zone_y + spec.zone_h,
         }
+    }
+
+    // ── Constructor ────────────────────────────────────────────────────────
+    #[constructor]
+    fn constructor(
+        ref self: ContractState,
+        cairo_verifier_addr: ContractAddress,
+        l1_commander_addr:   felt252,
+        l1_verifier_addr:    felt252,
+    ) {
+        self.cairo_verifier.write(cairo_verifier_addr);
+        self.l1_commander_addr.write(l1_commander_addr);
+        self.l1_verifier_addr.write(l1_verifier_addr);
     }
 }

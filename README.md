@@ -138,6 +138,52 @@ python -m http.server 8080
 
 Click **▶ Play Demonstration** in the simulation widget to watch the eight phases of the convoy mission play out end-to-end.
 
+## Ports — what runs where
+
+Every service in the convoy stack binds a fixed host port so you always know where to look. URLs below are what you'd type into a browser (or `curl`) on the machine running Docker.
+
+### Web frontends (the things you actually open in Chrome)
+
+| URL | Service | What you see there |
+|---|---|---|
+| <http://localhost:8000> | Mission visualisation webapp (Python `http.server`, served from `webapp/`) | The animated convoy demo and the 3D world view. **Planned**: an integrated L1 + L2 explorer (blocks, transactions, contracts, events) for the convoy chains, talking directly to ship-a's RPC and the Madara/Pathfinder RPC. |
+| <http://localhost:3000> | Allied Protocol — Drone API UI | Per-drone deploy / telemetry / move / detect-threat operations |
+
+### Layer 1 — Geth Clique-PoA (`docker-compose.l1.yml`)
+
+Six validator ships, each exposing JSON-RPC. Most commands target ship A; the others are available if you want to query a non-primary validator.
+
+| Host port | Container port | Service | Role |
+|---:|---:|---|---|
+| `18545` | `8545` | `convoy-ship-a` JSON-RPC | Primary L1 RPC endpoint (used by Orchestrator, the webapp explorer, all deploy scripts) |
+| `18546` | `8546` | `convoy-ship-a` WebSocket | Real-time block subscriptions (used by the webapp explorer for live updates) |
+| `30303` | `30303` | `convoy-ship-a` devp2p | Peer discovery + block gossip |
+| `8645` | `8545` | `convoy-ship-b` JSON-RPC | Validator B (Bravo flank relay) |
+| `8745` | `8545` | `convoy-ship-c` JSON-RPC | Validator C |
+| `8845` | `8545` | `convoy-ship-d` JSON-RPC | Validator D (Commander) |
+| `8945` | `8545` | `convoy-ship-e` JSON-RPC | Validator E |
+| `9045` | `8545` | `convoy-ship-f` JSON-RPC | Validator F (Alpha flank relay) |
+
+### Layer 2 — Madara sequencer + Pathfinder + Orchestrator (`docker-compose.l2.yml`)
+
+| Host port | Container port | Service | Role |
+|---:|---:|---|---|
+| `18080` | `8080` | `convoy-madara` HTTP | Madara sequencer HTTP API |
+| `19944` | `9944` | `convoy-madara` JSON-RPC | Starknet-compatible RPC (transactions, state queries) |
+| `9545` | `9545` | `convoy-pathfinder` JSON-RPC | L2 full node (state replication + queries) |
+| `13000` | `3000` | `convoy-orchestrator` | L1↔L2 relay coordinator (polls Pathfinder, submits L1 proofs) |
+| `27017` | `27017` | `madara-mongo` | MongoDB used by Madara/Orchestrator |
+| `8080` | `8080` | `madara-node` HTTP | Alternative Madara node (HTTP) |
+| `9944` | `9944` | `madara-node` JSON-RPC | Alternative Madara node (RPC) |
+
+### Port-conflict notes
+
+- Port `3000` is taken by `allied-protocol` (Drone API UI).
+- The block explorer is planned to be integrated directly into the mission webapp on `localhost:8000`. It will read both layers directly:
+  - **L1**: ship-a RPC at `localhost:18545` (HTTP) and `localhost:18546` (WS) — for blocks, transactions, contracts, events.
+  - **L2**: Madara JSON-RPC at `localhost:19944` and Pathfinder at `localhost:9545` — for L2 state, mission commitments, verdicts.
+- If you change any port mapping in the `docker-compose.*.yml` files, update this table at the same time.
+
 ## Technology stack
 
 | Layer | Component | Phase |

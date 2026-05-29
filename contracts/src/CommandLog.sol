@@ -11,7 +11,13 @@ import "./Registry.sol";
  * Two preconditions enforced on-chain when D calls `advance`:
  *   1. `msg.sender == commander` (the commander key, NOT D's validator key)
  *   2. Both the α-mission and the β-mission listed in the call must have
- *      `Registry.verdict[missionId][droneId] == true` (dual-SAFE)
+ *      `Registry.missionSafe[missionId] == true` — meaning ALL `nDrones`
+ *      drones in each swarm have landed valid SAFE STARK proofs and the
+ *      Verifier has written the mission-level aggregate (missionSafe +
+ *      aggH). This is strictly stronger than the previous per-drone
+ *      `verdict` check used in the 2-drone-per-swarm rev: a single drone
+ *      passing is no longer enough — the whole 5-drone strip cover must
+ *      be proved.
  *
  * The `commander` slot is set once at deployment and is **immutable**.
  * The protocol provides no on-chain rotation path: if the commander
@@ -98,11 +104,16 @@ contract CommandLog {
     /**
      * @notice Record the convoy advance. Reverts unless:
      *         (1) caller is the commander, and
-     *         (2) Registry.verdict is SAFE for both (alphaMissionId, α) AND (bravoMissionId, β).
+     *         (2) Registry.missionSafe is true for BOTH alphaMissionId AND
+     *             bravoMissionId — i.e. every drone in both swarms has
+     *             landed a valid SAFE STARK proof and the Verifier has
+     *             aggregated the per-drone commitments.
      *
-     * @param alphaMissionId  α-lane mission id whose verdict must be SAFE
-     * @param bravoMissionId   β-lane mission id whose verdict must be SAFE
-     * @param speed     opaque speed value carried in the event (convention: 100 = full ahead; any non-zero uint256 is accepted)
+     * @param alphaMissionId  α-swarm mission id (must be missionSafe == true)
+     * @param bravoMissionId  β-swarm mission id (must be missionSafe == true)
+     * @param speed           opaque speed value carried in the event
+     *                        (convention: 100 = full ahead; any non-zero
+     *                        uint256 is accepted)
      */
     function advance(uint256 alphaMissionId, uint256 bravoMissionId, uint256 speed)
         external
@@ -110,14 +121,13 @@ contract CommandLog {
     {
         require(speed > 0, "CommandLog: speed must be > 0");
 
-        // Dual-SAFE precondition (re-checked on every Geth as the tx executes)
+        // Dual-SAFE precondition — both swarms must have ALL nDrones drones
+        // SAFE before the convoy may move. Re-checked on every node as the
+        // tx executes; a single call to `isDualSafe` keeps the gas profile
+        // close to the previous per-drone check.
         require(
-            registry.verdict(alphaMissionId, registry.DRONE_ALPHA()),
-            "CommandLog: alpha not SAFE"
-        );
-        require(
-            registry.verdict(bravoMissionId, registry.DRONE_BRAVO()),
-            "CommandLog: bravo not SAFE"
+            registry.isDualSafe(alphaMissionId, bravoMissionId),
+            "CommandLog: dual-mission not SAFE"
         );
 
         // Record the advance

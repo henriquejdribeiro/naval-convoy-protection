@@ -7,7 +7,7 @@ import "../src/Registry.sol";
 import "../src/Verifier.sol";
 import "../src/CommandLog.sol";
 import "../src/StarknetCoreStub.sol";
-import "../src/MockStarkVerifier.sol";
+import "./MockStarkVerifier.sol";
 
 /**
  * @title  Phase2Acceptance
@@ -73,8 +73,7 @@ contract Phase2AcceptanceTest is Test {
             address(registry),
             alphaRelay,
             bravoRelay,
-            address(mockStark),    // STARK verifier delegate (mock in tests)
-            0                      // cairoVerifierId — unused by the mock
+            address(mockStark)     // STARK verifier delegate (mock in tests)
         );
         commandLog = new CommandLog(address(registry), commander);
 
@@ -87,43 +86,20 @@ contract Phase2AcceptanceTest is Test {
     }
 
     // ───────────────────────────────────────────────────────────────────
-    //  Helper: build the proof-bytes calldata the MockStarkVerifier
-    //  needs. The mock reads cairoAuxInput[0] = programHash and
-    //  cairoAuxInput[1] = outputHash and accepts any proof. We pack
-    //  these into uint256s; the empty proofParams/proof/taskMetadata
-    //  arrays stand in for real STARK proof bytes that Stone would
-    //  emit in production.
+    //  Helper: simulate Stage A by writing the fact directly on the mock,
+    //  then call the Stage-B-only registerSafeProof on the convoy Verifier.
+    //  In production Stage A is path-a-runner; in unit tests we shortcut.
     // ───────────────────────────────────────────────────────────────────
-    function _mockProofArgs(Verifier.SafeProofInputs memory inputs)
-        internal pure
-        returns (
-            uint256[] memory proofParams,
-            uint256[] memory proof,
-            uint256[] memory taskMetadata,
-            uint256[] memory cairoAuxInput
-        )
-    {
-        proofParams  = new uint256[](0);
-        proof        = new uint256[](0);
-        taskMetadata = new uint256[](0);
-        cairoAuxInput = new uint256[](2);
-        cairoAuxInput[0] = uint256(inputs.programHash);
-        cairoAuxInput[1] = uint256(inputs.outputHash);
-    }
-
-    /// @dev Wrapper around verifier.registerSafeProof that auto-builds
-    ///      the proof-bytes calldata against the MockStarkVerifier.
-    ///      Replaces the old single-arg call signature throughout the
-    ///      test suite without changing any test logic.
     function _doRegister(Verifier.SafeProofInputs memory inputs)
         internal
         returns (uint256 proofId, bytes32 factHash)
     {
-        (uint256[] memory pp,
-         uint256[] memory p,
-         uint256[] memory tm,
-         uint256[] memory aux) = _mockProofArgs(inputs);
-        return verifier.registerSafeProof(inputs, pp, p, tm, aux);
+        // Pre-flag the fact on the mock — this is what path-a-runner
+        // would do in production by running the four-phase StarkWare
+        // submission.
+        factHash = keccak256(abi.encodePacked(inputs.programHash, inputs.outputHash));
+        mockStark.setFactValid(factHash, true);
+        return verifier.registerSafeProof(inputs);
     }
 
     // ───────────────────────────────────────────────────────────────────

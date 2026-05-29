@@ -46,10 +46,24 @@ services:
       - prover-output:/proofs
     environment:
       STONE_OUTPUT_DIR:  /proofs
+      # ── Stage B (submit_proof_l1.py against the convoy Verifier) ─────
       GETH_RPC_URL:      http://ship-a:8545
-      VERIFIER_ADDR:     "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"
+      # Convoy contracts on clean chain wired to LSB-patched GpsStatementVerifier.
+      VERIFIER_ADDR:     "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c"
+      REGISTRY_ADDR:     "0x68B1D87F95878fE05B998F19b66F4baba5De1aed"
       ALPHA_RELAY_PK:    "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
       BRAVO_RELAY_PK:    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+      # ── Stage A (FRESH canonical 8-builtin StarkWare stack on clean chain) ──
+      URL:                              http://ship-a:8545
+      PRIVATE_KEY:                      "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
+      # Deployed against a clean chain with LSB-aligned COMMITMENT_MASK in
+      # MerkleVerifier.sol (see contracts/lib/starkware-mainnet/PATCH.md).
+      # Addresses are deterministic from the anvil[0] deployer + nonce 0
+      # under the StarkWare deploy order, so they're stable across resets.
+      MERKLE_STATEMENT_CONTRACT_ADDR:   "0xa51c1fc2f0d1a1b8494ed1fe312d7c3a78ed91c0"
+      FRI_STATEMENT_CONTRACT_ADDR:      "0x0dcd1bf9a1b36ce34237eeafef220932846bcd82"
+      MEMORY_PAGE_FACT_REGISTRY_ADDR:   "0xb7f8bc63bbcad18155201308c8f3540b07f84f5e"
+      GPS_STATEMENT_VERIFIER_ADDR:      "0x959922be3caee4b8cd9a407cc3ac1c251c2007b1"
     networks:
       - convoy-l1
     deploy:
@@ -76,7 +90,7 @@ services:
       --name Madara
       --devnet
       --base-path /madara_db
-      --chain-config-override=chain_id=convoy_devnet,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --chain-config-override=chain_id=convoy_devnet,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=0s
       --rpc-external
       --rpc-cors all
       --feeder-gateway-enable

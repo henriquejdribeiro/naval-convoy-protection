@@ -2114,13 +2114,13 @@ section.container.container-wide .subtitle {
 .cs-event.proof   { border-left-color: #22c55e; }
 .cs-event.deploy  { border-left-color: #4fc3f7; }
 
-/* canvas — the SVG map */
+/* canvas — the SVG map (sized to the convoy-sim viewBox: 1480 × 1480) */
 .cs-canvas {
   position: relative;
   background: #050810;
   aspect-ratio: 1 / 1;
-  max-width: 460px;
-  max-height: 460px;
+  max-width: 720px;
+  max-height: 720px;
   align-self: center;
   margin: 8px auto 4px;
   overflow: hidden;

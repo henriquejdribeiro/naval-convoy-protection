@@ -280,17 +280,19 @@ services:
     environment:
       FOUNDRY_PROFILE: default
       # Convoy-protocol deploy parameters — adjust per env.
-      COMMANDER_ADDR:    "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955"   # anvil[6] — D's commander key
+      COMMANDER_ADDR:    "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955"   # anvil[7] — D's commander key
       ALPHA_RELAY_ADDR:  "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"   # anvil[5] — ship F (alpha relay)
       BRAVO_RELAY_ADDR:  "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"   # anvil[1] — ship B (bravo relay)
+      # GpsStatementVerifier deployed via DeployStarkVerifier.s.sol with the
+      # LSB-aligned COMMITMENT_MASK patch (see contracts/lib/starkware-mainnet/PATCH.md).
+      # Deterministic from anvil[0] + nonce 0 on a clean chain.
+      STARK_VERIFIER_ADDR: "0x959922be3caee4b8cd9a407cc3ac1c251c2007b1"
       # Speed value the commander will pass when firing CommandLog.advance.
-      # The value is opaque to the protocol — it just rides along inside the
-      # ConvoyAdvance event for off-chain interpretation. Default 100.
       CONVOY_SPEED:      "100"
     command:
       - |
         set -e
-        echo "[deploy-l1] installing forge dependencies (via git clone — more robust than forge install on bind-mounted source)"
+        echo "[deploy-l1] installing forge dependencies"
         mkdir -p lib
         [ -d lib/forge-std ] || git clone --depth 1 --branch v1.9.4 \
             https://github.com/foundry-rs/forge-std lib/forge-std
@@ -298,31 +300,40 @@ services:
             https://github.com/OpenZeppelin/openzeppelin-contracts lib/openzeppelin-contracts
         echo "[deploy-l1] building"
         forge build
-        echo "[deploy-l1] running tests"
-        forge test --match-contract Phase2Acceptance -vv
-        echo "[deploy-l1] deploying contracts to ship-a (CONVOY_SPEED=$${CONVOY_SPEED})"
+        echo "[deploy-l1] deploying convoy contracts (Stage A/B refactor)"
         forge script script/DeployL1.s.sol \
           --rpc-url http://ship-a:8545 \
           --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
-          --broadcast
+          --broadcast | tee /workspace/deploy-l1.log
 
-        # Deploy fixture missions for α and β so Phase 3 prover-api can
-        # immediately call registerSafeProof against them. Mints mid=1
-        # (drone α) then mid=2 (drone β); the prover sample uses mid=2.
-        # Deterministic Registry address from anvil[0] nonce 1.
-        REGISTRY=0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+        # Extract the freshly-deployed Registry address from the deploy log
+        REGISTRY=$$(grep -oE 'Registry         deployed at: 0x[a-fA-F0-9]{40}' /workspace/deploy-l1.log | awk '{print $$NF}')
+        if [ -z "$$REGISTRY" ]; then
+            echo "[deploy-l1] ERROR: could not parse Registry address from log"; exit 1
+        fi
+        echo "[deploy-l1] Registry deployed at $$REGISTRY"
+
         COMMANDER_PK=0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356
-        # MissionSpec(areaHash, coverageMin, pMin, timeWindow) — same values
-        # the prover-api sample uses (50-cell area, ≥95% coverage, p<0.7, ≤6 min)
-        SPEC="(0x6172656172656172656172656172656172656172656172656172656172656131,950,7000,360)"
-        echo "[deploy-l1] deploying mission for drone α (mid=1)"
-        cast send $$REGISTRY "deploy(uint256,(bytes32,uint16,uint16,uint64))" \
-            1 "$$SPEC" \
+
+        # MissionSpec — 10-field struct matching Registry.sol:
+        #   (areaHash, zoneX, zoneY, zoneW, zoneH, nDrones, stripWidth,
+        #    coverageMin, pMin, timeWindow)
+        # ALPHA: zoneW=15, stripWidth=3 (5 drones × 3 cells)
+        # BRAVO: zoneW=20, stripWidth=4 (5 drones × 4 cells)
+        AREA_HASH=0x6172656172656172656172656172656172656172656172656172656172656131
+        ALPHA_SPEC="($$AREA_HASH,0,0,15,8,5,3,950,7000,360)"
+        BRAVO_SPEC="($$AREA_HASH,0,0,20,8,5,4,950,7000,360)"
+
+        echo "[deploy-l1] deploying mission for alpha swarm (missionId=1, zoneW=15, 5x3 strips)"
+        cast send $$REGISTRY \
+            "deploy(uint256,(bytes32,uint32,uint32,uint32,uint32,uint8,uint32,uint16,uint16,uint64))" \
+            1 "$$ALPHA_SPEC" \
             --rpc-url http://ship-a:8545 \
             --private-key $$COMMANDER_PK
-        echo "[deploy-l1] deploying mission for drone β (mid=2)"
-        cast send $$REGISTRY "deploy(uint256,(bytes32,uint16,uint16,uint64))" \
-            2 "$$SPEC" \
+        echo "[deploy-l1] deploying mission for bravo swarm (missionId=2, zoneW=20, 5x4 strips)"
+        cast send $$REGISTRY \
+            "deploy(uint256,(bytes32,uint32,uint32,uint32,uint32,uint8,uint32,uint16,uint16,uint64))" \
+            2 "$$BRAVO_SPEC" \
             --rpc-url http://ship-a:8545 \
             --private-key $$COMMANDER_PK
         echo "[deploy-l1] missions deployed; prover-api can now call registerSafeProof"

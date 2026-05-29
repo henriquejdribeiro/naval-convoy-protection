@@ -3,52 +3,46 @@ pragma solidity ^0.6.12;
 
 /**
  * @title  StarkexBarrel
- * @notice Forces forge to compile the vendored StarkWare layout-6 verifier
- *         stack so DeployStarkVerifier.s.sol can deploy each contract by
+ * @notice Forces forge to compile the StarkWare mainnet `starknet`
+ *         (Layout 6, 7 builtins) verifier source so
+ *         DeployStarkVerifier.s.sol can deploy each contract by
  *         artifact name via `vm.deployCode("File.sol:Contract")`.
  *
- *         Without these imports, forge sees no compilation dependency on
- *         the starkex-contracts submodule (we never `import` from our
- *         0.8.x sources — that would be a cross-solc-version error — and
- *         `vm.deployCode` is a runtime lookup, not a compile-time dep).
- *         The contracts would be left out of `out/`, and the deploy
- *         script would revert at the first `vm.deployCode` call with
- *         "no matching artifact".
+ *         Sources here are Sourcify-verified mainnet contracts.
+ *         The canonical addresses on Ethereum mainnet are:
  *
- *         This file is pragma ^0.6.12 to match the StarkWare contracts;
- *         it produces no deployable bytecode of its own (no contract
- *         declaration). Each imported symbol is unused — solc will warn,
- *         the warning is harmless and expected.
+ *           GpsStatementVerifier   0x9fb7F48dCB26b7bFA4e580b2dEFf637B13751942
+ *           CpuFrilessVerifier (cairoVerifierId=6)
+ *                                  0xe155154845950573ec5f518fc0d4950ab71303ff
+ *           CairoBootloaderProgram 0x58600a1dc51dcf7d4f541a8f1f5c6c6aa86cc515
  *
- *         If you bump the starkex-contracts submodule and a contract is
- *         renamed/moved upstream, the corresponding import here breaks
- *         immediately at `forge build` — that's the point. This file is
- *         the compile-time canary for the vendored verifier path.
- *
- *         Order doesn't matter — solc resolves transitive imports.
+ *         stark-evm-adapter targets cairoVerifierId=6 by default and
+ *         its annotated_proof.json fixture uses layout="starknet" --
+ *         the 7-builtin layout (no keccak). Our deploy mirrors that
+ *         configuration locally.
  */
 
-// ── Layout-6 specifics (round-key columns + OODS + constraint poly) ──
-import "../lib/starkex-contracts/evm-verifier/solidity/contracts/cpu/layout6/CpuConstraintPoly.sol";
-import "../lib/starkex-contracts/evm-verifier/solidity/contracts/cpu/layout6/CpuFrilessVerifier.sol";
-import "../lib/starkex-contracts/evm-verifier/solidity/contracts/cpu/layout6/CpuOods.sol";
-import "../lib/starkex-contracts/evm-verifier/solidity/contracts/cpu/layout6/PoseidonPoseidonFullRoundKey0Column.sol";
-import "../lib/starkex-contracts/evm-verifier/solidity/contracts/cpu/layout6/PoseidonPoseidonFullRoundKey1Column.sol";
-import "../lib/starkex-contracts/evm-verifier/solidity/contracts/cpu/layout6/PoseidonPoseidonFullRoundKey2Column.sol";
-import "../lib/starkex-contracts/evm-verifier/solidity/contracts/cpu/layout6/PoseidonPoseidonPartialRoundKey0Column.sol";
-import "../lib/starkex-contracts/evm-verifier/solidity/contracts/cpu/layout6/PoseidonPoseidonPartialRoundKey1Column.sol";
+// ── Layout-6 (starknet, 7 builtins) specifics ──
+import "../lib/starkware-mainnet/starkware/solidity/verifier/cpu/layout6/CpuConstraintPoly.sol";
+import "../lib/starkware-mainnet/starkware/solidity/verifier/cpu/layout6/CpuFrilessVerifier.sol";
+import "../lib/starkware-mainnet/starkware/solidity/verifier/cpu/layout6/CpuOods.sol";
+import "../lib/starkware-mainnet/starkware/solidity/verifier/cpu/layout6/PoseidonPoseidonFullRoundKey0Column.sol";
+import "../lib/starkware-mainnet/starkware/solidity/verifier/cpu/layout6/PoseidonPoseidonFullRoundKey1Column.sol";
+import "../lib/starkware-mainnet/starkware/solidity/verifier/cpu/layout6/PoseidonPoseidonFullRoundKey2Column.sol";
+import "../lib/starkware-mainnet/starkware/solidity/verifier/cpu/layout6/PoseidonPoseidonPartialRoundKey0Column.sol";
+import "../lib/starkware-mainnet/starkware/solidity/verifier/cpu/layout6/PoseidonPoseidonPartialRoundKey1Column.sol";
 
-// ── Periodic columns shared across layouts ───────────────────────────
-import "../lib/starkex-contracts/evm-verifier/solidity/contracts/cpu/periodic_columns/PedersenHashPointsXColumn.sol";
-import "../lib/starkex-contracts/evm-verifier/solidity/contracts/cpu/periodic_columns/PedersenHashPointsYColumn.sol";
-import "../lib/starkex-contracts/evm-verifier/solidity/contracts/cpu/periodic_columns/EcdsaPointsXColumn.sol";
-import "../lib/starkex-contracts/evm-verifier/solidity/contracts/cpu/periodic_columns/EcdsaPointsYColumn.sol";
+// ── Periodic columns shared with other layouts ───────────────────────
+import "../lib/starkware-mainnet/starkware/solidity/verifier/cpu/periodic_columns/PedersenHashPointsXColumn.sol";
+import "../lib/starkware-mainnet/starkware/solidity/verifier/cpu/periodic_columns/PedersenHashPointsYColumn.sol";
+import "../lib/starkware-mainnet/starkware/solidity/verifier/cpu/periodic_columns/EcdsaPointsXColumn.sol";
+import "../lib/starkware-mainnet/starkware/solidity/verifier/cpu/periodic_columns/EcdsaPointsYColumn.sol";
 
 // ── Bootloader + fact registries ──────────────────────────────────────
-import "../lib/starkex-contracts/evm-verifier/solidity/contracts/cpu/CairoBootloaderProgram.sol";
-import "../lib/starkex-contracts/evm-verifier/solidity/contracts/cpu/MemoryPageFactRegistry.sol";
-import "../lib/starkex-contracts/evm-verifier/solidity/contracts/MerkleStatementContract.sol";
-import "../lib/starkex-contracts/evm-verifier/solidity/contracts/FriStatementContract.sol";
+import "../lib/starkware-mainnet/starkware/solidity/verifier/cpu/CairoBootloaderProgram.sol";
+import "../lib/starkware-mainnet/starkware/solidity/verifier/cpu/MemoryPageFactRegistry.sol";
+import "../lib/starkware-mainnet/starkware/solidity/verifier/MerkleStatementContract.sol";
+import "../lib/starkware-mainnet/starkware/solidity/verifier/FriStatementContract.sol";
 
 // ── Top-level public entry point ──────────────────────────────────────
-import "../lib/starkex-contracts/evm-verifier/solidity/contracts/gps/GpsStatementVerifier.sol";
+import "../lib/starkware-mainnet/starkware/solidity/verifier/gps/GpsStatementVerifier.sol";

@@ -28,107 +28,139 @@ import { poseidonHashChain, toHex, toHexShort } from './poseidon-core.js';
 // no separate L1 box; verification fans out peer-to-peer across the ring.
 
 const GRID = 40;
-const VIEW_W = 960;
-const VIEW_H = 960;                    // bottom-y of the world
-// Zone is at y=120–440 (320 px tall). The convoy starts south of it (y=520+).
-// Original viewBox had only 120 px of visible canvas above the zone — not
-// enough for the convoy to advance THROUGH the zone and finish in clean
-// water on the far side. We extend the viewBox upward by SAFE_BAND so the
-// post-zone "after" margin (520 px) equals the pre-zone "before" margin.
-const SAFE_BAND = 400;
-const VIEW_Y0 = -SAFE_BAND;            // viewBox top (negative = extended)
-const VIEW_BOX_H = VIEW_H - VIEW_Y0;   // 1360 — total visible vertical span
+// World is 1480 wide × 960 tall (post-zone safe-band extends viewBox upward
+// by 400 px). 8 × 35 frontal zone: Alpha (15 cells) + Bravo (20 cells).
+const VIEW_W = 1480;
+const VIEW_H = 960;
+// SAFE_BAND extends the viewBox upward so the entire convoy can advance
+// north of the zone AND stay visible. Convoy ends at y in [-440, -200]
+// (full traversal); canvas top at y=-520 gives ~58 px margin above ship A.
+const SAFE_BAND = 520;
+const VIEW_Y0 = -SAFE_BAND;
+const VIEW_BOX_H = VIEW_H - VIEW_Y0;   // 1480
 
-// Ships and HVUs centred on x=440 (area-junction column, on grid).
-// Horizontal margin = 3 grid squares (120) each side. A and D equidistant
-// (120 units) from HVU-2.
+// Ships and HVUs centred on x=640 — the column where the Alpha and Bravo
+// zones meet. Same hex formation, shifted east to align with the new wider
+// zone AND shifted south by 120 px (3 grid cells) so the convoy starts
+// further from the zone. Every position lands on a grid vertex
+// (multiples of GRID=40) — required for the cell-aligned visual.
 const SHIPS = {
-    A: { x: 440, y: 520, role: 'forward',         relays: ['alpha', 'bravo'] },
-    B: { x: 560, y: 600, role: 'forward-right',   relays: ['bravo']          },
-    C: { x: 560, y: 680, role: 'missionId-right',       relays: ['bravo']          },
-    D: { x: 440, y: 760, role: 'commander',       relays: []                 },
-    E: { x: 320, y: 680, role: 'missionId-left',        relays: ['alpha']          },
-    F: { x: 320, y: 600, role: 'forward-left',    relays: ['alpha']          },
+    A: { x: 640, y: 640, role: 'forward',           relays: ['alpha', 'bravo'] },
+    B: { x: 760, y: 720, role: 'forward-right',     relays: ['bravo']          },
+    C: { x: 760, y: 800, role: 'missionId-right',   relays: ['bravo']          },
+    D: { x: 640, y: 880, role: 'commander',         relays: []                 },
+    E: { x: 520, y: 800, role: 'missionId-left',    relays: ['alpha']          },
+    F: { x: 520, y: 720, role: 'forward-left',      relays: ['alpha']          },
 };
 
 const PROTECTED_SHIPS = [
-    { x: 440, y: 600 },   // HVU-1
-    { x: 440, y: 640 },   // HVU-2 (centre)
-    { x: 440, y: 680 },   // HVU-3
+    { x: 640, y: 720 },   // HVU-1
+    { x: 640, y: 760 },   // HVU-2 (centre)
+    { x: 640, y: 800 },   // HVU-3
 ];
 
-// L2 sequencer drones — they ARE the drones. Each has a home vertex and a
-// sweep path that takes them from home, into the area, through the sweep,
-// and back home. Position is interpolated along the path during Phase 2.
-const L2_NODES = [
-    { id: 'L2-A', home: { x: 200, y: 600 }, color: '#fb923c', sweepKey: 'alpha' },
-    { id: 'L2-B', home: { x: 680, y: 600 }, color: '#fb923c', sweepKey: 'bravo' },
-];
-
-// Frontal sweep areas — corners on grid. Areas TOUCH at x=440.
-// Vertical = 8 squares tall (320). Horizontal margin = 3 squares each side.
-const ALPHA_AREA = { x: 120, y: 120, w: 320, h: 320 };   // 320 × 320
-const BRAVO_AREA = { x: 440, y: 120, w: 400, h: 320 };   // 400 × 320 (1.25× Alpha)
+// Frontal sweep zone: 8 cells tall × 35 cells wide.
+//   EX-010 (Alpha) = 8 × 15 on the LEFT  (touches B/F's column at x=640)
+//   EX-011 (Bravo) = 8 × 20 on the RIGHT
+// The two zones touch at x=640 (the convoy's centreline).
+const ALPHA_AREA = { x:  40, y: 120, w: 600, h: 320 };   // 15 × 8 cells
+const BRAVO_AREA = { x: 640, y: 120, w: 800, h: 320 };   // 20 × 8 cells
 const ALPHA_CENTER = { x: ALPHA_AREA.x + ALPHA_AREA.w/2, y: ALPHA_AREA.y + ALPHA_AREA.h/2 };
 const BRAVO_CENTER = { x: BRAVO_AREA.x + BRAVO_AREA.w/2, y: BRAVO_AREA.y + BRAVO_AREA.h/2 };
+// Kept for back-compat: the whole Bravo zone is now the swept region (no
+// separate corridor in the 5-drone-strip partition).
+const BRAVO_CORRIDOR = BRAVO_AREA;
 
-// Bravo corridor — the inner band where drones do their actual sweep.
-// Pattern matches the spec's a:2a:a layout (a = 2 squares = 80; corridor = 4 squares).
-const BRAVO_CORRIDOR = { x: 440, y: 200, w: 400, h: 160 };
-
-// L2-A drone — sensor reaches 2 grid squares (80 units). 4 vertical strokes
-// (UP → right → DOWN → right → UP → right → DOWN). Drone enters at the
-// area's BOTTOM-left so the first stroke goes UP, matching the spec drawing.
-const ALPHA_DRONES = [{
-    id: 'L2-A', color: '#ef4444',     // RED (matches the spec sketch)
-    sensor: GRID,                      // radius = 1 square (3×3 footprint)
-    area: ALPHA_AREA,
-    waypoints: buildAlphaVerticalZigZag(),
-}];
-function buildAlphaVerticalZigZag() {
-    // Explicit vertex list in user grid coords (bottom-left origin, y up).
-    // Translate to internal pixels (x*40, (24-y)*40).
-    const G = (x, y) => ({ x: x * GRID, y: (24 - y) * GRID });
-    return [
-        G(5, 9),     //  1. home
-        G(5, 12),    //  2. 3 north
-        G(10, 12),   //  3. 5 east
-        G(10, 20),   //  4. 8 north
-        G(8, 20),    //  5. 2 west
-        G(8, 14),    //  6. 6 south
-        G(6, 14),    //  7. 2 west
-        G(6, 20),    //  8. 6 north
-        G(4, 20),    //  9. 2 west
-        G(4, 9),     // 10. 11 south
-        G(5, 9),     // 11. 1 east — home
-    ];
+// L2 swarms — five drones each. Drones launch from a small cluster next to
+// their relay ship (F for Alpha, B for Bravo), fan out to an assigned
+// vertical strip in the zone, sweep north to the top, return south to home.
+//
+//   Alpha: 15-cell wide zone / 5 drones = 3 cells per strip (120 px wide)
+//   Bravo: 20-cell wide zone / 5 drones = 4 cells per strip (160 px wide)
+//
+// Each drone uses sensor radius 2 (4-cell-wide footprint) so the swarm
+// covers its zone with mild overlap (Alpha) or exact tiling (Bravo).
+// Alpha drones have a SMALLER sensor (radius 1 = 2-cell footprint). To
+// cover their 3-cell-wide strip they walk one side of the strip going up
+// and the other side coming back — a "go and back" U-shape that traces
+// both edges of the strip in opposite directions.
+//
+// Home positions: compact 2×2+1 cluster W of Ship F (520, 720), pushed
+// one cell further outboard so the cluster has clear sea between itself
+// and the convoy. Every drone sits on a grid vertex.
+const ALPHA_HOMES = [
+    { x: 400, y: 680 }, { x: 440, y: 680 },       // top row — outboard, inboard
+    { x: 400, y: 720 }, { x: 440, y: 720 },       // mid row — level with F
+    { x: 400, y: 760 },                           // tail   — outboard
+];
+const ALPHA_DRONES = [];
+for (let i = 0; i < 5; i++) {
+    const stripL = ALPHA_AREA.x + 40 + i * 120;             // left edge of strip i:  80, 200, 320, 440, 560
+    const stripR = ALPHA_AREA.x + 80 + i * 120;             // right edge of strip i: 120, 240, 360, 480, 600
+    const home   = ALPHA_HOMES[i];
+    ALPHA_DRONES.push({
+        id: `α${i + 1}`,
+        color: '#ef4444',                                   // RED (Alpha swarm)
+        sensor: GRID,                                       // radius = 1 square (2-cell footprint)
+        area: ALPHA_AREA,
+        home,
+        waypoints: [
+            { x: home.x, y: home.y },                       // 1. home — beside F
+            { x: stripL, y: 440 },                          // 2. enter strip at SW corner
+            { x: stripL, y: 120 },                          // 3. sweep NORTH up the left column
+            { x: stripR, y: 120 },                          // 4. slide one cell east at the top
+            { x: stripR, y: 440 },                          // 5. sweep SOUTH down the right column
+            { x: home.x, y: home.y },                       // 6. return home
+        ],
+    });
 }
 
-// L2-B drone — sensor reaches 2 grid squares (80 units = 2a). Only 2 horizontal
-// sweeps are needed to fully cover the 4-row corridor: sweep at y=200 covers
-// rows 1-2, sweep at y=280 covers rows 3-4. Exits at corridor bottom-left.
-const BRAVO_DRONES = [{
-    id: 'L2-B', color: '#3b82f6',     // BLUE (matches the spec sketch)
-    sensor: GRID * 2,                  // radius = 2 squares (5×5 footprint)
-    area: BRAVO_CORRIDOR,              // only the corridor counts as covered
-    waypoints: buildBravoTwoSweepPath(),
-}];
-function buildBravoTwoSweepPath() {
-    // Explicit vertex list in user grid coords (bottom-left origin, y up).
-    const G = (x, y) => ({ x: x * GRID, y: (24 - y) * GRID });
-    return [
-        G(17, 9),    //  1. home
-        G(17, 12),   //  2. 3 north
-        G(13, 12),   //  3. 4 west
-        G(13, 15),   //  4. 3 north
-        G(19, 15),   //  5. 6 east
-        G(19, 19),   //  6. 4 north
-        G(13, 19),   //  7. 6 west
-        G(13, 12),   //  8. 7 south
-        G(17, 12),   //  9. 4 east
-        G(17, 9),    // 10. 3 south — home
-    ];
+// Bravo drones have a BIGGER sensor (radius 2 = 4-cell footprint = exactly
+// the strip width). One pass north covers the whole strip — no return sweep
+// needed. After reaching the zone's north edge, they fly straight home
+// (the return leg is not a sweep, just travel).
+//
+// Home positions: compact 2×2+1 cluster just E of Ship B (760, 720),
+// 80 px outboard — mirror-symmetric with Alpha across the convoy
+// centreline (x=640). One grid-cell of clear sea between cluster and ship.
+//   α1 (400, 680) ↔ β1 (880, 680)   — both outboard
+//   α2 (440, 680) ↔ β2 (840, 680)   — both inboard
+//   α5 (400, 760) ↔ β5 (880, 760)   — both outboard tails
+const BRAVO_HOMES = [
+    { x: 880, y: 680 }, { x: 840, y: 680 },       // top row — outboard, inboard
+    { x: 880, y: 720 }, { x: 840, y: 720 },       // mid row — level with B
+    { x: 880, y: 760 },                           // tail   — outboard
+];
+const BRAVO_DRONES = [];
+for (let i = 0; i < 5; i++) {
+    const stripCenterX = BRAVO_AREA.x + 80 + i * 160;       // 720, 880, 1040, 1200, 1360
+    const home         = BRAVO_HOMES[i];
+    BRAVO_DRONES.push({
+        id: `β${i + 1}`,
+        color: '#3b82f6',                                    // BLUE (Bravo swarm)
+        sensor: GRID * 2,                                    // radius = 2 squares (4-cell footprint)
+        area: BRAVO_AREA,
+        home,
+        waypoints: [
+            { x: home.x,       y: home.y },                  // 1. home — beside B
+            { x: stripCenterX, y: 440 },                     // 2. enter strip at zone bottom
+            { x: stripCenterX, y: 120 },                     // 3. sweep north to zone top  ←  the only sweep
+            { x: home.x,       y: home.y },                  // 4. return home (non-sweep travel)
+        ],
+    });
 }
+
+// L2_NODES are the labelled drone-sequencer circles drawn on the canvas.
+// One per drone (5 each swarm). `droneIdx` selects which drone's waypoints
+// drive its position during the sweep phase.
+const L2_NODES = [
+    ...ALPHA_DRONES.map((d, i) => ({
+        id: d.id, home: d.home, color: '#fb923c', sweepKey: 'alpha', droneIdx: i,
+    })),
+    ...BRAVO_DRONES.map((d, i) => ({
+        id: d.id, home: d.home, color: '#fb923c', sweepKey: 'bravo', droneIdx: i,
+    })),
+];
 
 // ── Compute commitments from drone sweep data ────────────────────────────
 // Each sweep cell coordinate is folded into a Poseidon hash chain.
@@ -260,16 +292,17 @@ function positionAlongPath(wp, p) {
 function renderL2Nodes(alphaProgress, bravoProgress, advanceOffset = 0) {
     let s = '';
     for (const n of L2_NODES) {
-        const prog = (n.sweepKey === 'alpha') ? alphaProgress : bravoProgress;
-        const path = (n.sweepKey === 'alpha') ? ALPHA_DRONES[0].waypoints : BRAVO_DRONES[0].waypoints;
+        const prog  = (n.sweepKey === 'alpha') ? alphaProgress : bravoProgress;
+        const swarm = (n.sweepKey === 'alpha') ? ALPHA_DRONES  : BRAVO_DRONES;
+        const path  = swarm[n.droneIdx].waypoints;
         const base = (prog > 0) ? positionAlongPath(path, prog) : n.home;
         const cx = base.x;
         const cy = base.y - advanceOffset;     // travel forward with the convoy
         s += `<g class="l2-node">
-                <circle cx="${cx}" cy="${cy}" r="20"
+                <circle cx="${cx}" cy="${cy}" r="14"
                         fill="#1a0e05" stroke="${n.color}" stroke-width="2"/>
-                <text x="${cx}" y="${cy + 4}" text-anchor="middle"
-                      font-family="Consolas,monospace" font-size="10"
+                <text x="${cx}" y="${cy + 3}" text-anchor="middle"
+                      font-family="Consolas,monospace" font-size="9"
                       font-weight="700" fill="${n.color}">${n.id}</text>
               </g>`;
     }
@@ -421,8 +454,11 @@ function renderMissionDeploy(progress) {
     const D    = SHIPS.D;
     const F    = SHIPS.F;
     const B    = SHIPS.B;
+    // L2_NODES[0] = α1 (first Alpha drone); L2_NODES[5] = β1 (first Bravo
+    // drone). Indices shifted from the original 2-drone model where [1]
+    // used to mean "the Bravo node" — now [5] is the first Bravo drone.
     const L2A  = L2_NODES[0].home;
-    const L2B  = L2_NODES[1].home;
+    const L2B  = L2_NODES[5].home;
     const peers = ['A', 'B', 'C', 'E', 'F'];
     let s = '';
 
@@ -509,8 +545,9 @@ function renderAdvanceBroadcast(progress) {
                     opacity="0.85"/>`;
         s += `<circle cx="${fpx}" cy="${fpy}" r="4" fill="#22c55e"/>`;
 
-        // B → L2-Bravo (purple to match the β swarm)
-        const tgtB = L2_NODES[1].home;
+        // B → L2-Bravo (purple to match the β swarm).
+        // L2_NODES[5] is the first Bravo drone (β1).
+        const tgtB = L2_NODES[5].home;
         const bpx = B.x + t2 * (tgtB.x - B.x);
         const bpy = B.y + t2 * (tgtB.y - B.y);
         s += `<line x1="${B.x}" y1="${B.y}" x2="${bpx}" y2="${bpy}"
@@ -575,7 +612,9 @@ function renderScene(cfg) {
         inner += renderProofRelay(L2_NODES[0].home.x, L2_NODES[0].home.y, cfg.alphaProof.viaShip, '#ef4444', cfg.alphaProof.progress);
     }
     if (cfg.bravoProof) {
-        inner += renderProofRelay(L2_NODES[1].home.x, L2_NODES[1].home.y, cfg.bravoProof.viaShip, '#3b82f6', cfg.bravoProof.progress);
+        // Bravo proof originates from the Bravo swarm (β1 at L2_NODES[5]),
+        // not from L2_NODES[1] (which is the second Alpha drone, α2).
+        inner += renderProofRelay(L2_NODES[5].home.x, L2_NODES[5].home.y, cfg.bravoProof.viaShip, '#3b82f6', cfg.bravoProof.progress);
     }
     if (cfg.advanceBroadcast) {
         inner += renderAdvanceBroadcast(cfg.advanceBroadcast);
@@ -753,7 +792,15 @@ function buildFrames() {
     // To finish symmetrically — rear ship D ending 80 px NORTH of the zone's
     // top edge (y=120) — D must travel from y=760 to y=40, i.e. 720 px.
     const advSteps = 30;
-    const advStepSize = 24;          // 30 × 24 = 720 px total travel
+    // 30 × 36 = 1080 px total travel. Convoy starts at y=640..880 (after
+    // the +120 south shift) and the zone occupies y=120..440. End state:
+    //   A (lead)        y=640 → y=-440   (in safe band, ~60 px from top)
+    //   F, B (flanks)   y=720 → y=-360
+    //   E, C (mid)      y=800 → y=-280
+    //   D (commander)   y=880 → y=-200   (320 px past zone top at y=120)
+    // The ENTIRE convoy is north of the zone with clear water below.
+    const advStepSize = 36;          // 30 × 36 = 1080 px total travel
+
     for (let i = 1; i <= advSteps; i++) {
         F.push({
             phase: '8/8 — convoy advance',

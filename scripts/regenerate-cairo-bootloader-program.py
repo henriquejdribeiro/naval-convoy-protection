@@ -45,7 +45,10 @@ from pathlib import Path
 
 
 SRC = Path("vendor/cairo-bootloader/resources/bootloader-0.13.0.json")
-DST = Path("contracts/lib/starkex-contracts/evm-verifier/solidity/contracts/cpu/CairoBootloaderProgram.sol")
+# Convoy: target path moved from the starkex-contracts vendor (Layout-6
+# era, smaller verifier) to the starkware-mainnet vendor (Layout-7
+# starknet_with_keccak, byte-identical to what mainnet has deployed).
+DST = Path("contracts/lib/starkware-mainnet/starkware/solidity/verifier/cpu/CairoBootloaderProgram.sol")
 
 
 HEADER = """// ---------- The following code was auto-generated. PLEASE DO NOT EDIT. ----------
