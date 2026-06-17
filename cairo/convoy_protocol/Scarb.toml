@@ -13,7 +13,7 @@ edition     = "2024_07"
 description = "L2 contract — drone telemetry + sweep commitment for the convoy protocol"
 
 [dependencies]
-starknet = ">=2.9.2"
+starknet = ">=2.11.4"
 
 [[target.starknet-contract]]
 sierra = true

@@ -1,148 +1,75 @@
 #!/usr/bin/env bash
 # =============================================================================
-# generate-drone-accounts.sh — create 5 fresh OZ accounts per swarm and
-#                              deploy them on each Madara devnet.
+# generate-drone-accounts.sh — create 5 OZ accounts per swarm and deploy
+#                              them on each Madara devnet.
 #
 # Output:
-#   .tmp-l2/drones-alpha.env — DRONE_{1..5}_{ADDR,KEYSTORE,PUBKEY}
-#   .tmp-l2/drones-bravo.env — same for the bravo swarm
-#   .tmp-l2/drones/{swarm}/{i}/keystore.json  — encrypted keystore per drone
+#   .tmp-l2/drones-alpha.env — ALPHA_DRONE_{1..5}_{ADDR,PUBKEY,KEYSTORE}
+#   .tmp-l2/drones-bravo.env — BRAVO_DRONE_{1..5}_{ADDR,PUBKEY,KEYSTORE}
+#   .tmp-l2/drones/{swarm}/{i}/keystore.json — encrypted keystore per drone
 #
-# Each drone gets its OWN keypair so submit_telemetry's
-#   assert(get_caller_address() == drone_addr[(mid, did)])
-# check in convoy_protocol enforces real per-drone authentication.
+# How (and why this differs from DEPLOY_ACCOUNT):
+#   We use account #1 (pre-funded by Madara devnet's genesis) to call the
+#   Universal Deployer Contract (UDC), which deploys an OZ account with the
+#   drone's public key as constructor calldata. The OZ class is the one
+#   Madara devnet pre-declares at genesis (class hash $OZ_ACCOUNT_CLASS_HASH).
 #
-# Why no funding step?
-#   Madara is launched with --no-transaction-validation (see docker-compose.l2.yml).
-#   Fee deduction is bypassed at the sequencer level, so a brand-new account
-#   with 0 balance can still send transactions. Predeployed account #1 only
-#   pays for the *deployment bytecode write* (zero-cost in our devnet), it
-#   does not transfer any STRK / ETH to the drones.
+#   Why not `starkli account deploy` (i.e. self-deploy via DEPLOY_ACCOUNT)?
+#   The starkli fee-estimation path queries the not-yet-deployed account
+#   for its nonce + max_fee, fails, and the tx never reaches the mempool —
+#   even under Madara's --no-transaction-validation. Going through account
+#   #1 + UDC sidesteps that because account #1 already exists.
 #
 # Prereqs:
-#   - convoy-madara-alpha + convoy-madara-bravo are UP and HEALTHY
-#       docker compose -f docker-compose.l1.yml -f docker-compose.l2.yml \
-#           --profile l2 up -d madara-alpha madara-bravo
-#   - convoy-cairo-builder image built (used to run starkli)
+#   - convoy-madara-{alpha,bravo} up and healthy
+#   - convoy-cairo-builder image built
 # =============================================================================
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-
-# Predeployed Madara devnet account #1 — pre-funded (irrelevant on
-# --no-transaction-validation), used here only to broadcast the
-# UDC deployment txs for the drone accounts.
-DEPLOYER_ADDR="0x055be462e718c4166d656d11f89e341115b8bc82389c3762a10eade04fcb225d"
-DEPLOYER_PK="0x077e56c6dc32d40a67f6f7e6625c8dc5e570abe49c0a24e9202e4ae906abcc07"
-DEPLOYER_CLASS="0xe2eb8f5672af4e6a4e8a8f1b44989685e668489b0a25437733756c5a34a1d6"
-
-# OZ account class hash. Madara devnet pre-declares the OZ class at
-# genesis, so we don't need to declare it ourselves.
-OZ_CLASS_HASH="0x061dac032f228abef9c6626f995015233097ae253a7f72d68552db02f2971b8f"
-
 RPC_VERSION="0.8.1"
 N_DRONES=5
+KEYSTORE_PWD="convoy"
 
-# Run starkli inside cairo-builder, mounted at /work.
-SCARB_RUN() {
-    local rpc_url="$1"; shift
+# Madara devnet pre-declared OZ account class. Same on both alpha and bravo
+# because both ran with `--devnet` (deterministic genesis state).
+OZ_ACCOUNT_CLASS_HASH="0xe2eb8f5672af4e6a4e8a8f1b44989685e668489b0a25437733756c5a34a1d6"
+
+# Pre-funded account #1 (used as the UDC caller — it pays the deployment
+# of each drone's OZ account contract).
+DEPLOYER_ADDR="0x055be462e718c4166d656d11f89e341115b8bc82389c3762a10eade04fcb225d"
+DEPLOYER_PK="0x077e56c6dc32d40a67f6f7e6625c8dc5e570abe49c0a24e9202e4ae906abcc07"
+DEPLOYER_CLASS="${OZ_ACCOUNT_CLASS_HASH}"
+
+# Run starkli inside cairo-builder.
+SK() {
+    local rpc="$1"; shift
+    local rpc_env=""
+    [ -n "${rpc}" ] && rpc_env="-e STARKNET_RPC=${rpc}"
     MSYS_NO_PATHCONV=1 docker run --rm \
         --network convoy-l1 \
-        -v "${REPO_ROOT}:/work" \
-        -e STARKNET_RPC="${rpc_url}" \
-        -e STARKNET_KEYSTORE_PASSWORD="convoy" \
-        -w /work \
-        convoy-cairo-builder:latest \
-        "$@"
+        -v "${REPO_ROOT}:/work" -w /work \
+        -e STARKNET_KEYSTORE_PASSWORD="${KEYSTORE_PWD}" \
+        ${rpc_env} \
+        convoy-cairo-builder starkli "$@"
 }
 
-# Deploy a fresh OZ account on the given madara. Inputs:
-#   $1 = swarm (alpha/bravo)
-#   $2 = drone_id (1..5)
-# Side effects: writes keystore.json + .signer files; echoes the new
-# account's ContractAddress.
-mint_drone_account() {
+# Set up a starkli account file + keystore for the deployer (account #1).
+# Idempotent: only writes the files once per swarm directory.
+prep_deployer_account() {
     local swarm="$1"
-    local did="$2"
-    local madara_host="convoy-madara-${swarm}"
-    local rpc_url="http://${madara_host}:9944/rpc/v${RPC_VERSION}"
-    local out_dir="${REPO_ROOT}/.tmp-l2/drones/${swarm}/${did}"
-
-    mkdir -p "${out_dir}"
-    local ks="${out_dir}/keystore.json"
-    local pk_txt="${out_dir}/_pk.txt"
-    local acc_file="${out_dir}/account.json"
-
-    # 1. Generate a fresh raw private key (32 bytes)
-    MSYS_NO_PATHCONV=1 docker run --rm \
-        -v "${REPO_ROOT}:/work" -w /work \
-        convoy-cairo-builder:latest \
-        bash -c "starkli signer keystore from-key /work/.tmp-l2/drones/${swarm}/${did}/keystore.json --password convoy --force < <(starkli signer gen-keypair | awk '/Private/ {print \$NF}') >/dev/null"
-
-    # Derive the public key from the keystore
-    local pubkey
-    pubkey=$(MSYS_NO_PATHCONV=1 docker run --rm \
-        -v "${REPO_ROOT}:/work" -w /work \
-        -e STARKNET_KEYSTORE_PASSWORD=convoy \
-        convoy-cairo-builder:latest \
-        starkli signer keystore inspect "${ks#${REPO_ROOT}/}" --raw --password convoy 2>/dev/null | tail -n1)
-
-    # 2. Compute the counterfactual OZ account address from
-    #    (class_hash, salt, constructor_calldata = [pubkey])
-    #    starkli account oz init writes an account.json with the address.
-    MSYS_NO_PATHCONV=1 docker run --rm \
-        -v "${REPO_ROOT}:/work" -w /work \
-        -e STARKNET_KEYSTORE_PASSWORD=convoy \
-        convoy-cairo-builder:latest \
-        starkli account oz init "${acc_file#${REPO_ROOT}/}" --keystore "${ks#${REPO_ROOT}/}" --password convoy --force >/dev/null
-
-    # Extract the predicted address from account.json
-    local addr
-    addr=$(MSYS_NO_PATHCONV=1 docker run --rm \
-        -v "${REPO_ROOT}:/work" -w /work \
-        convoy-cairo-builder:latest \
-        python3 -c "
-import json
-d = json.load(open('${acc_file#${REPO_ROOT}/}'))
-print(d['deployment']['address'])
-")
-
-    # 3. Deploy the account by sending a DEPLOY_ACCOUNT tx. starkli does this
-    #    via `account deploy`. No funding needed in our --no-transaction-validation
-    #    devnet — the fee field is set to 0 and the sequencer accepts it.
-    SCARB_RUN "${rpc_url}" \
-        starkli account deploy "${acc_file#${REPO_ROOT}/}" \
-            --keystore "${ks#${REPO_ROOT}/}" \
-            --password convoy \
-            --rpc "${rpc_url}" \
-            --watch >/dev/null 2>&1 || {
-                echo "[mint/${swarm}/${did}] DEPLOY_ACCOUNT failed — falling back to UDC dispatch"
-                # Fallback: use deployer account to deploy via UDC
-                _udc_deploy_via_account_1 "${swarm}" "${pubkey}" "${addr}" || return 1
-            }
-
-    echo "${addr}|${pubkey}|${ks}"
-}
-
-# Fallback path: deployer account uses the UDC to spawn the new OZ account.
-_udc_deploy_via_account_1() {
-    local swarm="$1"
-    local pubkey="$2"
-    local expected_addr="$3"
-    local madara_host="convoy-madara-${swarm}"
-    local rpc_url="http://${madara_host}:9944/rpc/v${RPC_VERSION}"
-    local salt="0x0"
-
-    # Write deployer keystore + account file (once per swarm; idempotent)
     local dep_dir="${REPO_ROOT}/.tmp-l2/drones/${swarm}/_deployer"
     mkdir -p "${dep_dir}"
+
     if [ ! -f "${dep_dir}/keystore.json" ]; then
         printf "%s" "${DEPLOYER_PK}" > "${dep_dir}/_pk.txt"
-        MSYS_NO_PATHCONV=1 docker run --rm -v "${REPO_ROOT}:/work" -w /work \
-            convoy-cairo-builder:latest \
-            bash -c "starkli signer keystore from-key /work/.tmp-l2/drones/${swarm}/_deployer/keystore.json --private-key-stdin --password convoy --force < /work/.tmp-l2/drones/${swarm}/_deployer/_pk.txt >/dev/null"
+        MSYS_NO_PATHCONV=1 docker run --rm \
+            -v "${REPO_ROOT}:/work" -w /work \
+            convoy-cairo-builder \
+            bash -c "starkli signer keystore from-key /work/.tmp-l2/drones/${swarm}/_deployer/keystore.json --private-key-stdin --password ${KEYSTORE_PWD} --force < /work/.tmp-l2/drones/${swarm}/_deployer/_pk.txt >/dev/null"
         rm -f "${dep_dir}/_pk.txt"
+
         cat > "${dep_dir}/account.json" <<EOF
 {
   "version": 1,
@@ -160,55 +87,121 @@ _udc_deploy_via_account_1() {
 }
 EOF
     fi
+}
 
-    # starkli deploy <class_hash> <constructor_args> --salt 0x0
-    # OZ constructor takes one felt: the public key.
-    MSYS_NO_PATHCONV=1 docker run --rm \
+mint_drone_account() {
+    local swarm="$1"
+    local did="$2"
+    local rpc_url="http://convoy-madara-${swarm}:9944/rpc/v${RPC_VERSION}"
+    local d_rel=".tmp-l2/drones/${swarm}/${did}"
+    local out_dir="${REPO_ROOT}/${d_rel}"
+    mkdir -p "${out_dir}"
+    local ks_rel="${d_rel}/keystore.json"
+
+    # 1. Generate a fresh encrypted keystore (random keypair)
+    SK "" signer keystore new --password "${KEYSTORE_PWD}" --force "${ks_rel}" >/dev/null
+
+    # 2. Read the public key out of the keystore (must pass --password
+    #    explicitly; `starkli signer keystore inspect` does NOT read
+    #    STARKNET_KEYSTORE_PASSWORD even though most other subcommands do).
+    local pubkey
+    pubkey=$(SK "" signer keystore inspect --raw --password "${KEYSTORE_PWD}" "${ks_rel}" 2>/dev/null | tail -n1 | tr -d '[:space:]')
+    [ -z "${pubkey}" ] && { echo "[mint/${swarm}/${did}] could not derive pubkey" >&2; return 1; }
+
+    # 3. Deploy the OZ account via UDC, signed by account #1. Use the
+    #    drone_id as the salt so the address is deterministic per (swarm, did).
+    local salt
+    salt=$(printf "0x%064x" "${did}")
+    local deploy_out
+    deploy_out=$(MSYS_NO_PATHCONV=1 docker run --rm \
         --network convoy-l1 \
         -v "${REPO_ROOT}:/work" -w /work \
         -e STARKNET_RPC="${rpc_url}" \
         -e STARKNET_ACCOUNT="/work/.tmp-l2/drones/${swarm}/_deployer/account.json" \
         -e STARKNET_KEYSTORE="/work/.tmp-l2/drones/${swarm}/_deployer/keystore.json" \
-        -e STARKNET_KEYSTORE_PASSWORD="convoy" \
-        convoy-cairo-builder:latest \
+        -e STARKNET_KEYSTORE_PASSWORD="${KEYSTORE_PWD}" \
+        convoy-cairo-builder \
         starkli deploy \
-            "${OZ_CLASS_HASH}" "${pubkey}" \
+            "${OZ_ACCOUNT_CLASS_HASH}" "${pubkey}" \
             --salt "${salt}" \
             --rpc "${rpc_url}" \
-            --watch >/dev/null
+            --watch 2>&1)
+
+    local addr
+    addr=$(echo "${deploy_out}" | grep -E "will be deployed at address" | grep -Eo '0x[0-9a-fA-F]+' | head -n1)
+    if [ -z "${addr}" ]; then
+        {
+            echo
+            echo "[mint/${swarm}/${did}] failed to extract address. Raw deploy output:"
+            echo "${deploy_out}"
+        } >&2
+        return 1
+    fi
+
+    # 4. Verify the contract actually has code on chain. starkli's --watch
+    #    sometimes returns "OK" before the deploy tx is fully sealed (or
+    #    after a silent timeout), so we explicitly poll class-hash-at the
+    #    predicted address until it returns the expected OZ class hash.
+    local poll_attempts=20
+    local poll_ok=0
+    while [ ${poll_attempts} -gt 0 ]; do
+        local on_chain
+        on_chain=$(MSYS_NO_PATHCONV=1 docker run --rm \
+            --network convoy-l1 \
+            -e STARKNET_RPC="${rpc_url}" \
+            convoy-cairo-builder \
+            starkli class-hash-at "${addr}" 2>&1 | tail -n1 | tr -d '[:space:]')
+        if [ "${on_chain}" = "${OZ_ACCOUNT_CLASS_HASH}" ] || [ "${on_chain}" = "0x00${OZ_ACCOUNT_CLASS_HASH#0x}" ]; then
+            poll_ok=1
+            break
+        fi
+        poll_attempts=$((poll_attempts - 1))
+        sleep 3
+    done
+    if [ ${poll_ok} -eq 0 ]; then
+        echo "[mint/${swarm}/${did}] deploy never sealed at ${addr}" >&2
+        return 1
+    fi
+
+    echo "${addr}|${pubkey}|${ks_rel}"
 }
 
-# ── Generate accounts for one swarm ────────────────────────────────────────
 generate_for_swarm() {
     local swarm="$1"
-    local madara_host="convoy-madara-${swarm}"
     local env_file="${REPO_ROOT}/.tmp-l2/drones-${swarm}.env"
 
     echo
     echo "======================================================================"
-    echo "  Minting ${N_DRONES} drone accounts on ${madara_host}  (swarm=${swarm})"
+    echo "  Minting ${N_DRONES} drone accounts on convoy-madara-${swarm}"
+    echo "  (deployer: account #1 at ${DEPLOYER_ADDR})"
     echo "======================================================================"
 
-    : > "${env_file}"
-    echo "# Generated by generate-drone-accounts.sh — do not commit" >> "${env_file}"
-    echo "# Swarm: ${swarm}    Madara: ${madara_host}" >> "${env_file}"
-    echo "" >> "${env_file}"
+    prep_deployer_account "${swarm}"
+
+    {
+        echo "# Generated by generate-drone-accounts.sh — do not commit"
+        echo "# Swarm: ${swarm}    Madara: convoy-madara-${swarm}"
+        echo ""
+    } > "${env_file}"
 
     for did in $(seq 1 ${N_DRONES}); do
-        echo "[mint/${swarm}/${did}] generating keypair + deploying account..."
+        printf "[mint/%s/%s] deploying drone account..." "${swarm}" "${did}"
         local result
-        result=$(mint_drone_account "${swarm}" "${did}")
-        local addr=$(echo "${result}" | cut -d'|' -f1)
-        local pub=$(echo "${result}" | cut -d'|' -f2)
-        local ks=$(echo "${result}" | cut -d'|' -f3)
+        result=$(mint_drone_account "${swarm}" "${did}") || { echo " FAIL"; continue; }
+        local addr pub ks
+        addr=$(echo "${result}" | cut -d'|' -f1)
+        pub=$(echo "${result}" | cut -d'|' -f2)
+        ks=$(echo "${result}" | cut -d'|' -f3)
 
-        local id_upper="${swarm^^}_DRONE_${did}"
-        echo "${id_upper}_ADDR=${addr}"          >> "${env_file}"
-        echo "${id_upper}_PUBKEY=${pub}"         >> "${env_file}"
-        echo "${id_upper}_KEYSTORE=${ks#${REPO_ROOT}/}" >> "${env_file}"
-        echo "" >> "${env_file}"
+        local prefix="${swarm^^}_DRONE_${did}"
+        {
+            echo "${prefix}_ADDR=${addr}"
+            echo "${prefix}_PUBKEY=${pub}"
+            echo "${prefix}_KEYSTORE=${ks}"
+            echo ""
+        } >> "${env_file}"
 
-        echo "[mint/${swarm}/${did}] OK  addr=${addr}"
+        printf " OK  addr=%s\n" "${addr}"
     done
 
     echo
@@ -216,7 +209,7 @@ generate_for_swarm() {
     cat "${env_file}"
 }
 
-# ── Argparse ───────────────────────────────────────────────────────────────
+# ── Arg parsing ─────────────────────────────────────────────────────────────
 SWARM_FILTER="both"
 while [ $# -gt 0 ]; do
     case "$1" in

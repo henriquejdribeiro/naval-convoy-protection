@@ -128,7 +128,11 @@ services:
 
   # ─── Alpha sequencer ───────────────────────────────────────────────
   madara-alpha:
-    image: ghcr.io/madara-alliance/madara:nightly
+    # Pinned to v0.10.0 — last release using cairo-lang-sierra-to-casm 2.12.3
+    # (the OLD 2.x API). v0.10.1+ migrated to cairo-lang 1.0.0-alpha (the
+    # rebranded next-gen Sierra compiler), which is incompatible with the
+    # CASM format scarb 2.x produces. See cairo-builder/Dockerfile.
+    image: ghcr.io/madara-alliance/madara:v0.9.1
     container_name: convoy-madara-alpha
     profiles: ["l2", "proving", "proving-direct"]
     depends_on:
@@ -166,7 +170,11 @@ services:
 
   # ─── Bravo sequencer ───────────────────────────────────────────────
   madara-bravo:
-    image: ghcr.io/madara-alliance/madara:nightly
+    # Pinned to v0.10.0 — last release using cairo-lang-sierra-to-casm 2.12.3
+    # (the OLD 2.x API). v0.10.1+ migrated to cairo-lang 1.0.0-alpha (the
+    # rebranded next-gen Sierra compiler), which is incompatible with the
+    # CASM format scarb 2.x produces. See cairo-builder/Dockerfile.
+    image: ghcr.io/madara-alliance/madara:v0.9.1
     container_name: convoy-madara-bravo
     profiles: ["l2", "proving", "proving-direct"]
     depends_on:

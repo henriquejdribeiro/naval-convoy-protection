@@ -69,22 +69,38 @@ deploy_to() {
     echo "  RPC: ${rpc_url}"
     echo "======================================================================"
 
-    # 3. Declare — returns class hash (idempotent if already declared)
+    # 3. Declare — returns class hash (idempotent if already declared).
+    #
+    # We deliberately DO NOT pass --casm-file. Scarb 2.9.2's CASM emitter
+    # and starkli 0.4.0's bundled Sierra compiler disagree on the CASM
+    # hash format, which causes a CompiledClassHashMismatch revert from
+    # Madara. Letting starkli recompile Sierra→CASM internally (matching
+    # whatever sequencer version Madara nightly ships) sidesteps that.
+    # Pre-compute the Sierra class hash deterministically so we don't have
+    # to parse starkli's stdout (which mixes class hash + tx hash and is
+    # therefore unreliable to scrape).
+    echo "[deploy-l2/${swarm}] computing class hash..."
+    local class_hash
+    class_hash=$(SCARB_RUN "${rpc_url}" starkli class-hash "${SIERRA}" 2>/dev/null | tail -n1 | tr -d '[:space:]')
+    if [ -z "${class_hash}" ]; then
+        echo "[deploy-l2/${swarm}] failed to compute class hash"; return 1
+    fi
+    echo "[deploy-l2/${swarm}] class_hash: ${class_hash}"
+
     echo "[deploy-l2/${swarm}] declaring convoy_protocol..."
+    # --compiler-path points starkli at the cairo-lang 2.12.3 sierra-compile
+    # binary baked into the cairo-builder image (see infrastructure/cairo-builder
+    # /Dockerfile). That version matches what madara uses internally, so the
+    # CASM bytes produced — and therefore the compiled_class_hash — match
+    # what madara recomputes during declare-validation.
     local declare_out
     declare_out=$(SCARB_RUN "${rpc_url}" starkli declare \
         "${SIERRA}" \
-        --casm-file "${CASM}" \
+        --compiler-path /usr/local/bin/starknet-sierra-compile \
         --rpc "${rpc_url}" \
         --watch \
-        2>&1) || { echo "${declare_out}"; return 1; }
-    echo "${declare_out}" | tail -5
-    local class_hash
-    class_hash=$(echo "${declare_out}" | grep -Eo '0x[0-9a-fA-F]{40,}' | tail -n1)
-    if [ -z "${class_hash}" ]; then
-        echo "[deploy-l2/${swarm}] failed to extract class hash"; return 1
-    fi
-    echo "[deploy-l2/${swarm}] class_hash: ${class_hash}"
+        2>&1) || true
+    echo "${declare_out}" | tail -3
 
     # 4. Deploy via UDC. Constructor takes (l1_commander_addr, l1_verifier_addr)
     #    as felt252. Use anvil[7] (D's commander key, used in DeployL1.s.sol)
@@ -113,10 +129,29 @@ deploy_to() {
 
     # 5. Smoke test — safe_count for a non-existent mission returns 0
     #    (Cairo 1 Map default). Confirms the contract responds to calls.
+    #    Retry a few times because the deploy tx may still be in the
+    #    preconfirmed block when we get here.
     echo "[deploy-l2/${swarm}] smoke test: safe_count(0) (should return 0)..."
-    SCARB_RUN "${rpc_url}" starkli call \
-        "${contract_addr}" safe_count 0 \
-        --rpc "${rpc_url}" 2>&1 | tail -3
+    local smoke_attempts=10
+    local smoke_ok=0
+    while [ $smoke_attempts -gt 0 ]; do
+        local smoke_out
+        smoke_out=$(SCARB_RUN "${rpc_url}" starkli call \
+            "${contract_addr}" safe_count 0 \
+            --rpc "${rpc_url}" 2>&1)
+        if echo "${smoke_out}" | grep -q '0x0000000000000000000000000000000000000000000000000000000000000000'; then
+            echo "${smoke_out}" | tail -3
+            smoke_ok=1
+            break
+        fi
+        smoke_attempts=$((smoke_attempts - 1))
+        sleep 3
+    done
+    if [ $smoke_ok -eq 0 ]; then
+        echo "[deploy-l2/${swarm}] smoke test failed after 10 retries"
+        echo "${smoke_out}" | tail -5
+        return 1
+    fi
 
     # 6. Persist swarm-specific env
     cat > "${env_file}" <<EOF

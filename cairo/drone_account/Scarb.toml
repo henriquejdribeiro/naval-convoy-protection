@@ -1,0 +1,22 @@
+# =============================================================================
+# drone_account — OpenZeppelin Cairo Contracts v3 account, used by each drone.
+#
+# Generated against the wizard at https://docs.openzeppelin.com/contracts-cairo/3.x/wizard
+# (basic account, no extensions). Built with the same scarb + cairo
+# versions as convoy_protocol so the class hash matches Madara's recompile.
+# =============================================================================
+
+[package]
+name        = "drone_account"
+version     = "0.1.0"
+edition     = "2024_07"
+description = "OZ Cairo v3 account contract for naval-convoy drones"
+
+[dependencies]
+starknet                  = ">=2.11.4"
+openzeppelin_account      = "3.0.0"
+openzeppelin_introspection = "3.0.0"
+
+[[target.starknet-contract]]
+sierra = true
+casm   = true
