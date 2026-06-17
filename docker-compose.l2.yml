@@ -29,34 +29,38 @@
 
 services:
 
-  # ═══ Phase 3.a — direct STARK prover (no Madara) ═══════════════════════
-  prover-api:
+  # ═══ Prover-API — per-swarm Stone STARK prover ═════════════════════════
+  # The original single prover-api was a Phase 3.a shortcut that bypassed
+  # Madara entirely. In the dual-swarm topology each swarm has its own
+  # prover so Alpha and Bravo lanes can prove in parallel and remain
+  # operationally independent (compromise of one prover doesn't affect
+  # the other's verdict).
+  #
+  # Both consume the same image (built once) and share the L1 settlement
+  # addresses, but each owns its own /proofs volume and uses its swarm's
+  # relay PK as the L1 signer for Stage A submission.
+
+  prover-api-alpha:
     build:
-      # Build context is the repo root so the Dockerfile's Stage 1 can
-      # reach infrastructure/bootloader-cli/ and vendor/cairo-bootloader/
-      # to compile the convoy-bootloader-cli binary.
       context: .
       dockerfile: infrastructure/prover-api/Dockerfile
     image: convoy-prover-api:latest
-    container_name: convoy-prover-api
+    container_name: convoy-prover-api-alpha
     depends_on:
       ship-a:
         condition: service_healthy
     volumes:
-      - prover-output:/proofs
+      - prover-alpha-output:/proofs
     environment:
       STONE_OUTPUT_DIR:  /proofs
+      SWARM:             alpha
       # ── Stage B (submit_proof_l1.py against the convoy Verifier) ─────
       GETH_RPC_URL:      http://ship-a:8545
-      # Convoy contracts — addresses captured from
-      # deployments/local.env after the 2026-05-30 clean-chain re-deploy.
-      # Stable across re-deploys ONLY because the deployer nonce sequence
-      # and StarkWare deploy order are deterministic.
       VERIFIER_ADDR:     "0x3aa5ebb10dc797cac828524e59a333d0a371443c"
       REGISTRY_ADDR:     "0x68b1d87f95878fe05b998f19b66f4baba5de1aed"
       ALPHA_RELAY_PK:    "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
       BRAVO_RELAY_PK:    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
-      # ── StarkWare stack (clean chain, on-demand sealing era) ────────
+      # ── Stage A — Alpha lane signs with ALPHA_RELAY (ship F / anvil[5]) ──
       URL:                              http://ship-a:8545
       PRIVATE_KEY:                      "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
       MERKLE_STATEMENT_CONTRACT_ADDR:   "0xa51c1fc2f0d1a1b8494ed1fe312d7c3a78ed91c0"
@@ -72,24 +76,71 @@ services:
         reservations:
           memory: 6G
 
-  # ═══ Phase 3.b — Madara L2 sequencer ═══════════════════════════════════
-  # Same image + flags as verifiable_grid's madara service. Settles into
-  # the existing StarknetCoreStub at the deterministic anvil[0]+nonce0 address
-  # (0x5FbDB2315678afecb367f032d93F642f64180aa3 — see DeployL1.s.sol log).
-  madara:
+  prover-api-bravo:
+    image: convoy-prover-api:latest        # built once via prover-api-alpha
+    container_name: convoy-prover-api-bravo
+    depends_on:
+      ship-a:
+        condition: service_healthy
+      prover-api-alpha:                    # ensure image build completes first
+        condition: service_started
+    volumes:
+      - prover-bravo-output:/proofs
+    environment:
+      STONE_OUTPUT_DIR:  /proofs
+      SWARM:             bravo
+      GETH_RPC_URL:      http://ship-a:8545
+      VERIFIER_ADDR:     "0x3aa5ebb10dc797cac828524e59a333d0a371443c"
+      REGISTRY_ADDR:     "0x68b1d87f95878fe05b998f19b66f4baba5de1aed"
+      ALPHA_RELAY_PK:    "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
+      BRAVO_RELAY_PK:    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+      # ── Stage A — Bravo lane signs with BRAVO_RELAY (ship B / anvil[1]) ──
+      URL:                              http://ship-a:8545
+      PRIVATE_KEY:                      "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+      MERKLE_STATEMENT_CONTRACT_ADDR:   "0xa51c1fc2f0d1a1b8494ed1fe312d7c3a78ed91c0"
+      FRI_STATEMENT_CONTRACT_ADDR:      "0x0dcd1bf9a1b36ce34237eeafef220932846bcd82"
+      MEMORY_PAGE_FACT_REGISTRY_ADDR:   "0xb7f8bc63bbcad18155201308c8f3540b07f84f5e"
+      GPS_STATEMENT_VERIFIER_ADDR:      "0x959922be3caee4b8cd9a407cc3ac1c251c2007b1"
+    networks:
+      - convoy-l1
+    deploy:
+      resources:
+        limits:
+          memory: 12G
+        reservations:
+          memory: 6G
+
+  # ═══ Phase 3.b — Per-swarm L2 sequencers (Madara α and Madara β) ════════
+  # Two independent Madara instances, one per swarm, providing physical
+  # separation between the Alpha and Bravo lanes. A compromise of one
+  # sequencer cannot tamper with the other swarm's verdict.
+  #
+  # Both settle into the same L1 StarknetCoreStub at the deterministic
+  # anvil[0]+nonce0 address (0x5FbDB2315678afecb367f032d93F642f64180aa3 —
+  # see DeployL1.s.sol log). The stub is multi-tenant: messages from each
+  # L2 are queued by destination address, and L1 consumers route by
+  # mission_id/swarm_id in the payload.
+  #
+  # Each Madara hosts its own deployed convoy_protocol contract. The
+  # contract source (cairo/convoy_protocol/src/lib.cairo) is identical,
+  # so the same Sierra/CASM artefact is declared on both — they differ
+  # only by storage state and chain_id.
+
+  # ─── Alpha sequencer ───────────────────────────────────────────────
+  madara-alpha:
     image: ghcr.io/madara-alliance/madara:nightly
-    container_name: convoy-madara
-    profiles: ["l2", "proving"]
+    container_name: convoy-madara-alpha
+    profiles: ["l2", "proving", "proving-direct"]
     depends_on:
       ship-a:
         condition: service_healthy
     volumes:
-      - madara-data:/madara_db
+      - madara-alpha-data:/madara_db
     command: >
-      --name Madara
+      --name MadaraAlpha
       --devnet
       --base-path /madara_db
-      --chain-config-override=chain_id=convoy_devnet,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
       --rpc-external
       --rpc-cors all
       --feeder-gateway-enable
@@ -100,12 +151,9 @@ services:
       --l1-gas-price 1000000000
       --blob-gas-price 100000
     ports:
-      # Host ports remapped because verifiable_grid's madara-node may
-      # already hold 9944/8080. Pathfinder & SNOS consume these via the
-      # convoy-l1 docker network (http://convoy-madara:9944 / :8080),
-      # so the host mapping is for human inspection only.
-      - "19944:9944"  # StarkNet JSON-RPC v0.7  (host:19944)
-      - "18080:8080"  # feeder-gateway          (host:18080)
+      # Alpha keeps the original host ports.
+      - "19944:9944"  # StarkNet JSON-RPC  (host:19944)
+      - "18080:8080"  # feeder-gateway     (host:18080)
     networks:
       - convoy-l1
     restart: unless-stopped
@@ -116,31 +164,75 @@ services:
       retries: 15
       start_period: 30s
 
-  # ═══ Pathfinder — independent indexer ═════════════════════════════════
-  pathfinder:
-    # Pinned to v0.21.3 — same version verifiable_grid uses, known compat
-    # with madara :nightly + vg-snos. v0.22.3 serves /rpc/v0_10 which SNOS
-    # rpc-replay needs, but vg's working path goes through their
-    # orchestrator (vg-orchestrator + MongoDB + mock-atlantic), which
-    # mediates the SNOS calls and doesn't need v0_10 directly.
-    image: eqlabs/pathfinder:v0.21.3
-    container_name: convoy-pathfinder
-    profiles: ["l2", "proving"]
+  # ─── Bravo sequencer ───────────────────────────────────────────────
+  madara-bravo:
+    image: ghcr.io/madara-alliance/madara:nightly
+    container_name: convoy-madara-bravo
+    profiles: ["l2", "proving", "proving-direct"]
     depends_on:
       ship-a:
         condition: service_healthy
-      madara:
+    volumes:
+      - madara-bravo-data:/madara_db
+    command: >
+      --name MadaraBravo
+      --devnet
+      --base-path /madara_db
+      --chain-config-override=chain_id=convoy_bravo,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --rpc-external
+      --rpc-cors all
+      --feeder-gateway-enable
+      --gateway-external
+      --gateway-port 8080
+      --l1-sync-disabled
+      --no-transaction-validation
+      --l1-gas-price 1000000000
+      --blob-gas-price 100000
+    ports:
+      # Bravo on a separate host-port range so both sequencers expose
+      # their RPC + feeder-gateway to the host simultaneously.
+      - "29944:9944"  # StarkNet JSON-RPC  (host:29944)
+      - "28080:8080"  # feeder-gateway     (host:28080)
+    networks:
+      - convoy-l1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9944/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  # ═══ Pathfinders — one indexer per swarm ═══════════════════════════════
+  # Pathfinder is single-chain (binds to one chain_id at startup), so
+  # each Madara gets its own indexer. Both Pathfinders inhabit the
+  # convoy-l1 docker network and the orchestrator/SNOS services
+  # reach them by container name.
+  #
+  # Pinned to v0.21.3 — same version verifiable_grid uses, known compat
+  # with madara :nightly + vg-snos. v0.22.3 serves /rpc/v0_10 which SNOS
+  # rpc-replay needs, but the working path mediates SNOS calls through
+  # the orchestrator (vg-orchestrator + MongoDB + mock-atlantic).
+
+  pathfinder-alpha:
+    image: eqlabs/pathfinder:v0.21.3
+    container_name: convoy-pathfinder-alpha
+    profiles: ["l2", "proving", "proving-direct"]
+    depends_on:
+      ship-a:
+        condition: service_healthy
+      madara-alpha:
         condition: service_healthy
     volumes:
-      - pathfinder-data:/usr/share/pathfinder/data
+      - pathfinder-alpha-data:/usr/share/pathfinder/data
     environment:
       RUST_LOG: info
     command: >
       --network custom
-      --chain-id convoy_devnet
+      --chain-id convoy_alpha
       --ethereum.url ws://ship-a:8546
-      --gateway-url http://convoy-madara:8080/gateway
-      --feeder-gateway-url http://convoy-madara:8080/feeder_gateway
+      --gateway-url http://convoy-madara-alpha:8080/gateway
+      --feeder-gateway-url http://convoy-madara-alpha:8080/feeder_gateway
       --storage.state-tries archive
       --data-directory /usr/share/pathfinder/data
     ports:
@@ -155,27 +247,83 @@ services:
       retries: 60
       start_period: 120s
 
-  # ═══ Phase 3.c — SNOS PIE generator (standalone, dev-only) ═══════════
+  pathfinder-bravo:
+    image: eqlabs/pathfinder:v0.21.3
+    container_name: convoy-pathfinder-bravo
+    profiles: ["l2", "proving", "proving-direct"]
+    depends_on:
+      ship-a:
+        condition: service_healthy
+      madara-bravo:
+        condition: service_healthy
+    volumes:
+      - pathfinder-bravo-data:/usr/share/pathfinder/data
+    environment:
+      RUST_LOG: info
+    command: >
+      --network custom
+      --chain-id convoy_bravo
+      --ethereum.url ws://ship-a:8546
+      --gateway-url http://convoy-madara-bravo:8080/gateway
+      --feeder-gateway-url http://convoy-madara-bravo:8080/feeder_gateway
+      --storage.state-tries archive
+      --data-directory /usr/share/pathfinder/data
+    ports:
+      - "9645:9545"
+    networks:
+      - convoy-l1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/9545'"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 120s
+
+  # ═══ Phase 3.c — SNOS PIE generators, one per swarm ══════════════════
   # Replays a Madara block in the Cairo VM, emits a PIE the prover consumes.
-  # Useful as a standalone smoke test; the production-shape pipeline uses
-  # the orchestrator below (which calls SNOS through MongoDB jobs).
-  snos:
+  # Each swarm has its own SNOS instance pinned to its swarm's pathfinder
+  # + madara, so block replay traffic stays in-lane.
+
+  snos-alpha:
     build:
       context: ./infrastructure/snos
       dockerfile: Dockerfile
     image: convoy-snos:latest
-    container_name: convoy-snos
+    container_name: convoy-snos-alpha
     profiles: ["proving-direct"]
     depends_on:
-      pathfinder:
+      pathfinder-alpha:
         condition: service_healthy
     volumes:
-      - snos-output:/output
+      - snos-alpha-output:/output
       - ./infrastructure/snos/entrypoint.sh:/app/entrypoint.sh:ro
     environment:
+      SWARM:             alpha
       SNOS_BLOCK_NUMBER: 1                    # which L2 block to prove
-      SNOS_RPC_URL:      http://convoy-pathfinder:9545
-      SNOS_GATEWAY_URL:  http://convoy-madara:8080
+      SNOS_RPC_URL:      http://convoy-pathfinder-alpha:9545
+      SNOS_GATEWAY_URL:  http://convoy-madara-alpha:8080
+      SNOS_OUTPUT_DIR:   /output
+    networks:
+      - convoy-l1
+
+  snos-bravo:
+    image: convoy-snos:latest               # built once via snos-alpha
+    container_name: convoy-snos-bravo
+    profiles: ["proving-direct"]
+    depends_on:
+      pathfinder-bravo:
+        condition: service_healthy
+      snos-alpha:                            # ensure image build completes first
+        condition: service_started
+    volumes:
+      - snos-bravo-output:/output
+      - ./infrastructure/snos/entrypoint.sh:/app/entrypoint.sh:ro
+    environment:
+      SWARM:             bravo
+      SNOS_BLOCK_NUMBER: 1
+      SNOS_RPC_URL:      http://convoy-pathfinder-bravo:9545
+      SNOS_GATEWAY_URL:  http://convoy-madara-bravo:8080
       SNOS_OUTPUT_DIR:   /output
     networks:
       - convoy-l1
@@ -221,20 +369,36 @@ services:
       retries: 30
       start_period: 30s
 
-  orchestrator:
-    # Official Madara modular orchestrator from the upstream ecosystem
-    # (ghcr.io/madara-alliance/orchestrator). Same binary verifiable_grid
-    # uses a fork of, but pulled directly from upstream so we get whatever
-    # the modular stack ships today.
+  # ═══ Orchestrators — one per swarm ═══════════════════════════════════════
+  # The Madara modular orchestrator pulls L2 blocks, calls SNOS to replay,
+  # produces a STARK proof, and submits state updates + proofs to L1.
+  #
+  # In the dual-swarm topology each swarm has its own orchestrator pointing
+  # at its own madara + pathfinder. They share the convoy-mongo and
+  # convoy-localstack singletons via per-swarm namespacing:
+  #   - MongoDB database: orchestrator_alpha vs orchestrator_bravo
+  #   - SQS queue prefix: mo_alpha_{}_queue vs mo_bravo_{}_queue
+  # so the two orchestrators never trample each other's job state.
+  #
+  # Settles into the same L1 StarknetCoreStub at
+  # 0x5FbDB2315678afecb367f032d93F642f64180aa3 (per DeployL1.s.sol).
+  # The stub is multi-tenant — each orchestrator signs with its swarm's
+  # relay key (alpha=anvil[5]/ALPHA_RELAY, bravo=anvil[1]/BRAVO_RELAY).
+  # The orchestrator command is taken verbatim from verifiable_grid with
+  # these substitutions, and `--prover mock` + `--mock-atlantic-server`
+  # skip the Atlantic HTTP API entirely for local dev. The Atlantic-*
+  # flags are required by the CLI parser even though they're unused.
+
+  orchestrator-alpha:
     image: ghcr.io/madara-alliance/orchestrator:nightly
-    container_name: convoy-orchestrator
+    container_name: convoy-orchestrator-alpha
     profiles: ["proving"]
     depends_on:
       ship-a:
         condition: service_healthy
-      madara:
+      madara-alpha:
         condition: service_healthy
-      pathfinder:
+      pathfinder-alpha:
         condition: service_healthy
       mongo:
         condition: service_healthy
@@ -245,27 +409,7 @@ services:
       AWS_SECRET_ACCESS_KEY: test
       AWS_DEFAULT_REGION: us-east-1
       AWS_ENDPOINT_URL: http://convoy-localstack:4566
-      # Verbose so we can see why SnosBatching's eligibility filter
-      # rejects blocks we expect to be batchable.
       RUST_LOG: "debug,hyper=info,reqwest=info,aws_smithy=info,h2=info,tower=info"
-    # The orchestrator command is taken verbatim from verifiable_grid
-    # (docker inspect madara-orchestrator), with these substitutions for
-    # OUR chain:
-    #   --ethereum-rpc-url            ship-a (was geth-node1)
-    #   --l1-core-contract-address    Verifier (0x9fE4…6e0; we don't have a
-    #                                  StarknetCore on L1, so point this at
-    #                                  the Verifier — orchestrator will
-    #                                  call updateState() which is a no-op
-    #                                  on our Verifier ABI but writes the
-    #                                  fact via registerFact's mock path).
-    #   --atlantic-mock-fact-hash     true (no real Atlantic key available)
-    #   --mock-atlantic-server        true (local Stone-emulating mock)
-    # Same flag pattern verifiable_grid uses, ported to the upstream
-    # ghcr.io/madara-alliance/orchestrator:nightly binary's CLI:
-    #   --prover atlantic + --mock-atlantic-server runs the Atlantic
-    #   pipeline against a local mock server (no cloud key needed).
-    #   For real Stone STARKs against L2 blocks you'd swap to a real
-    #   Atlantic/SHARP API key.
     command:
       - run
       - --aws
@@ -276,7 +420,7 @@ services:
       - --mongodb-connection-url
       - mongodb://convoy-mongo:27017
       - --mongodb-database-name
-      - orchestrator
+      - orchestrator_alpha
       - --settle-on-ethereum
       - --da-on-ethereum
       - --ethereum-rpc-url
@@ -284,15 +428,11 @@ services:
       - --ethereum-da-rpc-url
       - http://ship-a:8545
       - --ethereum-private-key
-      - ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+      - 8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba   # ALPHA_RELAY (anvil[5])
       - --l1-core-contract-address
       - "0x5FbDB2315678afecb367f032d93F642f64180aa3"
       - --starknet-operator-address
-      - "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-      # `--prover mock` skips the Atlantic HTTP API entirely (no create_bucket
-      # call, no /atlantic-query polling). The proving job completes
-      # synchronously with a mock proof. The Atlantic-* flags below are
-      # required by the CLI parser even though they're unused.
+      - "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"                       # ALPHA_RELAY addr
       - --prover
       - mock
       - --atlantic-api-key
@@ -300,7 +440,7 @@ services:
       - --atlantic-service-url
       - http://localhost:4001
       - --atlantic-rpc-node-url
-      - http://convoy-pathfinder:9545
+      - http://convoy-pathfinder-alpha:9545
       - --atlantic-prover-type
       - stone
       - --atlantic-settlement-layer
@@ -317,21 +457,17 @@ services:
       - "true"
       - --mock-atlantic-server
       - --queue-identifier
-      - "mo_{}_queue"
+      - "mo_alpha_{}_queue"
       - --min-block-to-process
-      - "1"                       # Madara's block 0 is genesis-pending; start at 1
+      - "1"
       - --rpc-for-snos
-      - http://convoy-pathfinder:9545
+      - http://convoy-pathfinder-alpha:9545
       - --madara-rpc-url
-      - http://convoy-madara:9944
+      - http://convoy-madara-alpha:9944
       - --madara-feeder-gateway-url
-      - http://convoy-madara:8080/feeder_gateway
-      # The "still pending" error in replay_bounds.rs comes from this RPC.
-      # Pointing it at Madara's JSON-RPC (which reports ACCEPTED_ON_L2 for
-      # sealed blocks) lets the orchestrator's batching predicate accept
-      # blocks 1..head as eligible for SNOS proving.
+      - http://convoy-madara-alpha:8080/feeder_gateway
       - --replay-bounds-rpc-url
-      - http://convoy-madara:9944
+      - http://convoy-madara-alpha:9944
       - --max-batch-time-seconds
       - "300"
       - --max-batch-size
@@ -343,20 +479,123 @@ services:
       - --admin-enabled
       - --disable-peerdas
     ports:
-      - "13000:3000"          # orchestrator API (host:13000)
+      - "13000:3000"          # alpha orchestrator API  (host:13000)
+    networks:
+      - convoy-l1
+    restart: unless-stopped
+
+  orchestrator-bravo:
+    image: ghcr.io/madara-alliance/orchestrator:nightly
+    container_name: convoy-orchestrator-bravo
+    profiles: ["proving"]
+    depends_on:
+      ship-a:
+        condition: service_healthy
+      madara-bravo:
+        condition: service_healthy
+      pathfinder-bravo:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ENDPOINT_URL: http://convoy-localstack:4566
+      RUST_LOG: "debug,hyper=info,reqwest=info,aws_smithy=info,h2=info,tower=info"
+    command:
+      - run
+      - --aws
+      - --aws-s3
+      - --aws-sqs
+      - --aws-sns
+      - --mongodb
+      - --mongodb-connection-url
+      - mongodb://convoy-mongo:27017
+      - --mongodb-database-name
+      - orchestrator_bravo
+      - --settle-on-ethereum
+      - --da-on-ethereum
+      - --ethereum-rpc-url
+      - http://ship-a:8545
+      - --ethereum-da-rpc-url
+      - http://ship-a:8545
+      - --ethereum-private-key
+      - 59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d   # BRAVO_RELAY (anvil[1])
+      - --l1-core-contract-address
+      - "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+      - --starknet-operator-address
+      - "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"                       # BRAVO_RELAY addr
+      - --prover
+      - mock
+      - --atlantic-api-key
+      - mock
+      - --atlantic-service-url
+      - http://localhost:4001
+      - --atlantic-rpc-node-url
+      - http://convoy-pathfinder-bravo:9545
+      - --atlantic-prover-type
+      - stone
+      - --atlantic-settlement-layer
+      - ethereum
+      - --atlantic-verifier-contract-address
+      - "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"
+      - --atlantic-verifier-cairo-vm
+      - rust
+      - --atlantic-verifier-result
+      - proof-generation
+      - --atlantic-network
+      - TESTNET
+      - --atlantic-mock-fact-hash
+      - "true"
+      - --mock-atlantic-server
+      - --queue-identifier
+      - "mo_bravo_{}_queue"
+      - --min-block-to-process
+      - "1"
+      - --rpc-for-snos
+      - http://convoy-pathfinder-bravo:9545
+      - --madara-rpc-url
+      - http://convoy-madara-bravo:9944
+      - --madara-feeder-gateway-url
+      - http://convoy-madara-bravo:8080/feeder_gateway
+      - --replay-bounds-rpc-url
+      - http://convoy-madara-bravo:9944
+      - --max-batch-time-seconds
+      - "300"
+      - --max-batch-size
+      - "10"
+      - --host
+      - 0.0.0.0
+      - --port
+      - "3000"
+      - --admin-enabled
+      - --disable-peerdas
+    ports:
+      - "13001:3000"          # bravo orchestrator API  (host:13001)
     networks:
       - convoy-l1
     restart: unless-stopped
 
 
 volumes:
-  prover-output:
+  prover-alpha-output:
     driver: local
-  madara-data:
+  prover-bravo-output:
     driver: local
-  pathfinder-data:
+  madara-alpha-data:
     driver: local
-  snos-output:
+  madara-bravo-data:
+    driver: local
+  pathfinder-alpha-data:
+    driver: local
+  pathfinder-bravo-data:
+    driver: local
+  snos-alpha-output:
+    driver: local
+  snos-bravo-output:
     driver: local
 
 
