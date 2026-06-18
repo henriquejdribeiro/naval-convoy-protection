@@ -156,10 +156,10 @@ This is an in-progress thesis project. The architecture diagram above shows the 
 | L2 chains (Madara α + β, v0.9.1) | ✅ Both come up healthy |
 | `convoy_protocol` contract on each L2 | ✅ Declared + deployed |
 | 5 fresh OZ drone accounts per swarm | ✅ Deployed via UDC signed by account #1 |
-| Per-drone `submit_telemetry` invokes | ⚠️ Drones can sign; mission-open path (L1→L2 `open_mission`) not yet wired |
+| Mission-open on L2 (`open_mission_local`) | ✅ Direct-invoke entry point + `scripts/open-missions.sh` wrapper |
+| Per-drone `submit_telemetry` invokes | ✅ `scripts/submit-telemetry.sh <swarm> <drone_id> <cells.json>` signs with the drone's keystore |
 | L1 `Verifier.sol` rewrite for L2 messages | ⏳ Pending |
-| `generate-mission.py` rewrite for invoke calldata | ⏳ Pending |
-| Mission scenario runs (`run-scenario.sh`) | ⏳ Will follow once above two land |
+| `generate-mission.py` rewrite (full scenarios) | ⏳ Pending — hand-written cells.json works today (see `docs/examples/`) |
 | Off-chain prover pipeline (SNOS → Stone → L1) | ⏳ Phase 3.a shortcut deprecated; per-block L2 proof flow needs implementing |
 | Web visualizer | ✅ Static animation (not a live dashboard) |
 
@@ -183,9 +183,28 @@ docker run --rm -v "$(pwd)/cairo/convoy_protocol:/work" -w /work convoy-cairo-bu
 
 # 5. Generate + deploy 5 drone OZ accounts per swarm
 ./scripts/generate-drone-accounts.sh
+
+# 6. Register the missions on each L2 (deploys the spec + 5 drone addresses
+#    against (mission_id, drone_id) so submit_telemetry will accept signed
+#    invokes from those drone accounts)
+./scripts/open-missions.sh
+
+# 7. Each drone submits its telemetry (one invoke per drone per mission)
+./scripts/submit-telemetry.sh alpha 3 docs/examples/alpha_drone_3_cells.json
 ```
 
 Each step writes its outputs into either `deployments/` (L1) or `.tmp-l2/` (L2). The deploy log files name every deployed address.
+
+### Drone telemetry — what `submit-telemetry.sh` does
+
+The script takes a swarm, a drone id (1..5), and a JSON file containing the four per-cell arrays (`cells_x`, `cells_y`, `cells_p_contact`, `cells_ts`). It loads the matching drone keystore from `.tmp-l2/drones/<swarm>/<drone_id>/`, serialises the arrays into starkli calldata, and fires `submit_telemetry` **signed by the drone's own key** — so `get_caller_address()` inside the contract resolves to the drone's registered account address, satisfying the per-drone authentication check.
+
+To craft your own scenarios, copy `docs/examples/alpha_drone_3_cells.json` and modify the arrays. To exercise UNSAFE outcomes:
+
+- Drop coverage below 95% → `FAIL_COVERAGE`
+- Push one `p_contact` to ≥ 7000 → `FAIL_DETECTION`
+- Push one `ts` beyond `ts_start + 360` → `FAIL_TIME`
+- Move one `(x, y)` outside the drone's strip → `FAIL_STRIP`
 
 ## Cloning the repo
 
