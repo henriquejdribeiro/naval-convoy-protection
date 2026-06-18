@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 """
 generate-mission.py — canonical mission generator for the convoy
-proof-of-concept (5-drone-per-swarm rev, 2026-05).
+proof-of-concept (5-drone-per-swarm rev, raw-telemetry-on-L2).
 
-Writes one input JSON per drone (10 total: alpha1..5 + bravo1..5),
-each carrying the public inputs for `safe_area_verify.cairo`:
+Writes one cells.json per drone (10 total: alpha1..5 + bravo1..5)
+in the schema `scripts/submit-telemetry.sh` consumes:
 
-    {mission_id, drone_id,
-     strip_x_start, strip_x_end, strip_y_start, strip_y_end,
-     strip_total_cells, coverage_min, p_min, time_window,
-     ts_start, n_cells,
-     cells_x[], cells_y[], cells_p_contact[], cells_ts[]}
+    {
+      "_comment":         <human-readable label>,
+      "cells_x":          [u32, ...],
+      "cells_y":          [u32, ...],
+      "cells_p_contact":  [u16, ...],     # basis points
+      "cells_ts":         [u64, ...]      # unix seconds
+    }
 
-The Cairo program reads these via program_input and writes
-(mid, did, strip..., verdict_bool, H) to [output_ptr]. The L2
-ConvoyProtocol verifies the proof against those same eight
-public-input felts.
+The four arrays MUST have the same length. The L2 `convoy_protocol`
+contract evaluates the four SAFE_AREA predicates against these
+arrays for the (mission_id, drone_id) the submitter signed as.
 
 Scenarios (mirror the L1 Registry's dual-flank outcomes):
 
@@ -62,13 +63,25 @@ Usage:
   python3 scripts/generate-mission.py --scenario alpha-dropout-midflight --output-dir /tmp/sweeps/
   python3 scripts/generate-mission.py --scenario dual-dropout           --output-dir /tmp/sweeps/
 
-Output filenames (one per drone that actually existed):
-  alpha1_input.json .. alpha5_input.json
-  bravo1_input.json .. bravo5_input.json
+Output layout (one subdirectory per scenario):
+  <output-dir>/<scenario>/alpha_1.json .. alpha_5.json
+  <output-dir>/<scenario>/bravo_1.json .. bravo_5.json
+  <output-dir>/<scenario>/vanish_manifest.json
 
-A vanished drone produces NO file at all - downstream tooling
-(entrypoint.sh ALL_* loops, submit_proof_l1.py) is expected to log the
-missing input and proceed.
+A vanished drone produces NO file at all — the runner is expected to
+detect the absent file and skip the invoke. The vanish_manifest.json
+records which drone-ids were intentionally skipped (audit + scenario
+introspection).
+
+Feeding generated files to submit-telemetry.sh:
+
+  python3 scripts/generate-mission.py --scenario both-safe --output-dir .tmp-l2/missions/
+  for swarm in alpha bravo; do
+      for did in 1 2 3 4 5; do
+          f=.tmp-l2/missions/both-safe/${swarm}_${did}.json
+          [ -f "$f" ] && ./scripts/submit-telemetry.sh $swarm $did "$f"
+      done
+  done
 """
 
 from __future__ import annotations
@@ -242,26 +255,24 @@ _KIND_TO_GENERATOR = {
 
 def make_input_json(swarm: SwarmSpec, drone_id: int, cells_x, cells_y,
                     cells_p, cells_ts, label: str):
-    x_start, x_end, y_start, y_end = strip_bounds(swarm, drone_id)
-    strip_total_cells = (x_end - x_start) * (y_end - y_start)
+    """
+    Build the cells.json payload that `submit-telemetry.sh` will hand to
+    `convoy_protocol.submit_telemetry`. The mission_id and drone_id are
+    NOT in the file — they're passed as separate CLI args to the
+    submitter (which already knows the swarm + drone identity from the
+    filename + invocation). Strip bounds and thresholds aren't here
+    either — the contract derives strip bounds from the spec stored at
+    open_mission time and applies the canonical thresholds.
+
+    Keeping the file slim mirrors what a real drone would actually
+    transmit: just the cell measurements.
+    """
     return {
-        "_comment":          label,
-        "mission_id":        swarm.mission_id,
-        "drone_id":          drone_id,
-        "strip_x_start":     x_start,
-        "strip_x_end":       x_end,
-        "strip_y_start":     y_start,
-        "strip_y_end":       y_end,
-        "strip_total_cells": strip_total_cells,
-        "coverage_min":      COVERAGE_MIN,
-        "p_min":             P_MIN,
-        "time_window":       TIME_WINDOW,
-        "ts_start":          TS_START,
-        "n_cells":           len(cells_x),
-        "cells_x":           cells_x,
-        "cells_y":           cells_y,
-        "cells_p_contact":   cells_p,
-        "cells_ts":          cells_ts,
+        "_comment":        label,
+        "cells_x":         cells_x,
+        "cells_y":         cells_y,
+        "cells_p_contact": cells_p,
+        "cells_ts":        cells_ts,
     }
 
 
@@ -363,7 +374,7 @@ def generate(scenario: str, seed: int) -> tuple[list[tuple[str, dict]], list[dic
                 f"n_cells={len(cells[0])}"
             )
             payload = make_input_json(swarm, drone_id, *cells, label=label)
-            results.append((f"{prefix}{drone_id}_input.json", payload))
+            results.append((f"{prefix}_{drone_id}.json", payload))
 
     return results, vanished
 
@@ -397,30 +408,39 @@ def main() -> int:
     )
     args = ap.parse_args()
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    scenario_dir = args.output_dir / args.scenario
+    scenario_dir.mkdir(parents=True, exist_ok=True)
     files, vanished = generate(args.scenario, args.seed)
+
+    # Strip totals for the diagnostic coverage % — derived per-swarm
+    # rather than carried in the slim cells.json itself.
+    strip_total = {
+        "alpha": ALPHA.strip_width * ALPHA.zone_h,
+        "bravo": BRAVO.strip_width * BRAVO.zone_h,
+    }
 
     print(f"[generate-mission] scenario={args.scenario}, seed={args.seed}")
     print(f"[generate-mission] {SCENARIOS[args.scenario]['summary']}")
     for fname, payload in files:
-        path = args.output_dir / fname
+        path = scenario_dir / fname
         path.write_text(json.dumps(payload, indent=2))
+        swarm_prefix = fname.split("_", 1)[0]
+        n_cells = len(payload["cells_x"])
         elapsed = payload["cells_ts"][-1] - TS_START if payload["cells_ts"] else 0
-        cov_per = payload["n_cells"] * 1000 // payload["strip_total_cells"]
+        cov_per = n_cells * 1000 // strip_total[swarm_prefix]
         max_p   = max(payload["cells_p_contact"]) if payload["cells_p_contact"] else 0
         print(
             f"  {path}: "
-            f"strip x=[{payload['strip_x_start']},{payload['strip_x_end']}) "
-            f"n_cells={payload['n_cells']} cov={cov_per}/1000 "
+            f"n_cells={n_cells} cov={cov_per}/1000 "
             f"max_p={max_p} elapsed={elapsed}s"
         )
 
-    # Emit a vanish_manifest.json alongside the input files so
-    # downstream tooling (entrypoint.sh, audit dashboards, the thesis
-    # appendix) can render "WANTED — last seen never reported" notices
-    # for the missing sectors. Always written (empty list when no
-    # drones vanished) so consumers can rely on the file existing.
-    manifest_path = args.output_dir / "vanish_manifest.json"
+    # Emit a vanish_manifest.json alongside the cells files so audit /
+    # scenario-introspection tooling can render "WANTED — last seen
+    # never reported" notices for the missing sectors. Always written
+    # (empty list when no drones vanished) so consumers can rely on
+    # the file existing.
+    manifest_path = scenario_dir / "vanish_manifest.json"
     manifest_path.write_text(json.dumps({
         "scenario":  args.scenario,
         "summary":   SCENARIOS[args.scenario]["summary"],

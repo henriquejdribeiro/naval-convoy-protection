@@ -54,7 +54,10 @@ N_DRONES=5
 COVERAGE_MIN=950      # 950 / 1000 = 95%
 P_MIN=7000            # 7000 / 10000 = 70% basis points
 TIME_WINDOW=360       # seconds
-TS_START=$(date +%s)  # use wall clock now; drones' cell ts must be ≥ this
+# Fixed mission start timestamp — matches generate-mission.py's TS_START so
+# its generated cells_ts values fall within [ts_start, ts_start + time_window]
+# and satisfy predicate ③ (Time). Set to 2023-11-14 22:13:20 UTC.
+TS_START=1700000000
 
 open_mission_for_swarm() {
     local swarm="$1"
