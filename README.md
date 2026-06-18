@@ -222,4 +222,9 @@ Apache-2.0 — see `LICENSE`.
 
 ## Provenance
 
-This project's architecture derives from the author's Master's thesis on modular blockchain architectures for resource-constrained drone swarms (Instituto Superior Técnico, 2026). The repository is a standalone mission archetype, with its own contracts, container topology, and visualisation.
+This project's architecture derives from the author's Master's thesis at Instituto Superior Técnico (2026):
+
+> **Modular blockchain architectures applied to drone swarms with low computational resources**
+> *Execution of smart contracts and analysis of consensus time*
+
+The repository is a standalone mission archetype, with its own contracts, container topology, and visualisation.
