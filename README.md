@@ -1,26 +1,30 @@
 # Naval Convoy Protection
 
-Verifiable mission compliance for naval drone escort operations, built on a modular zk-STARK rollup architecture.
+Verifiable mission compliance for naval drone escort operations, built on a per-swarm zk-rollup architecture.
 
-This project demonstrates how a six-ship naval convoy can use **two parallel Layer 2 chains** and a shared **Layer 1 settlement layer** to verify, in zero knowledge, that two drone swarms have completed their assigned frontal-area sweeps before the convoy advances. Each L2 produces a STARK proof of mission compliance; the closest reachable ship relays that proof to L1; the L1 verifier contract cryptographically checks it; and only after **both** proofs land on L1 does the convoy commander issue the advance command.
+A six-ship naval convoy holds position while **two five-drone swarms** independently sweep the frontal sectors ahead. Each swarm runs its own Layer-2 chain; the drones submit telemetry on L2; the L2 contract evaluates four `SAFE_AREA` predicates **in-contract**; when all five drones in a swarm pass, the L2 emits an L1 message; once **both swarms** emit their SAFE message on L1, the convoy commander (ship D) is permitted to issue the advance order.
 
-## The mission
+## The two swarms
 
-The convoy holds while two simultaneous reconnaissance missions complete:
+| Swarm | Mission ID | Frontal sector | L2 chain    | Drones                   | Strip layout |
+|-------|-----------:|----------------|-------------|--------------------------|--------------|
+| **Alpha** | `1`    | Left           | `L2-Alpha`  | drone 1..5 of mission 1 | zone 15×8, 5 strips of width 3 |
+| **Bravo** | `2`    | Right corridor | `L2-Bravo`  | drone 1..5 of mission 2 | zone 20×8, 5 strips of width 4 |
 
-| Mission ID | Drone swarm | Area     | L2 chain     | Primary relay ships |
-|-----------:|------------:|---------:|-------------:|--------------------:|
-| **EX-010** |       Alpha | Left frontal area  | `L2-Alpha`   | A or F              |
-| **EX-011** |       Bravo | Right frontal corridor | `L2-Bravo`   | A or B              |
+Each swarm's 5 drones each cover a **vertical strip** of the swarm's zone. Drone *i* sweeps strip *i*; the strip bounds are derived deterministically by the L2 contract from the mission spec (`x_start = zone_x + (i-1)·strip_width`, etc.) so the drone-side software can't claim coverage of someone else's strip.
 
-Each mission specifies:
+## The four `SAFE_AREA` predicates
 
-- a **reference area** (polygon or grid) to be covered,
-- a **minimum coverage percentage**,
-- a **detection threshold** for contacts above probability `x`,
-- a **maximum execution time window**.
+The L2 `convoy_protocol` contract checks each drone's raw telemetry against four conditions:
 
-A mission concludes with `SAFE_AREA` if and only if total coverage ≥ threshold, execution time ≤ window, and no relevant threats were detected.
+```
+① Strip bounds:   every cell ∈ [strip.x_start, strip.x_end) × [strip.y_start, strip.y_end)
+② Detection:     every cell.p_contact < mission.p_min               (basis points)
+③ Time window:   max(cell.ts) − ts_start ≤ mission.time_window      (seconds)
+④ Coverage:      n_cells × 1000 / strip_total_cells ≥ coverage_min  (permille)
+```
+
+If all four hold → verdict = `SAFE`. Otherwise → `UNSAFE`, with the failing predicate recorded on chain (`FAIL_STRIP`, `FAIL_DETECTION`, `FAIL_TIME`, `FAIL_COVERAGE`).
 
 ## Convoy formation
 
@@ -34,169 +38,194 @@ A mission concludes with `SAFE_AREA` if and only if total coverage ≥ threshold
                 D (rear, commander)
 ```
 
-All six ships (A, B, C, D, E, F) are validators of the same Layer 1 PoA chain. Ship D is the commander — it watches L1 for both `EX-010 SAFE` and `EX-011 SAFE` confirmations and, only when both arrive, issues a single L1 transaction: `Convoy ADVANCE maximum speed`.
+All six ships (A, B, C, D, E, F) are validators of the same L1 Clique-PoA chain. Ship D additionally holds the **commander key** — distinct from D's validator key — which is the only signer accepted by both `Registry.deploy()` (mission deployment) and `CommandLog.advance()` (the convoy-advance order). The commander key is immutable; the design fails closed by intent (no rotation path).
 
-## Architecture in one diagram
+## End-to-end data flow
 
 ```
-       ┌──────────────────────────────┐         ┌──────────────────────────────┐
-       │  L2-Alpha (Madara α)         │         │  L2-Bravo (Madara β)         │
-       │  Alpha drones submit         │         │  Bravo drones submit         │
-       │  per-cell sweep commitments  │         │  per-cell sweep commitments  │
-       │  → STARK proof π_α           │         │  → STARK proof π_β           │
-       └──────────────┬───────────────┘         └──────────────┬───────────────┘
-                      │                                         │
-        relay via best-signal ship                relay via best-signal ship
-                      │                                         │
-                      ▼                                         ▼
-                  ┌───────┐                                 ┌───────┐
-                  │ A or F│                                 │ A or B│
-                  └───┬───┘                                 └───┬───┘
-                      │                                         │
-                      ▼            ┌──────────────┐             ▼
-                                   │  L1 (Geth    │
-                                   │   Clique     │
-                                   │   PoA, 6     │
-                                   │   validators)│
-                                   ├──────────────┤
-                                   │ ConvoyProof  │  ← cryptographic verification
-                                   │ Verifier × 2 │     happens HERE, on-chain
-                                   ├──────────────┤
-                                   │ ConvoyMission│
-                                   │ Registry     │
-                                   ├──────────────┤
-                                   │ ConvoyCommand│
-                                   │ Log          │
-                                   └──────┬───────┘
-                                          │
-                                          │  events: EX-010 SAFE, EX-011 SAFE
-                                          ▼
-                                  ┌─────────────────┐
-                                  │ Ship D          │
-                                  │ (commander)     │
-                                  │                 │
-                                  │ if both SAFE →  │
-                                  │ tx: ADVANCE     │
-                                  └─────────────────┘
+[Per drone, off-chain]            [L2 — Madara α or β]                     [L1 — Geth Clique PoA]
+                                                                            
+Drone keystore signs              convoy_protocol.submit_telemetry()        Registry.deploy(spec)
+   invoke txs                          ├ Caller check:                          (mission registered)
+        │                              │   get_caller_address()
+        │  submit_telemetry(           │   == drone_addr[(mid, did)]?
+        ▼  mid, did, cells_x[],        │
+                cells_y[],             ├ Run 4 SAFE_AREA predicates             ┌──────────────────┐
+                p_contact[],           │   on the raw cells                     │  StarknetCoreStub│
+                cells_ts[])            │                                        │  (L1 ↔ L2 bridge │
+                                       ├ Store verdict + n_cells                │   message queue) │
+                                       │                                        └────────┬─────────┘
+                                       └ if safe_count == 5:                             │
+                                              send_message_to_l1_syscall ───────────────►│
+                                              (L1 verifier addr, payload)               │
+                                                                                          │
+                                                                                          ▼
+                                                                            Verifier.consumeL2Message()
+                                                                                          │
+                                                                                          ├─► Registry.setVerdict
+                                                                                          │   (per-drone, when proof
+                                                                                          │    pipeline lands per-drone
+                                                                                          │    messages — future)
+                                                                                          │
+                                                                                          └─► Registry.setMissionSafe
+                                                                                              (per-mission aggregate)
+                                                                                          │
+                                                                                          ▼
+                                                              Commander (ship D) waits for
+                                                              both missionSafe[1] && missionSafe[2]
+                                                              then signs:
+                                                                  CommandLog.advance(1, 2, speed)
+                                                                       │
+                                                                       └─► appends AdvanceRecord
+                                                                           emits ConvoyAdvance
 ```
 
-The cryptographic ground truth is held by the L1 verifier contract — ships are *relays*, not authoritative validators of the proof. A ship's PoA signature on the relay transaction provides only network-level authentication; the proof's validity is established by the on-chain STARK verifier.
+**Telemetry is public on L2** (chosen explicitly — see the architecture note in `cairo/convoy_protocol/src/lib.cairo`). The predicate check runs against the raw cells in the same L2 transaction that submitted them. The SAFE/UNSAFE verdict + which predicate failed are stored on L2; only the aggregate "all 5 SAFE → trigger L1 message" crosses the L2→L1 boundary.
+
+## Where each layer's contracts live
+
+### L1 (shared by both swarms)
+
+| Contract | Source | What it does |
+|---|---|---|
+| `StarknetCoreStub` | [contracts/src/StarknetCoreStub.sol](contracts/src/StarknetCoreStub.sol) | Minimal L1↔L2 message bridge — same interface as StarkWare's real `StarknetCore`, gutted of cryptographic checks for dev use |
+| `Registry` | [contracts/src/Registry.sol](contracts/src/Registry.sol) | Stores per-mission specs (zone geometry, thresholds), per-drone verdicts, per-mission `missionSafe` aggregate |
+| `Verifier` | [contracts/src/Verifier.sol](contracts/src/Verifier.sol) | Application-layer STARK-proof checker + Registry bookkeeping orchestrator |
+| `CommandLog` | [contracts/src/CommandLog.sol](contracts/src/CommandLog.sol) | Append-only log of convoy-advance orders; reverts unless both missions are SAFE and caller is commander |
+| StarkWare verifier stack | [contracts/lib/starkware-mainnet/](contracts/lib/starkware-mainnet/) | 17 vendored mainnet-source contracts: `GpsStatementVerifier`, `CpuFrilessVerifier`, `MerkleStatementContract`, `FriStatementContract`, `MemoryPageFactRegistry`, `CpuOods`, `CairoBootloaderProgram`, + 10 periodic-column constant contracts |
+
+### L2 (one deployment per swarm, on different Madara chains)
+
+| Contract | Source | Per-swarm |
+|---|---|---|
+| `convoy_protocol` (Cairo 1) | [cairo/convoy_protocol/src/lib.cairo](cairo/convoy_protocol/src/lib.cairo) | Same source, declared and deployed independently on each Madara — different storage state, different address |
+| 5× drone OZ accounts | Madara devnet's pre-declared OZ class | One ContractAddress per drone, registered in `convoy_protocol.open_mission(spec, drone_addresses)` |
+| Predeclared on Madara | UDC, ETH/STRK ERC20, OZ Account class, 10 pre-funded accounts | Standard Madara devnet genesis |
+
+### Off-chain (out of the proof-of-record path)
+
+| Tool | Source | What it does |
+|---|---|---|
+| `convoy-cairo-builder` Docker image | [infrastructure/cairo-builder/](infrastructure/cairo-builder/) | scarb 2.11.4, starkli 0.4.1, `starknet-sierra-compile` v2.12.3, `compute-casm-hash` (custom) — together bridge the version gap between scarb's CASM emit and Madara's CASM hash function |
+| `scripts/deploy-l2.sh` | [scripts/deploy-l2.sh](scripts/deploy-l2.sh) | Declares + deploys `convoy_protocol` to both Madaras |
+| `scripts/generate-drone-accounts.sh` | [scripts/generate-drone-accounts.sh](scripts/generate-drone-accounts.sh) | Generates 5 fresh keypairs per swarm, deploys OZ account contracts on each Madara via UDC signed by account #1 |
+
+## Per-swarm topology — what runs in Docker
+
+The "blue region" is duplicated per swarm; only the red L1 layer is shared.
+
+```
+┌─────────────────────────────────────┐   ┌─────────────────────────────────────┐
+│  Alpha lane                          │   │  Bravo lane                          │
+│  ─────────────                       │   │  ─────────────                       │
+│  madara-alpha    (chain_id=convoy_α) │   │  madara-bravo   (chain_id=convoy_β)  │
+│  pathfinder-alpha                    │   │  pathfinder-bravo                    │
+│  orchestrator-alpha   (port 13000)   │   │  orchestrator-bravo  (port 13001)    │
+│  prover-api-alpha                    │   │  prover-api-bravo                    │
+│  snos-alpha                          │   │  snos-bravo                          │
+└────────────────┬────────────────────┘   └────────────────┬────────────────────┘
+                 │                                          │
+                 │     ┌────────────────────────────────────┐
+                 └─────┤      L1 — shared layer             ├─────┘
+                       │  ship-{a,b,c,d,e,f} (Geth Clique)  │
+                       │  StarknetCoreStub                  │
+                       │  Registry, Verifier, CommandLog    │
+                       │  StarkWare 17-contract verifier    │
+                       │  stack                              │
+                       │  mongo + localstack (shared infra) │
+                       └────────────────────────────────────┘
+```
+
+Per-swarm isolation:
+- Different `chain_id` (`convoy_alpha` vs `convoy_bravo`) — proofs of one swarm's blocks can't be replayed on the other
+- Different signer key on each orchestrator (`ALPHA_RELAY = anvil[5]` / `BRAVO_RELAY = anvil[1]`)
+- Different MongoDB database names (`orchestrator_alpha` / `orchestrator_bravo`) inside the shared mongo
+- Different SQS queue prefixes (`mo_alpha_*` / `mo_bravo_*`) inside the shared localstack
+
+A compromise of one swarm's sequencer or orchestrator can't tamper with the other swarm's verdict.
 
 ## Project status
 
-This repository follows a phased build:
+This is an in-progress thesis project. The architecture diagram above shows the **target state**; not every box is wired end-to-end yet.
 
-- **Phase 1 — Visualization first** *(current)* — interactive single-page web demo of the full mission flow, animated end-to-end. No Docker required; open `webapp/index.html` in a browser.
-- **Phase 2 — L1 mechanics** — six Geth Clique-PoA containers, four Solidity contracts, ship-D commander logic working without real proofs.
-- **Phase 3 — Two L2 stacks + drones** — Madara α and β, Pathfinder, SNOS, Stone, orchestrators, ten drone containers (5 Alpha + 5 Bravo), real STARK proofs flowing.
-- **Phase 4 — Polish** — ArduPilot SITL flight dynamics per drone, network impairment chaos (`tc`/`netem`), live-data WebSocket bridge into the visualization.
+| Component | Status |
+|---|---|
+| L1 chain (6 ships, Clique PoA, mesh) | ✅ Working |
+| L1 contracts (StarknetCoreStub, Registry, Verifier, CommandLog) | ✅ Compile + deploy |
+| StarkWare verifier stack on L1 | ✅ Deploys (note: deploy-script address-prediction quirk under audit) |
+| L2 chains (Madara α + β, v0.9.1) | ✅ Both come up healthy |
+| `convoy_protocol` contract on each L2 | ✅ Declared + deployed |
+| 5 fresh OZ drone accounts per swarm | ✅ Deployed via UDC signed by account #1 |
+| Per-drone `submit_telemetry` invokes | ⚠️ Drones can sign; mission-open path (L1→L2 `open_mission`) not yet wired |
+| L1 `Verifier.sol` rewrite for L2 messages | ⏳ Pending |
+| `generate-mission.py` rewrite for invoke calldata | ⏳ Pending |
+| Mission scenario runs (`run-scenario.sh`) | ⏳ Will follow once above two land |
+| Off-chain prover pipeline (SNOS → Stone → L1) | ⏳ Phase 3.a shortcut deprecated; per-block L2 proof flow needs implementing |
+| Web visualizer | ✅ Static animation (not a live dashboard) |
+
+## Bring-up
+
+```bash
+# 1. L1 chain
+docker compose -f docker-compose.l1.yml up -d
+
+# 2. L1 contracts (StarknetCoreStub, Registry, Verifier, CommandLog)
+docker compose -f docker-compose.l1.yml --profile deploy run --rm deploy-l1
+
+# 3. L2 sequencers + indexers (both swarms)
+docker compose -f docker-compose.l1.yml -f docker-compose.l2.yml --profile l2 \
+    up -d madara-alpha madara-bravo pathfinder-alpha pathfinder-bravo
+
+# 4. Compile + deploy convoy_protocol on both Madaras
+docker build -t convoy-cairo-builder infrastructure/cairo-builder/      # first time only
+docker run --rm -v "$(pwd)/cairo/convoy_protocol:/work" -w /work convoy-cairo-builder scarb build
+./scripts/deploy-l2.sh
+
+# 5. Generate + deploy 5 drone OZ accounts per swarm
+./scripts/generate-drone-accounts.sh
+```
+
+Each step writes its outputs into either `deployments/` (L1) or `.tmp-l2/` (L2). The deploy log files name every deployed address.
 
 ## Cloning the repo
 
-Two upstream projects are vendored as **git submodules**, each pinned to a specific commit so the cryptographic stack stays reproducible:
-
-| Submodule | Path | What it provides |
-|---|---|---|
-| [`starkware-libs/starkex-contracts`](https://github.com/starkware-libs/starkex-contracts) | `contracts/lib/starkex-contracts/` | L1 STARK verifier contracts (`GpsStatementVerifier`, `FactRegistry`) that `GpsStarkVerifierAdapter` wraps |
-| [`zksecurity/stark-evm-adapter`](https://github.com/zksecurity/stark-evm-adapter) | `vendor/stark-evm-adapter/` | The `stark_evm_adapter` binary the prover-api container runs at step 5 of the proof pipeline — converts a Stone-prover annotated proof into the EVM-format calldata the L1 verifier consumes |
-
-Clone with `--recurse-submodules`, or fetch them after a normal clone:
+The StarkWare evm-verifier source is vendored directly under [`contracts/lib/starkware-mainnet/`](contracts/lib/starkware-mainnet/) (with the architectural divergence documented in [`PATCH.md`](contracts/lib/starkware-mainnet/PATCH.md)). The zksecurity stark-evm-adapter is vendored under [`vendor/stark-evm-adapter/`](vendor/stark-evm-adapter/).
 
 ```bash
-# Fresh clone (recommended)
-git clone --recurse-submodules https://github.com/henriquejdribeiro/naval-convoy-protection.git
-
-# Already cloned without --recurse-submodules?
-git submodule update --init --recursive
+git clone https://github.com/henriquejdribeiro/naval-convoy-protection.git
 ```
 
-### Windows only — materialise symlinks after submodule init
+No submodules — the vendored trees are committed directly so the cryptographic stack stays bit-reproducible without dependence on third-party hosting.
 
-`starkex-contracts` uses cross-tree filesystem symlinks (`evm-verifier/.../FactRegistry.sol` → `scalable-dex/.../FactRegistry.sol`). On Linux they resolve naturally. **On Windows without Developer Mode enabled at clone time**, Git checks 68 of them out as plain text files containing the target path — `forge build` cannot follow those.
+## Ports
 
-Run this once after submodule init:
-
-```bash
-./scripts/materialize-starkex-symlinks.sh
-```
-
-The script reads each fake-symlink file, resolves the target relative to the symlink's directory, and overwrites the file with a real copy of the target's content. Idempotent — re-running on an already-materialised tree is a no-op. On Linux it detects real symlinks and exits without changes.
-
-After running, the submodule's working tree shows those 68 files as "modified" relative to its index — that's expected and harmless. `.gitmodules` is configured with `ignore = dirty` on this submodule so the parent repo's `git status` doesn't surface it.
-
-Without the submodules, `forge build` still works for Phase 2 (the convoy contracts) because the StarkWare contracts aren't imported into the build graph yet — but the `GpsStarkVerifierAdapter` (and any production deployment of the on-chain STARK verifier) requires the `starkex-contracts` submodule present *and the symlinks materialised on Windows*. The `stark_evm_adapter` binary built from the `vendor/` submodule is consumed by `infrastructure/prover-api/entrypoint.sh` at runtime.
-
-## Quickstart (Phase 1)
-
-No installation. Open `webapp/index.html` directly in a modern browser, or serve the folder over HTTP if your browser blocks local module imports:
-
-```bash
-cd webapp
-python -m http.server 8080
-# then open http://localhost:8080
-```
-
-Click **▶ Play Demonstration** in the simulation widget to watch the eight phases of the convoy mission play out end-to-end.
-
-## Ports — what runs where
-
-Every service in the convoy stack binds a fixed host port so you always know where to look. URLs below are what you'd type into a browser (or `curl`) on the machine running Docker.
-
-### Web frontends (the things you actually open in Chrome)
-
-| URL | Service | What you see there |
-|---|---|---|
-| <http://localhost:8000> | Mission visualisation webapp (Python `http.server`, served from `webapp/`) | The animated convoy demo and the 3D world view. **Planned**: an integrated L1 + L2 explorer (blocks, transactions, contracts, events) for the convoy chains, talking directly to ship-a's RPC and the Madara/Pathfinder RPC. |
-| <http://localhost:3000> | Allied Protocol — Drone API UI | Per-drone deploy / telemetry / move / detect-threat operations |
-
-### Layer 1 — Geth Clique-PoA (`docker-compose.l1.yml`)
-
-Six validator ships, each exposing JSON-RPC. Most commands target ship A; the others are available if you want to query a non-primary validator.
-
-| Host port | Container port | Service | Role |
-|---:|---:|---|---|
-| `18545` | `8545` | `convoy-ship-a` JSON-RPC | Primary L1 RPC endpoint (used by Orchestrator, the webapp explorer, all deploy scripts) |
-| `18546` | `8546` | `convoy-ship-a` WebSocket | Real-time block subscriptions (used by the webapp explorer for live updates) |
-| `30303` | `30303` | `convoy-ship-a` devp2p | Peer discovery + block gossip |
-| `8645` | `8545` | `convoy-ship-b` JSON-RPC | Validator B (Bravo flank relay) |
-| `8745` | `8545` | `convoy-ship-c` JSON-RPC | Validator C |
-| `8845` | `8545` | `convoy-ship-d` JSON-RPC | Validator D (Commander) |
-| `8945` | `8545` | `convoy-ship-e` JSON-RPC | Validator E |
-| `9045` | `8545` | `convoy-ship-f` JSON-RPC | Validator F (Alpha flank relay) |
-
-### Layer 2 — Madara sequencer + Pathfinder + Orchestrator (`docker-compose.l2.yml`)
-
-| Host port | Container port | Service | Role |
-|---:|---:|---|---|
-| `18080` | `8080` | `convoy-madara` HTTP | Madara sequencer HTTP API |
-| `19944` | `9944` | `convoy-madara` JSON-RPC | Starknet-compatible RPC (transactions, state queries) |
-| `9545` | `9545` | `convoy-pathfinder` JSON-RPC | L2 full node (state replication + queries) |
-| `13000` | `3000` | `convoy-orchestrator` | L1↔L2 relay coordinator (polls Pathfinder, submits L1 proofs) |
-| `27017` | `27017` | `madara-mongo` | MongoDB used by Madara/Orchestrator |
-| `8080` | `8080` | `madara-node` HTTP | Alternative Madara node (HTTP) |
-| `9944` | `9944` | `madara-node` JSON-RPC | Alternative Madara node (RPC) |
-
-### Port-conflict notes
-
-- Port `3000` is taken by `allied-protocol` (Drone API UI).
-- The block explorer is planned to be integrated directly into the mission webapp on `localhost:8000`. It will read both layers directly:
-  - **L1**: ship-a RPC at `localhost:18545` (HTTP) and `localhost:18546` (WS) — for blocks, transactions, contracts, events.
-  - **L2**: Madara JSON-RPC at `localhost:19944` and Pathfinder at `localhost:9545` — for L2 state, mission commitments, verdicts.
-- If you change any port mapping in the `docker-compose.*.yml` files, update this table at the same time.
+| URL | What |
+|---|---|
+| <http://localhost:8000> | Web visualiser (`python -m http.server` in `webapp/`) |
+| <http://localhost:18545> | L1 ship-A JSON-RPC |
+| <http://localhost:18546> | L1 ship-A WebSocket |
+| <http://localhost:19944> | Madara α JSON-RPC (also serves `/rpc/v0.8.1`) |
+| <http://localhost:18080> | Madara α feeder-gateway |
+| <http://localhost:29944> | Madara β JSON-RPC |
+| <http://localhost:28080> | Madara β feeder-gateway |
+| <http://localhost:9545>  | Pathfinder α JSON-RPC |
+| <http://localhost:9645>  | Pathfinder β JSON-RPC |
+| <http://localhost:13000> | Orchestrator α |
+| <http://localhost:13001> | Orchestrator β |
+| `8645 / 8745 / 8845 / 8945 / 9045` | L1 ships B/C/D/E/F JSON-RPC |
 
 ## Technology stack
 
-| Layer | Component | Phase |
-|-------|-----------|-------|
-| L1 settlement | Go-Ethereum (Clique PoA, 6 validators) | 2 |
-| L2 sequencing | Madara appchain ×2 (Alpha, Bravo) | 3 |
-| L2 indexing | Pathfinder ×2 | 3 |
-| Proving | StarkWare Stone (via SNOS) ×2 | 3 |
-| Settlement | Solidity STARK verifier contracts | 2 |
-| Mission programs | Cairo 2.x (`convoy_alpha_verify.cairo`, `convoy_bravo_verify.cairo`) | 3 |
-| Mission control | Python ship-orchestrator agents | 2 |
-| Drone agents | Python (Phase 3) → ArduPilot SITL (Phase 4) | 3–4 |
-| Visualization | Vanilla JS + SVG (no framework) | 1 |
+| Layer | Component | Pinned version |
+|---|---|---|
+| L1 chain | Geth (Clique PoA, 6 validators) | `ethereum/client-go:v1.10.17` |
+| L1 contracts | Solidity + Foundry | `^0.8.20` (convoy), `^0.6.12` (vendored StarkWare) |
+| L2 sequencer | Madara | `v0.9.1` (cairo-lang-sierra-to-casm 2.12.3) |
+| L2 indexer | Pathfinder | `v0.21.3` |
+| Cairo contract | Cairo 1 (Sierra 1.7.0) | scarb 2.11.4 |
+| L2 tooling | starkli + custom `starknet-sierra-compile` + `compute-casm-hash` | 0.4.1 + cairo-lang 2.12.3 |
+| Off-chain prover (when wired) | Stone (Atlantic mock) | via `ghcr.io/madara-alliance/orchestrator:nightly` |
+| Visualisation | Vanilla JS + SVG (no framework) | — |
 
 ## License
 
@@ -204,4 +233,4 @@ Apache-2.0 — see `LICENSE`.
 
 ## Provenance
 
-This project's STARK pipeline derives from the architecture developed in the author's Master's thesis on modular blockchain architectures for resource-constrained drone swarms (Instituto Superior Técnico, 2026). Naval Convoy Protection is a self-contained mission archetype extracted as a standalone deliverable, with its own contracts, container topology, and visualization. No code dependency on the thesis repository exists.
+This project's architecture derives from the author's Master's thesis on modular blockchain architectures for resource-constrained drone swarms (Instituto Superior Técnico, 2026). The repository is a standalone mission archetype, with its own contracts, container topology, and visualisation.
