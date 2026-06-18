@@ -1,6 +1,6 @@
 # Naval Convoy Protection
 
-Verifiable mission compliance for naval drone escort operations, built on a per-swarm zk-rollup architecture.
+Verifiable mission compliance for naval drone clearance operations, built on a per-swarm rollup architecture.
 
 A six-ship naval convoy holds position while **two five-drone swarms** independently sweep the frontal sectors ahead. Each swarm runs its own Layer-2 chain; the drones submit telemetry on L2; the L2 contract evaluates four `SAFE_AREA` predicates **in-contract**; when all five drones in a swarm pass, the L2 emits an L1 message; once **both swarms** emit their SAFE message on L1, the convoy commander (ship D) is permitted to issue the advance order.
 
