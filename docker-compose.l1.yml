@@ -306,37 +306,21 @@ services:
           --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
           --broadcast | tee /workspace/deploy-l1.log
 
-        # Extract the freshly-deployed Registry address from the deploy log
-        REGISTRY=$$(grep -oE 'Registry         deployed at: 0x[a-fA-F0-9]{40}' /workspace/deploy-l1.log | awk '{print $$NF}')
-        if [ -z "$$REGISTRY" ]; then
-            echo "[deploy-l1] ERROR: could not parse Registry address from log"; exit 1
-        fi
-        echo "[deploy-l1] Registry deployed at $$REGISTRY"
-
-        COMMANDER_PK=0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356
-
-        # MissionSpec — 10-field struct matching Registry.sol:
-        #   (areaHash, zoneX, zoneY, zoneW, zoneH, nDrones, stripWidth,
-        #    coverageMin, pMin, timeWindow)
-        # ALPHA: zoneW=15, stripWidth=3 (5 drones × 3 cells)
-        # BRAVO: zoneW=20, stripWidth=4 (5 drones × 4 cells)
-        AREA_HASH=0x6172656172656172656172656172656172656172656172656172656172656131
-        ALPHA_SPEC="($$AREA_HASH,0,0,15,8,5,3,950,7000,360)"
-        BRAVO_SPEC="($$AREA_HASH,0,0,20,8,5,4,950,7000,360)"
-
-        echo "[deploy-l1] deploying mission for alpha swarm (missionId=1, zoneW=15, 5x3 strips)"
-        cast send $$REGISTRY \
-            "deploy(uint256,(bytes32,uint32,uint32,uint32,uint32,uint8,uint32,uint16,uint16,uint64))" \
-            1 "$$ALPHA_SPEC" \
-            --rpc-url http://ship-a:8545 \
-            --private-key $$COMMANDER_PK
-        echo "[deploy-l1] deploying mission for bravo swarm (missionId=2, zoneW=20, 5x4 strips)"
-        cast send $$REGISTRY \
-            "deploy(uint256,(bytes32,uint32,uint32,uint32,uint32,uint8,uint32,uint16,uint16,uint64))" \
-            2 "$$BRAVO_SPEC" \
-            --rpc-url http://ship-a:8545 \
-            --private-key $$COMMANDER_PK
-        echo "[deploy-l1] missions deployed; prover-api can now call registerSafeProof"
+        # Mission deployment is NO LONGER part of this step.
+        # Since Registry.deploy() now takes per-mission drone L2-addresses and
+        # the L2 convoy_protocol contract addresses (both of which only
+        # exist AFTER deploy-l2.sh + generate-drone-accounts.sh have run),
+        # the mission-registration step moves to a separate script that
+        # runs later in the bring-up sequence:
+        #
+        #   scripts/register-missions.sh
+        #
+        # It reads .tmp-l2/convoy_l2_{alpha,bravo}.env + .tmp-l2/drones-{alpha,bravo}.env,
+        # calls Registry.setConvoyProtocolL2 to bind each mission to its L2
+        # contract, then signs Registry.deploy(mid, spec, drones, ts_start)
+        # with the commander key. That call also dispatches the L1→L2
+        # `open_mission` message via StarknetCoreStub.sendMessageToL2.
+        echo "[deploy-l1] L1 contracts deployed; run ./scripts/register-missions.sh after L2 setup to register missions"
     volumes:
       - ./contracts:/workspace
     networks:

@@ -58,8 +58,10 @@ contract DeployL1 is Script {
         StarknetCoreStub starknet = new StarknetCoreStub();
         console2.log("StarknetCoreStub deployed at:", address(starknet));
 
-        // 2. Registry — owner is the deployer; commander is D's key
-        Registry registry = new Registry(deployer, commanderAddr);
+        // 2. Registry — owner is the deployer; commander is D's key;
+        //    starknetCore is the L1↔L2 bridge it will dispatch the
+        //    open_mission L1→L2 message through during deploy().
+        Registry registry = new Registry(deployer, commanderAddr, address(starknet));
         console2.log("Registry         deployed at:", address(registry));
 
         // 3. Verifier — Stage B of the two-stage verification model.
