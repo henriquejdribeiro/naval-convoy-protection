@@ -202,17 +202,6 @@ No submodules — the vendored trees are committed directly so the cryptographic
 | URL | What |
 |---|---|
 | <http://localhost:8000> | Web visualiser (`python -m http.server` in `webapp/`) |
-| <http://localhost:18545> | L1 ship-A JSON-RPC |
-| <http://localhost:18546> | L1 ship-A WebSocket |
-| <http://localhost:19944> | Madara α JSON-RPC (also serves `/rpc/v0.8.1`) |
-| <http://localhost:18080> | Madara α feeder-gateway |
-| <http://localhost:29944> | Madara β JSON-RPC |
-| <http://localhost:28080> | Madara β feeder-gateway |
-| <http://localhost:9545>  | Pathfinder α JSON-RPC |
-| <http://localhost:9645>  | Pathfinder β JSON-RPC |
-| <http://localhost:13000> | Orchestrator α |
-| <http://localhost:13001> | Orchestrator β |
-| `8645 / 8745 / 8845 / 8945 / 9045` | L1 ships B/C/D/E/F JSON-RPC |
 
 ## Technology stack
 
