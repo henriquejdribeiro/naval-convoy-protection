@@ -1,0 +1,23 @@
+{
+  "_comment": "Alpha mission 1, drone 3, same strip x=[6,9) y=[0,8) as the SAFE example. One cell (7, 4) at p_contact=8500 simulates a confirmed-contact detection (≥ p_min=7000). Coverage + time + strip-bounds all still satisfied, so this isolates the FAIL_DETECTION outcome — the contract will set verdict=UNSAFE and fail_reason=2.",
+  "cells_x": [
+    6, 6, 6, 6, 6, 6, 6, 6,
+    7, 7, 7, 7, 7, 7, 7, 7,
+    8, 8, 8, 8, 8, 8, 8
+  ],
+  "cells_y": [
+    0, 1, 2, 3, 4, 5, 6, 7,
+    0, 1, 2, 3, 4, 5, 6, 7,
+    0, 1, 2, 3, 4, 5, 6
+  ],
+  "cells_p_contact": [
+    1200, 2400, 3300, 4100, 4900, 5800, 6200, 6900,
+    1500, 2800, 3600, 4400, 8500, 6100, 6500, 6800,
+    1800, 3100, 3900, 4700, 5500, 6300, 6700
+  ],
+  "cells_ts": [
+    1700000010, 1700000020, 1700000030, 1700000040, 1700000050, 1700000060, 1700000070, 1700000080,
+    1700000090, 1700000100, 1700000110, 1700000120, 1700000130, 1700000140, 1700000150, 1700000160,
+    1700000170, 1700000180, 1700000190, 1700000200, 1700000210, 1700000220, 1700000230
+  ]
+}
