@@ -102,8 +102,22 @@ pub const FAIL_COVERAGE:   u8 = 4;   // ④ coverage permille below threshold
 pub trait IConvoyProtocol<TContractState> {
     // ── Mutating entry points ───────────────────────────────────────
     //
-    // open_mission is invoked via #[l1_handler]; it is NOT part of the
-    // public interface but lives in the contract module.
+    // open_mission lives in the contract module (it's #[l1_handler]); the
+    // dev-mode companion `open_mission_local` IS part of this trait so
+    // it can be invoked from a normal L2 account.
+
+    /// Dev-mode mission deployment — same effect as the L1→L2-bridged
+    /// `open_mission`, but callable as a regular invoke without needing
+    /// an L1 message. Skips the L1-sender authorisation check; rely on
+    /// the (mission_id) idempotency to prevent re-deployment.
+    ///
+    /// Use this until `--l1-sync-disabled` is dropped on the Madara
+    /// services and the production L1→L2 bridge is fully wired.
+    fn open_mission_local(
+        ref self: TContractState,
+        spec:            MissionSpec,
+        drone_addresses: Array<ContractAddress>,
+    );
 
     /// Drone → L2 submission of raw per-cell telemetry. The contract
     /// runs the four SAFE_AREA predicates on the cells against the
@@ -238,15 +252,24 @@ mod ConvoyProtocol {
         fail_reason:   u8,
     }
 
-    // ── L1 → L2 handler — mission deployment ───────────────────────────────
+    // ── Mission deployment — two entry points share one implementation ─────
     //
-    // Triggered when the L1 Commander bridge calls L1's
-    // `StarknetCore.sendMessageToL2(this_contract, selector, payload)`. The
-    // Madara block builder routes the message to this function. `from_address`
-    // is the L1 sender, which we lock to the configured Commander bridge.
+    // PRODUCTION PATH: #[l1_handler] open_mission
+    //   Triggered when the L1 Commander bridge calls L1's
+    //   StarknetCore.sendMessageToL2(this_contract, selector, payload).
+    //   Madara's block builder routes the message to this handler with
+    //   `from_address` auto-filled to the L1 sender.
     //
-    // For Cairo 1 #[l1_handler], complex struct/array payloads are decoded
-    // automatically by the Serde derive on MissionSpec and Array<...>.
+    // DEV PATH: #[external_v0] open_mission_local (via IConvoyProtocol)
+    //   Same body, no L1 round-trip — directly callable as a normal L2
+    //   invoke. Needed because our Madaras run with --l1-sync-disabled,
+    //   so the canonical L1→L2 message bridge isn't active in this
+    //   deployment topology. Once we wire SNOS + orchestrator and drop
+    //   --l1-sync-disabled, the L1 path becomes the only authorised one
+    //   and open_mission_local can be removed.
+    //
+    // Shared helper _do_open_mission contains the spec-sanity checks
+    // and storage writes so both entry points stay in lockstep.
     #[l1_handler]
     fn open_mission(
         ref self: ContractState,
@@ -254,19 +277,25 @@ mod ConvoyProtocol {
         spec:            MissionSpec,
         drone_addresses: Array<ContractAddress>,
     ) {
-        // 1. Authorisation
         assert(
             from_address == self.l1_commander_addr.read(),
             'unauthorised L1 sender',
         );
+        _do_open_mission(ref self, spec, drone_addresses);
+    }
 
-        // 2. Idempotency
+    fn _do_open_mission(
+        ref self: ContractState,
+        spec:            MissionSpec,
+        drone_addresses: Array<ContractAddress>,
+    ) {
+        // 1. Idempotency
         assert(
             !self.mission_exists.read(spec.mission_id),
             'mission already deployed',
         );
 
-        // 3. Spec sanity
+        // 2. Spec sanity
         assert(spec.n_drones > 0_u8, 'n_drones must be > 0');
         let n_drones_u32: u32 = spec.n_drones.into();
         assert(spec.zone_w == spec.strip_width * n_drones_u32, 'zone_w not divisible');
@@ -274,11 +303,11 @@ mod ConvoyProtocol {
         assert(spec.strip_width > 0_u32, 'strip_width must be > 0');
         assert(drone_addresses.len() == n_drones_u32, 'drone addr count mismatch');
 
-        // 4. Persist spec
+        // 3. Persist spec
         self.missions.write(spec.mission_id, spec);
         self.mission_exists.write(spec.mission_id, true);
 
-        // 5. Register each drone's account address against (mid, did)
+        // 4. Register each drone's account address against (mid, did)
         let mut i: u32 = 0;
         loop {
             if i >= n_drones_u32 { break; }
@@ -298,6 +327,14 @@ mod ConvoyProtocol {
     // ── External entry points ──────────────────────────────────────────────
     #[abi(embed_v0)]
     impl ConvoyProtocolImpl of super::IConvoyProtocol<ContractState> {
+
+        fn open_mission_local(
+            ref self: ContractState,
+            spec:            MissionSpec,
+            drone_addresses: Array<ContractAddress>,
+        ) {
+            _do_open_mission(ref self, spec, drone_addresses);
+        }
 
         fn submit_telemetry(
             ref self: ContractState,
