@@ -68,6 +68,19 @@ contract StarknetCoreStub {
         uint256         nonce,
         uint256         fee
     );
+    /// @notice Emitted by `consumeMessageFromL2` when an L1 contract
+    ///         successfully claims a message queued from L2.
+    /// @param  fromAddress L2 sender (the convoy_protocol address that
+    ///                     called `send_message_to_l1_syscall`)
+    /// @param  toAddress   L1 consumer (msg.sender of consumeMessageFromL2)
+    /// @param  payload     The arbitrary felt array L2 attached to the
+    ///                     message — for the convoy flow this is
+    ///                     `[mission_id, n_drones]`.
+    event ConsumedMessageToL1(
+        uint256 indexed fromAddress,
+        address indexed toAddress,
+        uint256[]       payload
+    );
 
     // ───────────────────────────────────────────────────────────────────
     //  Madara startup checks
@@ -129,5 +142,72 @@ contract StarknetCoreStub {
         );
         l1ToL2Messages[msgHash] += 1;
         emit LogMessageToL2(msg.sender, toAddress, selector, payload, nonce, msg.value);
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    //  L2 → L1 message bridge
+    //
+    //  The producer side of this queue (`l2ToL1Messages`) is supposed to
+    //  be written by a settlement step — in real `Starknet.sol`, the
+    //  orchestrator's call to `updateState(...)` iterates the proved
+    //  block's "messages-to-L1" segment and credits each hash here.
+    //  Our `updateState` is currently a stub that only updates the three
+    //  state-root slots — populating `l2ToL1Messages` from a verified
+    //  block is gap 1 (settlement pipeline), tracked separately.
+    //
+    //  The consumer side — `consumeMessageFromL2` — is symmetrically
+    //  mirrored from `Starknet.sol`. Once gap 1 lands (or a dev-only
+    //  injection helper is added), an L1 contract can claim its
+    //  messages here without further changes to this surface.
+    // ───────────────────────────────────────────────────────────────────
+
+    /**
+     * @notice Consume one queued L2 → L1 message. Mirrors
+     *         StarkWare's production `Starknet.sol` signature, hash
+     *         formula, and revert string verbatim, so an L1 contract
+     *         written against this stub will compile + behave
+     *         identically against the real Starknet contract on mainnet.
+     *
+     * @dev    The msgHash binds three things:
+     *           - the L2 sender (`fromAddress`)
+     *           - the L1 consumer (`msg.sender` — i.e. the caller of
+     *             this function, NOT a parameter)
+     *           - the payload (length-prefixed)
+     *         Only the contract whose address matches the L2 sender's
+     *         declared destination can therefore consume the message.
+     *         The L2-side `send_message_to_l1_syscall(to_address,
+     *         payload)` sets `to_address` to the intended L1 consumer,
+     *         and the orchestrator's `updateState` (when implemented)
+     *         must compute the same hash using the L2-recorded
+     *         destination — so an unauthorised L1 contract calling here
+     *         with the right (fromAddress, payload) but a different
+     *         `msg.sender` will compute a hash whose count in
+     *         `l2ToL1Messages` is 0 and revert.
+     *
+     * @param  fromAddress L2 contract that emitted the message (felt252
+     *                     widened to uint256)
+     * @param  payload     The felt array L2 attached to the message
+     * @return msgHash     Hash of the consumed message (handy for caller
+     *                     logging / replay-defence)
+     */
+    function consumeMessageFromL2(
+        uint256          fromAddress,
+        uint256[] calldata payload
+    )
+        external returns (bytes32 msgHash)
+    {
+        msgHash = keccak256(
+            abi.encodePacked(
+                fromAddress,
+                uint256(uint160(msg.sender)),
+                payload.length,
+                payload
+            )
+        );
+
+        require(l2ToL1Messages[msgHash] > 0, "INVALID_MESSAGE_TO_CONSUME");
+
+        emit ConsumedMessageToL1(fromAddress, msg.sender, payload);
+        l2ToL1Messages[msgHash] -= 1;
     }
 }
