@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
 # =============================================================================
-# generate-drone-accounts.sh — create 5 OZ accounts per swarm and deploy
-#                              them on each Madara devnet.
+# generate-drone-accounts.sh — create 5 OZ accounts per swarm, deploy them
+#                              on each Madara devnet, and bootstrap them
+#                              with the artefacts + balance needed to send
+#                              transactions immediately afterwards.
 #
-# Output:
-#   .tmp-l2/drones-alpha.env — ALPHA_DRONE_{1..5}_{ADDR,PUBKEY,KEYSTORE}
-#   .tmp-l2/drones-bravo.env — BRAVO_DRONE_{1..5}_{ADDR,PUBKEY,KEYSTORE}
-#   .tmp-l2/drones/{swarm}/{i}/keystore.json — encrypted keystore per drone
+# Output per drone:
+#   .tmp-l2/drones/{swarm}/{i}/keystore.json — encrypted keystore
+#   .tmp-l2/drones/{swarm}/{i}/account.json  — starkli account descriptor
+#                                              (required by `starkli invoke`)
+#   on-chain balance: FUND_AMOUNT_WEI of both ETH and STRK on Madara devnet
+#                     (Madara charges tx fees in STRK; without it a tx sits
+#                      in RECEIVED forever)
+#
+# Output per swarm:
+#   .tmp-l2/drones-{swarm}.env — ALPHA_DRONE_{1..5}_{ADDR,PUBKEY,KEYSTORE}
 #
 # How (and why this differs from DEPLOY_ACCOUNT):
 #   We use account #1 (pre-funded by Madara devnet's genesis) to call the
@@ -19,6 +27,13 @@
 #   for its nonce + max_fee, fails, and the tx never reaches the mempool —
 #   even under Madara's --no-transaction-validation. Going through account
 #   #1 + UDC sidesteps that because account #1 already exists.
+#
+# Why fund the drones inside this script (instead of leaving it to ops)?
+#   With zero STRK balance, every signed tx from the drone hangs in the
+#   sequencer's mempool indefinitely (Madara silently drops it during
+#   block inclusion). Funding right after deploy makes the drone usable
+#   in a single command — no manual top-up step before scripts/submit-
+#   telemetry.sh.
 #
 # Prereqs:
 #   - convoy-madara-{alpha,bravo} up and healthy
@@ -41,6 +56,17 @@ OZ_ACCOUNT_CLASS_HASH="0xe2eb8f5672af4e6a4e8a8f1b44989685e668489b0a25437733756c5
 DEPLOYER_ADDR="0x055be462e718c4166d656d11f89e341115b8bc82389c3762a10eade04fcb225d"
 DEPLOYER_PK="0x077e56c6dc32d40a67f6f7e6625c8dc5e570abe49c0a24e9202e4ae906abcc07"
 DEPLOYER_CLASS="${OZ_ACCOUNT_CLASS_HASH}"
+
+# Madara devnet pre-deploys two ERC-20 fee tokens at deterministic addresses:
+#   ETH  — legacy fee token (still used by some flows)
+#   STRK — modern v3 invoke fee token (what Madara actually deducts from
+#          for tx fees in this stack — without STRK, every drone tx hangs)
+# Both have a `transfer(recipient, low: u128, high: u128)` selector and
+# accept the standard ERC-20 amount split.
+ETH_TOKEN_ADDR="0x049D36570D4e46f48e99674bd3fcc84644DdD6b96F7C741B1562B82f9e004dC7"
+STRK_TOKEN_ADDR="0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d"
+# 1 ETH + 1 STRK per drone — generous (each submit_telemetry costs ~10^-7 STRK)
+FUND_AMOUNT_WEI="1000000000000000000"
 
 # Run starkli inside cairo-builder.
 SK() {
@@ -163,7 +189,102 @@ mint_drone_account() {
         return 1
     fi
 
+    # 5. Write account.json so `starkli invoke --account ...` works for this
+    #    drone. The script previously only wrote the keystore, forcing every
+    #    caller to hand-author this file.
+    cat > "${out_dir}/account.json" <<EOF
+{
+  "version": 1,
+  "variant": {
+    "type": "open_zeppelin",
+    "version": 1,
+    "public_key": "${pubkey}",
+    "legacy": false
+  },
+  "deployment": {
+    "status": "deployed",
+    "class_hash": "${OZ_ACCOUNT_CLASS_HASH}",
+    "address": "${addr}"
+  }
+}
+EOF
+
+    # Funding happens in a separate pass (fund_all_drones) AFTER every drone
+    # has been deployed. Doing it inline here causes deployer-nonce races
+    # because each fund call uses 2 nonces and starkli's chain-nonce fetch
+    # briefly returns stale values between back-to-back txs.
+
     echo "${addr}|${pubkey}|${ks_rel}"
+}
+
+# Bootstrap a freshly-deployed drone with ETH + STRK so its first signed
+# tx isn't silently dropped by the sequencer's mempool.
+#
+# Two single-call `starkli invoke --watch` txs signed by the deployer.
+# starkli 0.4.1 does NOT support multi-call positional syntax (no `/`
+# separator), so we settle for two sequential confirmations. Each
+# returns when ACCEPTED_ON_L2, so when this function returns the drone
+# has spendable balance on chain.
+fund_drone() {
+    local swarm="$1"
+    local drone_addr="$2"
+    local rpc_url="http://convoy-madara-${swarm}:9944/rpc/v${RPC_VERSION}"
+
+    local token label out rc nonce attempts
+    for token in "${STRK_TOKEN_ADDR}" "${ETH_TOKEN_ADDR}"; do
+        [ "${token}" = "${STRK_TOKEN_ADDR}" ] && label=STRK || label=ETH
+
+        # Poll the on-chain nonce until it ADVANCES past the value we last
+        # used. Madara's "latest" block can briefly trail its mempool
+        # immediately after a --watch returns, which is exactly when
+        # starkli's auto-nonce fetch races. Explicit polling + passing
+        # --nonce eliminates the race.
+        attempts=20
+        while [ ${attempts} -gt 0 ]; do
+            nonce=$(deployer_nonce_hex "${rpc_url}")
+            if [ -n "${nonce}" ] && [ "${nonce}" != "${LAST_USED_NONCE_HEX:-}" ]; then
+                break
+            fi
+            attempts=$((attempts - 1))
+            sleep 1
+        done
+        [ -z "${nonce}" ] && {
+            echo "[fund/${swarm}] could not fetch deployer nonce" >&2
+            return 1
+        }
+
+        out=$(MSYS_NO_PATHCONV=1 docker run --rm \
+            --network convoy-l1 \
+            -v "${REPO_ROOT}:/work" -w /work \
+            -e STARKNET_RPC="${rpc_url}" \
+            -e STARKNET_ACCOUNT="/work/.tmp-l2/drones/${swarm}/_deployer/account.json" \
+            -e STARKNET_KEYSTORE="/work/.tmp-l2/drones/${swarm}/_deployer/keystore.json" \
+            -e STARKNET_KEYSTORE_PASSWORD="${KEYSTORE_PWD}" \
+            convoy-cairo-builder \
+            starkli invoke "${token}" transfer "${drone_addr}" "${FUND_AMOUNT_WEI}" 0 \
+                --rpc "${rpc_url}" --nonce "${nonce}" --watch 2>&1)
+        rc=$?
+        if [ ${rc} -ne 0 ]; then
+            echo "[fund/${swarm}] ${label} transfer FAILED (rc=${rc}):" >&2
+            echo "${out}" | tail -6 >&2
+            return 1
+        fi
+        LAST_USED_NONCE_HEX="${nonce}"
+    done
+    return 0
+}
+
+# Fetch the deployer's current nonce as a hex string ("0x...")
+deployer_nonce_hex() {
+    local rpc_url="$1"
+    # Use Madara's JSON-RPC directly — starkli's `signer keystore-nonce`
+    # would also work but adds another container invocation per call.
+    MSYS_NO_PATHCONV=1 docker run --rm --network convoy-l1 \
+        curlimages/curl:latest \
+        -s -X POST "${rpc_url}" \
+        -H "Content-Type: application/json" \
+        --data "{\"jsonrpc\":\"2.0\",\"method\":\"starknet_getNonce\",\"params\":[\"latest\",\"${DEPLOYER_ADDR}\"],\"id\":1}" 2>/dev/null \
+        | grep -oE '"result":"0x[0-9a-fA-F]+"' | cut -d'"' -f4
 }
 
 generate_for_swarm() {
@@ -207,6 +328,36 @@ generate_for_swarm() {
     echo
     echo "[mint/${swarm}] wrote ${env_file#${REPO_ROOT}/}"
     cat "${env_file}"
+
+    # Second pass: fund every successfully-deployed drone with STRK + ETH.
+    # Failures here are NON-FATAL: the account exists on chain and the env
+    # file is already written, so the user can re-run `fund_drone` manually
+    # or top up via any other route. We just print a clear warning.
+    fund_all_drones "${swarm}"
+}
+
+# Iterate the swarm's env file and fund each drone the deployer issued.
+# Sequential STRK-then-ETH per drone, with --watch on every tx to make
+# sure starkli's next nonce fetch sees the previous tx as mined.
+fund_all_drones() {
+    local swarm="$1"
+    local env_file="${REPO_ROOT}/.tmp-l2/drones-${swarm}.env"
+    local addrs
+    addrs=$(grep -E "^[A-Z]+_DRONE_[0-9]+_ADDR=" "${env_file}" | cut -d= -f2)
+    [ -z "${addrs}" ] && return 0
+
+    echo
+    echo "[fund/${swarm}] funding ${N_DRONES} drones with ${FUND_AMOUNT_WEI} wei STRK + ETH each..."
+    local i=0
+    for addr in ${addrs}; do
+        i=$((i + 1))
+        printf "  [%s/%d] %s... " "${i}" "${N_DRONES}" "${addr}"
+        if fund_drone "${swarm}" "${addr}"; then
+            printf "OK\n"
+        else
+            printf "FAIL (drone still deployed; fund manually before submit-telemetry)\n"
+        fi
+    done
 }
 
 # ── Arg parsing ─────────────────────────────────────────────────────────────

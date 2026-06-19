@@ -81,7 +81,7 @@ CONV_ADDR=$(grep "^CONVOY_PROTOCOL_ADDR_${UP}=" "${CONV_ENV}" | cut -d= -f2)
 # ── Serialise the 4 arrays into starkli's <len> e1 e2 … en format ──────────
 # We hand the JSON to python inside cairo-builder (avoids depending on
 # host-side jq).
-CALLDATA=$(MSYS_NO_PATHCONV=1 docker run --rm \
+CALLDATA=$(MSYS_NO_PATHCONV=1 docker run --rm -i \
     -v "${REPO_ROOT}:/work" -w /work \
     convoy-cairo-builder \
     python3 - <<EOF

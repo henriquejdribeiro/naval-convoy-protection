@@ -210,4 +210,63 @@ contract StarknetCoreStub {
         emit ConsumedMessageToL1(fromAddress, msg.sender, payload);
         l2ToL1Messages[msgHash] -= 1;
     }
+
+    // ───────────────────────────────────────────────────────────────────
+    //  DEV-ONLY: hand-credit an L2 → L1 message into the queue
+    //
+    //  Real `Starknet.sol` populates `l2ToL1Messages` from
+    //  `updateState(...)` after a verified STARK proof of the L2 block.
+    //  Until our SNOS + Stone + orchestrator pipeline is wired (gap 1
+    //  in the L2→L1 path), nothing on chain credits the queue, so
+    //  `consumeMessageFromL2` would always revert
+    //  "INVALID_MESSAGE_TO_CONSUME" — making the entire consume API dead.
+    //
+    //  This helper closes that gap for dev/test runs: it lets an
+    //  off-chain script that watches Madara for `MissionSafe` events
+    //  hand-deliver them to L1, bypassing the proof pipeline. It is NOT
+    //  in real `Starknet.sol` and MUST be removed before any production
+    //  deployment.
+    //
+    //  No access control on purpose — devnet only.
+    // ───────────────────────────────────────────────────────────────────
+
+    /// @notice Emitted when a message is hand-credited via `injectL2Message`.
+    ///         Distinct from the production settlement path so audit
+    ///         tooling can flag dev-injected vs proof-anchored messages.
+    event DevInjectedL2Message(
+        uint256 indexed fromAddress,
+        address indexed toAddress,
+        uint256[]       payload,
+        bytes32         msgHash
+    );
+
+    /**
+     * @notice Hand-credit one L2 → L1 message into the consume queue,
+     *         WITHOUT requiring a STARK proof or block settlement.
+     *
+     * @dev    Computes msgHash using the same formula as
+     *         `consumeMessageFromL2`, so the eventual consumer (whose
+     *         address must equal `toAddress`) sees a matching hash and
+     *         the consume call passes.
+     *
+     * @param fromAddress L2 sender (convoy_protocol contract address)
+     * @param toAddress   L1 consumer (Verifier contract address)
+     * @param payload     Felts the L2 attached to the message
+     */
+    function injectL2Message(
+        uint256          fromAddress,
+        address          toAddress,
+        uint256[] calldata payload
+    ) external returns (bytes32 msgHash) {
+        msgHash = keccak256(
+            abi.encodePacked(
+                fromAddress,
+                uint256(uint160(toAddress)),
+                payload.length,
+                payload
+            )
+        );
+        l2ToL1Messages[msgHash] += 1;
+        emit DevInjectedL2Message(fromAddress, toAddress, payload, msgHash);
+    }
 }

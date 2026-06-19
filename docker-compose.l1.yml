@@ -26,6 +26,7 @@ services:
   ship-a:
     image: ethereum/client-go:v1.10.17
     container_name: convoy-ship-a
+    labels: { dev.dozzle.group: "L1 (geth fleet)" }
     hostname: ship-a
     restart: unless-stopped
     entrypoint: ["/bin/sh", "/init-geth.sh"]
@@ -62,6 +63,7 @@ services:
   ship-b:
     image: ethereum/client-go:v1.10.17
     container_name: convoy-ship-b
+    labels: { dev.dozzle.group: "L1 (geth fleet)" }
     hostname: ship-b
     restart: unless-stopped
     depends_on:
@@ -91,6 +93,7 @@ services:
   ship-c:
     image: ethereum/client-go:v1.10.17
     container_name: convoy-ship-c
+    labels: { dev.dozzle.group: "L1 (geth fleet)" }
     hostname: ship-c
     restart: unless-stopped
     depends_on:
@@ -120,6 +123,7 @@ services:
   ship-d:
     image: ethereum/client-go:v1.10.17
     container_name: convoy-ship-d
+    labels: { dev.dozzle.group: "L1 (geth fleet)" }
     hostname: ship-d
     restart: unless-stopped
     depends_on:
@@ -152,6 +156,7 @@ services:
   ship-e:
     image: ethereum/client-go:v1.10.17
     container_name: convoy-ship-e
+    labels: { dev.dozzle.group: "L1 (geth fleet)" }
     hostname: ship-e
     restart: unless-stopped
     depends_on:
@@ -181,6 +186,7 @@ services:
   ship-f:
     image: ethereum/client-go:v1.10.17
     container_name: convoy-ship-f
+    labels: { dev.dozzle.group: "L1 (geth fleet)" }
     hostname: ship-f
     restart: unless-stopped
     depends_on:

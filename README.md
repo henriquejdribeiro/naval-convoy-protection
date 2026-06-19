@@ -184,14 +184,35 @@ docker run --rm -v "$(pwd)/cairo/convoy_protocol:/work" -w /work convoy-cairo-bu
 # 5. Generate + deploy 5 drone OZ accounts per swarm
 ./scripts/generate-drone-accounts.sh
 
-# 6. Register the missions on each L2 (deploys the spec + 5 drone addresses
-#    against (mission_id, drone_id) so submit_telemetry will accept signed
-#    invokes from those drone accounts)
+# 6. Register missions on L1 — anchors the spec as a commander-signed L1
+#    tx AND dispatches the L1→L2 open_mission message via StarknetCoreStub.
+#    The L1 anchor is real; the L2-side delivery is dev-shortcut'd by
+#    step 7 because Madara v0.9.1 doesn't actually poll our stub (see note
+#    in docker-compose.l2.yml).
+./scripts/register-missions.sh
+
+# 7. Direct-invoke open_mission_local on each L2 contract — dev shortcut
+#    around the broken Madara-↔-StarknetCoreStub bridge. Idempotent with
+#    step 6's L1 anchor; both can run.
 ./scripts/open-missions.sh
 
-# 7. Each drone submits its telemetry (one invoke per drone per mission)
+# 8. Each drone submits its telemetry (one invoke per drone per mission)
 ./scripts/submit-telemetry.sh alpha 3 docs/examples/alpha_drone_3_cells.json
+
+# 9. After all 5 drones in a swarm land SAFE, the L2 emits its "MissionSafe"
+#    message. Relay it to L1 (dev helper — bypasses settlement pipeline).
+./scripts/relay-l2-messages.sh
 ```
+
+> ℹ️ **L1→L2 bridge status** — `register-missions.sh` correctly emits the
+> `LogMessageToL2` event on L1 (verified end-to-end: the message hash is
+> queued in `StarknetCoreStub.l1ToL2Messages`, the payload is the
+> canonical Cairo Serde for `open_mission(spec, drone_addresses)`).
+> Madara v0.9.1 however does NOT consume that message in our setup —
+> the L1-polling code path stays inactive against the barebones stub
+> (0 RPC requests observed; 0 L1-related log lines). Until we identify
+> the stub-compatibility tripwire (or replace the stub with real
+> `Starknet.sol`), `open-missions.sh` is the runtime delivery path.
 
 Each step writes its outputs into either `deployments/` (L1) or `.tmp-l2/` (L2). The deploy log files name every deployed address.
 

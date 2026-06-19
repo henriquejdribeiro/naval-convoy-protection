@@ -27,6 +27,117 @@
 #                consumes. Uses Karnot's tx-hash patches kept verbatim.
 # =============================================================================
 
+# ─── YAML anchors for drone onboard nodes ───────────────────────────────────
+# These root-level keys are extensions (x-*) — Compose ignores them, but
+# YAML anchor resolution happens before Compose parses, so `<<: *name`
+# inside service definitions below picks up these templates.
+#
+# Per-swarm drone layout:
+#
+#   Drone 1 (LEADER) hardware hosts:
+#     - the swarm's Madara SEQUENCER (madara-{swarm}, --sequencer/--devnet)
+#     - a Pathfinder archive node (pathfinder-{swarm}-1) for SNOS replay
+#     - SNOS, orchestrator, prover-api (the proving pipeline)
+#     - L1 sync is intentionally on so the leader has settlement awareness
+#
+#   Drones 2..5 (FOLLOWERS) each host:
+#     - one Madara FULL-NODE (madara-{swarm}-{n}, --full mode)
+#       that syncs from the swarm's leader sequencer via --gateway-url
+#       and runs with --l1-sync-disabled. Followers don't need L1.
+#
+# Madara docs explicitly endorse `--l1-sync-disabled` for "the full-node
+# or gateway presets (sync-only node), but you do not have access to an
+# L1 RPC node". This is the idiomatic Madara way to run a drone client.
+
+x-madara-fullnode-alpha-template: &madara-fullnode-alpha-template
+  image: ghcr.io/madara-alliance/madara:v0.9.1
+  profiles: ["l2", "proving", "proving-direct"]
+  depends_on:
+    madara-alpha:
+      condition: service_healthy
+  networks:
+    - convoy-l1
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:9944/health"]
+    interval: 10s
+    timeout: 5s
+    retries: 15
+    start_period: 60s
+
+x-madara-fullnode-bravo-template: &madara-fullnode-bravo-template
+  image: ghcr.io/madara-alliance/madara:v0.9.1
+  profiles: ["l2", "proving", "proving-direct"]
+  depends_on:
+    madara-bravo:
+      condition: service_healthy
+  networks:
+    - convoy-l1
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:9944/health"]
+    interval: 10s
+    timeout: 5s
+    retries: 15
+    start_period: 60s
+
+x-pathfinder-alpha-template: &pathfinder-alpha-template
+  image: eqlabs/pathfinder:v0.21.3
+  profiles: ["l2", "proving", "proving-direct"]
+  depends_on:
+    ship-a:
+      condition: service_healthy
+    madara-alpha:
+      condition: service_healthy
+  environment:
+    RUST_LOG: info
+  command: >
+    --network custom
+    --chain-id convoy_alpha
+    --ethereum.url ws://ship-a:8546
+    --gateway-url http://convoy-madara-alpha:8080/gateway
+    --feeder-gateway-url http://convoy-madara-alpha:8080/feeder_gateway
+    --storage.state-tries archive
+    --data-directory /usr/share/pathfinder/data
+  networks:
+    - convoy-l1
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/9545'"]
+    interval: 10s
+    timeout: 5s
+    retries: 60
+    start_period: 120s
+
+x-pathfinder-bravo-template: &pathfinder-bravo-template
+  image: eqlabs/pathfinder:v0.21.3
+  profiles: ["l2", "proving", "proving-direct"]
+  depends_on:
+    ship-a:
+      condition: service_healthy
+    madara-bravo:
+      condition: service_healthy
+  environment:
+    RUST_LOG: info
+  command: >
+    --network custom
+    --chain-id convoy_bravo
+    --ethereum.url ws://ship-a:8546
+    --gateway-url http://convoy-madara-bravo:8080/gateway
+    --feeder-gateway-url http://convoy-madara-bravo:8080/feeder_gateway
+    --storage.state-tries archive
+    --data-directory /usr/share/pathfinder/data
+  networks:
+    - convoy-l1
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/9545'"]
+    interval: 10s
+    timeout: 5s
+    retries: 60
+    start_period: 120s
+
+
 services:
 
   # ═══ Prover-API — per-swarm Stone STARK prover ═════════════════════════
@@ -46,6 +157,7 @@ services:
       dockerfile: infrastructure/prover-api/Dockerfile
     image: convoy-prover-api:latest
     container_name: convoy-prover-api-alpha
+    labels: { dev.dozzle.group: "Alpha 1 (leader)" }
     depends_on:
       ship-a:
         condition: service_healthy
@@ -79,6 +191,7 @@ services:
   prover-api-bravo:
     image: convoy-prover-api:latest        # built once via prover-api-alpha
     container_name: convoy-prover-api-bravo
+    labels: { dev.dozzle.group: "Bravo 1 (leader)" }
     depends_on:
       ship-a:
         condition: service_healthy
@@ -126,6 +239,19 @@ services:
   # so the same Sierra/CASM artefact is declared on both — they differ
   # only by storage state and chain_id.
 
+  # ─── L1 → L2 bridge note (applies to both madaras) ─────────────────
+  # We use `--l1-sync-disabled` even though Registry.deploy() correctly
+  # emits a LogMessageToL2 event for open_mission. Tested 2026-06-18:
+  # with `--l1-endpoint ws://ship-a:8546` (and http variant), Madara
+  # v0.9.1 makes 0 RPC calls to L1 and never converts the L1 event into
+  # an L1HandlerTransaction. The stub is presumably missing an interface
+  # Madara introspects, or its zero-state (root=0, blockNumber=0) sits
+  # below Madara's start-syncing threshold.
+  # Runtime delivery of mission deployment falls back to
+  # `scripts/open-missions.sh` which invokes open_mission_local on L2
+  # directly. The L1 audit-trail (Registry storage + LogMessageToL2
+  # event) remains intact via `scripts/register-missions.sh`.
+
   # ─── Alpha sequencer ───────────────────────────────────────────────
   madara-alpha:
     # Pinned to v0.10.0 — last release using cairo-lang-sierra-to-casm 2.12.3
@@ -138,6 +264,7 @@ services:
     depends_on:
       ship-a:
         condition: service_healthy
+    labels: { dev.dozzle.group: "Alpha 1 (leader)" }
     volumes:
       - madara-alpha-data:/madara_db
     command: >
@@ -148,8 +275,10 @@ services:
       --rpc-external
       --rpc-cors all
       --feeder-gateway-enable
+      --gateway-enable
       --gateway-external
       --gateway-port 8080
+      --gateway-trusted-add-transaction-endpoint
       --l1-sync-disabled
       --no-transaction-validation
       --l1-gas-price 1000000000
@@ -180,6 +309,7 @@ services:
     depends_on:
       ship-a:
         condition: service_healthy
+    labels: { dev.dozzle.group: "Bravo 1 (leader)" }
     volumes:
       - madara-bravo-data:/madara_db
     command: >
@@ -190,8 +320,10 @@ services:
       --rpc-external
       --rpc-cors all
       --feeder-gateway-enable
+      --gateway-enable
       --gateway-external
       --gateway-port 8080
+      --gateway-trusted-add-transaction-endpoint
       --l1-sync-disabled
       --no-transaction-validation
       --l1-gas-price 1000000000
@@ -211,82 +343,217 @@ services:
       retries: 15
       start_period: 30s
 
-  # ═══ Pathfinders — one indexer per swarm ═══════════════════════════════
-  # Pathfinder is single-chain (binds to one chain_id at startup), so
-  # each Madara gets its own indexer. Both Pathfinders inhabit the
-  # convoy-l1 docker network and the orchestrator/SNOS services
-  # reach them by container name.
+  # ═══ Pathfinders — one onboard L2 node per drone ═══════════════════════
+  # Each drone in the fleet runs its OWN Pathfinder indexer because each
+  # drone is on different hardware in the field. Per swarm: 5 drones × 1
+  # pathfinder each = 5 pathfinder containers. With 2 swarms that's 10
+  # pathfinders total.
+  #
+  # Topology per the architecture diagram:
+  #   pathfinder-{swarm}-1   ← LEADER drone (co-located with the swarm's
+  #                            madara sequencer + snos + orchestrator +
+  #                            prover-api on the same hardware). Same RPC
+  #                            host port as the original single pathfinder
+  #                            so existing scripts keep working.
+  #   pathfinder-{swarm}-{2..5} ← FOLLOWER drones. Same config, just their
+  #                              own data volume + port.
+  #
+  # All 5 in a swarm follow the SAME madara — they're parallel readers of
+  # one sequencer chain. SNOS-α and orchestrator-α read from drone-1's
+  # pathfinder (the leader's onboard node).
   #
   # Pinned to v0.21.3 — same version verifiable_grid uses, known compat
-  # with madara :nightly + vg-snos. v0.22.3 serves /rpc/v0_10 which SNOS
-  # rpc-replay needs, but the working path mediates SNOS calls through
-  # the orchestrator (vg-orchestrator + MongoDB + mock-atlantic).
+  # with madara :nightly + vg-snos.
 
-  pathfinder-alpha:
-    image: eqlabs/pathfinder:v0.21.3
-    container_name: convoy-pathfinder-alpha
-    profiles: ["l2", "proving", "proving-direct"]
-    depends_on:
-      ship-a:
-        condition: service_healthy
-      madara-alpha:
-        condition: service_healthy
+  pathfinder-alpha-1:        # LEADER drone (co-located w/ madara/snos/orchestrator)
+    <<: *pathfinder-alpha-template
+    container_name: convoy-pathfinder-alpha-1
     volumes:
-      - pathfinder-alpha-data:/usr/share/pathfinder/data
-    environment:
-      RUST_LOG: info
-    command: >
-      --network custom
-      --chain-id convoy_alpha
-      --ethereum.url ws://ship-a:8546
-      --gateway-url http://convoy-madara-alpha:8080/gateway
-      --feeder-gateway-url http://convoy-madara-alpha:8080/feeder_gateway
-      --storage.state-tries archive
-      --data-directory /usr/share/pathfinder/data
-    ports:
-      - "9545:9545"
-    networks:
-      - convoy-l1
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/9545'"]
-      interval: 10s
-      timeout: 5s
-      retries: 60
-      start_period: 120s
+      - pathfinder-alpha-1-data:/usr/share/pathfinder/data
+    ports: ["9545:9545"]
+    labels: { dev.dozzle.group: "Alpha 1 (leader)" }
 
-  pathfinder-bravo:
-    image: eqlabs/pathfinder:v0.21.3
-    container_name: convoy-pathfinder-bravo
-    profiles: ["l2", "proving", "proving-direct"]
-    depends_on:
-      ship-a:
-        condition: service_healthy
-      madara-bravo:
-        condition: service_healthy
+  # ── Follower drones (alpha 2..5) — Madara in --full mode ──────────────
+  # Each follower runs a Madara full-node syncing from the swarm's leader
+  # sequencer (madara-alpha). --l1-sync-disabled keeps them off L1 (they
+  # don't settle anything), eliminating the noisy L1-sync WARN spam.
+
+  madara-alpha-2:
+    <<: *madara-fullnode-alpha-template
+    container_name: convoy-madara-alpha-2
     volumes:
-      - pathfinder-bravo-data:/usr/share/pathfinder/data
-    environment:
-      RUST_LOG: info
+      - madara-alpha-2-data:/madara_db
     command: >
-      --network custom
-      --chain-id convoy_bravo
-      --ethereum.url ws://ship-a:8546
-      --gateway-url http://convoy-madara-bravo:8080/gateway
-      --feeder-gateway-url http://convoy-madara-bravo:8080/feeder_gateway
-      --storage.state-tries archive
-      --data-directory /usr/share/pathfinder/data
-    ports:
-      - "9645:9545"
-    networks:
-      - convoy-l1
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/9545'"]
-      interval: 10s
-      timeout: 5s
-      retries: 60
-      start_period: 120s
+      --name MadaraAlphaDrone2
+      --full
+      --preset devnet
+      --base-path /madara_db
+      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --gateway-url http://convoy-madara-alpha:8080
+      --validate-then-forward-txs-to http://convoy-madara-alpha:8080
+      --rpc-external
+      --rpc-cors all
+      --l1-sync-disabled
+      --l1-gas-price 1000000000
+      --blob-gas-price 100000
+    ports: ["19945:9944"]
+    labels: { dev.dozzle.group: "Alpha 2" }
+
+  madara-alpha-3:
+    <<: *madara-fullnode-alpha-template
+    container_name: convoy-madara-alpha-3
+    volumes:
+      - madara-alpha-3-data:/madara_db
+    command: >
+      --name MadaraAlphaDrone3
+      --full
+      --preset devnet
+      --base-path /madara_db
+      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --gateway-url http://convoy-madara-alpha:8080
+      --validate-then-forward-txs-to http://convoy-madara-alpha:8080
+      --rpc-external
+      --rpc-cors all
+      --l1-sync-disabled
+      --l1-gas-price 1000000000
+      --blob-gas-price 100000
+    ports: ["19946:9944"]
+    labels: { dev.dozzle.group: "Alpha 3" }
+
+  madara-alpha-4:
+    <<: *madara-fullnode-alpha-template
+    container_name: convoy-madara-alpha-4
+    volumes:
+      - madara-alpha-4-data:/madara_db
+    command: >
+      --name MadaraAlphaDrone4
+      --full
+      --preset devnet
+      --base-path /madara_db
+      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --gateway-url http://convoy-madara-alpha:8080
+      --validate-then-forward-txs-to http://convoy-madara-alpha:8080
+      --rpc-external
+      --rpc-cors all
+      --l1-sync-disabled
+      --l1-gas-price 1000000000
+      --blob-gas-price 100000
+    ports: ["19947:9944"]
+    labels: { dev.dozzle.group: "Alpha 4" }
+
+  madara-alpha-5:
+    <<: *madara-fullnode-alpha-template
+    container_name: convoy-madara-alpha-5
+    volumes:
+      - madara-alpha-5-data:/madara_db
+    command: >
+      --name MadaraAlphaDrone5
+      --full
+      --preset devnet
+      --base-path /madara_db
+      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --gateway-url http://convoy-madara-alpha:8080
+      --validate-then-forward-txs-to http://convoy-madara-alpha:8080
+      --rpc-external
+      --rpc-cors all
+      --l1-sync-disabled
+      --l1-gas-price 1000000000
+      --blob-gas-price 100000
+    ports: ["19948:9944"]
+    labels: { dev.dozzle.group: "Alpha 5" }
+
+  pathfinder-bravo-1:        # LEADER drone (co-located w/ madara/snos/orchestrator)
+    <<: *pathfinder-bravo-template
+    container_name: convoy-pathfinder-bravo-1
+    volumes:
+      - pathfinder-bravo-1-data:/usr/share/pathfinder/data
+    ports: ["9645:9545"]
+    labels: { dev.dozzle.group: "Bravo 1 (leader)" }
+
+  # ── Follower drones (bravo 2..5) — Madara in --full mode ──────────────
+  madara-bravo-2:
+    <<: *madara-fullnode-bravo-template
+    container_name: convoy-madara-bravo-2
+    volumes:
+      - madara-bravo-2-data:/madara_db
+    command: >
+      --name MadaraBravoDrone2
+      --full
+      --preset devnet
+      --base-path /madara_db
+      --chain-config-override=chain_id=convoy_bravo,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --gateway-url http://convoy-madara-bravo:8080
+      --validate-then-forward-txs-to http://convoy-madara-bravo:8080
+      --rpc-external
+      --rpc-cors all
+      --l1-sync-disabled
+      --l1-gas-price 1000000000
+      --blob-gas-price 100000
+    ports: ["29945:9944"]
+    labels: { dev.dozzle.group: "Bravo 2" }
+
+  madara-bravo-3:
+    <<: *madara-fullnode-bravo-template
+    container_name: convoy-madara-bravo-3
+    volumes:
+      - madara-bravo-3-data:/madara_db
+    command: >
+      --name MadaraBravoDrone3
+      --full
+      --preset devnet
+      --base-path /madara_db
+      --chain-config-override=chain_id=convoy_bravo,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --gateway-url http://convoy-madara-bravo:8080
+      --validate-then-forward-txs-to http://convoy-madara-bravo:8080
+      --rpc-external
+      --rpc-cors all
+      --l1-sync-disabled
+      --l1-gas-price 1000000000
+      --blob-gas-price 100000
+    ports: ["29946:9944"]
+    labels: { dev.dozzle.group: "Bravo 3" }
+
+  madara-bravo-4:
+    <<: *madara-fullnode-bravo-template
+    container_name: convoy-madara-bravo-4
+    volumes:
+      - madara-bravo-4-data:/madara_db
+    command: >
+      --name MadaraBravoDrone4
+      --full
+      --preset devnet
+      --base-path /madara_db
+      --chain-config-override=chain_id=convoy_bravo,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --gateway-url http://convoy-madara-bravo:8080
+      --validate-then-forward-txs-to http://convoy-madara-bravo:8080
+      --rpc-external
+      --rpc-cors all
+      --l1-sync-disabled
+      --l1-gas-price 1000000000
+      --blob-gas-price 100000
+    ports: ["29947:9944"]
+    labels: { dev.dozzle.group: "Bravo 4" }
+
+  madara-bravo-5:
+    <<: *madara-fullnode-bravo-template
+    container_name: convoy-madara-bravo-5
+    volumes:
+      - madara-bravo-5-data:/madara_db
+    command: >
+      --name MadaraBravoDrone5
+      --full
+      --preset devnet
+      --base-path /madara_db
+      --chain-config-override=chain_id=convoy_bravo,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --gateway-url http://convoy-madara-bravo:8080
+      --validate-then-forward-txs-to http://convoy-madara-bravo:8080
+      --rpc-external
+      --rpc-cors all
+      --l1-sync-disabled
+      --l1-gas-price 1000000000
+      --blob-gas-price 100000
+    ports: ["29948:9944"]
+    labels: { dev.dozzle.group: "Bravo 5" }
 
   # ═══ Phase 3.c — SNOS PIE generators, one per swarm ══════════════════
   # Replays a Madara block in the Cairo VM, emits a PIE the prover consumes.
@@ -299,9 +566,10 @@ services:
       dockerfile: Dockerfile
     image: convoy-snos:latest
     container_name: convoy-snos-alpha
+    labels: { dev.dozzle.group: "Alpha 1 (leader)" }
     profiles: ["proving-direct"]
     depends_on:
-      pathfinder-alpha:
+      pathfinder-alpha-1:                    # leader drone's onboard L2 node
         condition: service_healthy
     volumes:
       - snos-alpha-output:/output
@@ -309,7 +577,7 @@ services:
     environment:
       SWARM:             alpha
       SNOS_BLOCK_NUMBER: 1                    # which L2 block to prove
-      SNOS_RPC_URL:      http://convoy-pathfinder-alpha:9545
+      SNOS_RPC_URL:      http://convoy-pathfinder-alpha-1:9545
       SNOS_GATEWAY_URL:  http://convoy-madara-alpha:8080
       SNOS_OUTPUT_DIR:   /output
     networks:
@@ -318,9 +586,10 @@ services:
   snos-bravo:
     image: convoy-snos:latest               # built once via snos-alpha
     container_name: convoy-snos-bravo
+    labels: { dev.dozzle.group: "Bravo 1 (leader)" }
     profiles: ["proving-direct"]
     depends_on:
-      pathfinder-bravo:
+      pathfinder-bravo-1:                    # leader drone's onboard L2 node
         condition: service_healthy
       snos-alpha:                            # ensure image build completes first
         condition: service_started
@@ -330,7 +599,7 @@ services:
     environment:
       SWARM:             bravo
       SNOS_BLOCK_NUMBER: 1
-      SNOS_RPC_URL:      http://convoy-pathfinder-bravo:9545
+      SNOS_RPC_URL:      http://convoy-pathfinder-bravo-1:9545
       SNOS_GATEWAY_URL:  http://convoy-madara-bravo:8080
       SNOS_OUTPUT_DIR:   /output
     networks:
@@ -400,13 +669,14 @@ services:
   orchestrator-alpha:
     image: ghcr.io/madara-alliance/orchestrator:nightly
     container_name: convoy-orchestrator-alpha
+    labels: { dev.dozzle.group: "Alpha 1 (leader)" }
     profiles: ["proving"]
     depends_on:
       ship-a:
         condition: service_healthy
       madara-alpha:
         condition: service_healthy
-      pathfinder-alpha:
+      pathfinder-alpha-1:                    # leader drone's onboard L2 node
         condition: service_healthy
       mongo:
         condition: service_healthy
@@ -448,7 +718,7 @@ services:
       - --atlantic-service-url
       - http://localhost:4001
       - --atlantic-rpc-node-url
-      - http://convoy-pathfinder-alpha:9545
+      - http://convoy-pathfinder-alpha-1:9545
       - --atlantic-prover-type
       - stone
       - --atlantic-settlement-layer
@@ -469,7 +739,7 @@ services:
       - --min-block-to-process
       - "1"
       - --rpc-for-snos
-      - http://convoy-pathfinder-alpha:9545
+      - http://convoy-pathfinder-alpha-1:9545
       - --madara-rpc-url
       - http://convoy-madara-alpha:9944
       - --madara-feeder-gateway-url
@@ -495,13 +765,14 @@ services:
   orchestrator-bravo:
     image: ghcr.io/madara-alliance/orchestrator:nightly
     container_name: convoy-orchestrator-bravo
+    labels: { dev.dozzle.group: "Bravo 1 (leader)" }
     profiles: ["proving"]
     depends_on:
       ship-a:
         condition: service_healthy
       madara-bravo:
         condition: service_healthy
-      pathfinder-bravo:
+      pathfinder-bravo-1:                    # leader drone's onboard L2 node
         condition: service_healthy
       mongo:
         condition: service_healthy
@@ -543,7 +814,7 @@ services:
       - --atlantic-service-url
       - http://localhost:4001
       - --atlantic-rpc-node-url
-      - http://convoy-pathfinder-bravo:9545
+      - http://convoy-pathfinder-bravo-1:9545
       - --atlantic-prover-type
       - stone
       - --atlantic-settlement-layer
@@ -564,7 +835,7 @@ services:
       - --min-block-to-process
       - "1"
       - --rpc-for-snos
-      - http://convoy-pathfinder-bravo:9545
+      - http://convoy-pathfinder-bravo-1:9545
       - --madara-rpc-url
       - http://convoy-madara-bravo:9944
       - --madara-feeder-gateway-url
@@ -597,9 +868,27 @@ volumes:
     driver: local
   madara-bravo-data:
     driver: local
-  pathfinder-alpha-data:
+  # Leader pathfinders (one per swarm) — drone 1's archive node for SNOS
+  pathfinder-alpha-1-data:
     driver: local
-  pathfinder-bravo-data:
+  pathfinder-bravo-1-data:
+    driver: local
+  # Follower Madara full-nodes (drones 2..5 per swarm)
+  madara-alpha-2-data:
+    driver: local
+  madara-alpha-3-data:
+    driver: local
+  madara-alpha-4-data:
+    driver: local
+  madara-alpha-5-data:
+    driver: local
+  madara-bravo-2-data:
+    driver: local
+  madara-bravo-3-data:
+    driver: local
+  madara-bravo-4-data:
+    driver: local
+  madara-bravo-5-data:
     driver: local
   snos-alpha-output:
     driver: local

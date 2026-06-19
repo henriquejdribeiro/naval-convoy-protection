@@ -1,0 +1,41 @@
+# =============================================================================
+# debugger/docker-compose.yml — browser log viewer for the 16 convoy nodes.
+#
+# One sidecar service (Dozzle) that mounts the host docker socket read-only
+# and serves a web UI at http://localhost:8888. The DOZZLE_FILTER pins the
+# sidebar to ONLY the 16 nodes we care about (6 L1 ships + 10 L2 services),
+# hiding mongo / localstack / wire-mesh / deploy-l1 / debugger itself.
+#
+# Usage:
+#   docker compose -f debugger/docker-compose.yml up -d
+#   # open http://localhost:8888
+#
+# Stop:
+#   docker compose -f debugger/docker-compose.yml down
+# =============================================================================
+
+services:
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: convoy-debugger
+    restart: unless-stopped
+    environment:
+      # Comma-separated list — Dozzle shows ONLY containers whose name
+      # matches one of these.
+      #   6 L1 ships               (ship-a..f)
+      #   2 L2 sequencers          (madara-{alpha,bravo})         ← drone 1 hardware
+      #   2 L2 leader pathfinders  (pathfinder-{alpha,bravo}-1)   ← drone 1 archive node
+      #   8 L2 follower full-nodes (madara-{alpha,bravo}-{2..5})  ← drones 2..5
+      #   2 L2 SNOS                (snos-{alpha,bravo})
+      #   2 L2 orchestrators       (orchestrator-{alpha,bravo})
+      #   2 L2 prover APIs         (prover-api-{alpha,bravo})
+      # ─────────────────────────────────────────────
+      #  24 total
+      DOZZLE_FILTER: >-
+        name=convoy-ship-a,name=convoy-ship-b,name=convoy-ship-c,name=convoy-ship-d,name=convoy-ship-e,name=convoy-ship-f,name=convoy-madara-alpha,name=convoy-madara-bravo,name=convoy-pathfinder-alpha-1,name=convoy-pathfinder-bravo-1,name=convoy-madara-alpha-2,name=convoy-madara-alpha-3,name=convoy-madara-alpha-4,name=convoy-madara-alpha-5,name=convoy-madara-bravo-2,name=convoy-madara-bravo-3,name=convoy-madara-bravo-4,name=convoy-madara-bravo-5,name=convoy-snos-alpha,name=convoy-snos-bravo,name=convoy-orchestrator-alpha,name=convoy-orchestrator-bravo,name=convoy-prover-api-alpha,name=convoy-prover-api-bravo
+      DOZZLE_NO_ANALYTICS: "true"
+    volumes:
+      # Read-only docker socket — Dozzle only reads logs, can't mutate.
+      - //var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "8888:8080"

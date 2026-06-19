@@ -39,14 +39,15 @@ DEPLOYER_PK="${DEPLOYER_PK:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae
 COMMANDER_PK="${COMMANDER_PK:-0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356}" # anvil[7]
 TS_START=1700000000   # matches generate-mission.py + open-missions.sh
 
-# Resolve Registry address — env var wins, else deployments/local.env, else fail.
+# Resolve contract addresses — env vars win, else deployments/local.env, else fail.
 REGISTRY_ADDR="${REGISTRY_ADDR:-}"
-if [ -z "${REGISTRY_ADDR}" ] && [ -f "${REPO_ROOT}/deployments/local.env" ]; then
-    REGISTRY_ADDR=$(grep -E "^export REGISTRY_ADDR=" "${REPO_ROOT}/deployments/local.env" | cut -d= -f2 | tr -d ' ')
+VERIFIER_ADDR="${VERIFIER_ADDR:-${CONVOY_VERIFIER_ADDR:-}}"
+if [ -f "${REPO_ROOT}/deployments/local.env" ]; then
+    [ -z "${REGISTRY_ADDR}" ] && REGISTRY_ADDR=$(grep -E "^export REGISTRY_ADDR="        "${REPO_ROOT}/deployments/local.env" | cut -d= -f2 | tr -d ' ')
+    [ -z "${VERIFIER_ADDR}" ] && VERIFIER_ADDR=$(grep -E "^export CONVOY_VERIFIER_ADDR=" "${REPO_ROOT}/deployments/local.env" | cut -d= -f2 | tr -d ' ')
 fi
-if [ -z "${REGISTRY_ADDR}" ]; then
-    echo "[register] REGISTRY_ADDR not set and not found in deployments/local.env"; exit 1
-fi
+[ -z "${REGISTRY_ADDR}" ] && { echo "[register] REGISTRY_ADDR missing"; exit 1; }
+[ -z "${VERIFIER_ADDR}" ] && { echo "[register] VERIFIER_ADDR (or CONVOY_VERIFIER_ADDR) missing"; exit 1; }
 
 # Per-swarm geometry — matches the constants generate-mission.py uses.
 AREA_HASH="0x6172656172656172656172656172656172656172656172656172656172656131"
@@ -62,12 +63,14 @@ SHARED_P_MIN=7000
 SHARED_TIME_WINDOW=360
 
 # Run `cast` inside foundry container with the convoy-l1 network so we
-# can hit ship-a by hostname.
+# can hit ship-a by hostname. --entrypoint cast bypasses /bin/sh -c
+# entirely, so we don't have to escape parens in the MissionSpec tuple.
 CAST() {
     MSYS_NO_PATHCONV=1 docker run --rm --network convoy-l1 \
+        --entrypoint cast \
         -v "${REPO_ROOT}/contracts:/workspace" -w /workspace \
         ghcr.io/foundry-rs/foundry:latest \
-        -c "cast $*"
+        "$@"
 }
 
 register_swarm() {
@@ -100,13 +103,26 @@ register_swarm() {
     echo "[register/${swarm}]   convoy_protocol L2 addr: ${conv_addr}"
     echo "[register/${swarm}]   drones: ${drone_addrs[*]}"
 
-    # 1. Bind missionId → L2 contract address (owner-only)
-    echo "[register/${swarm}] step 1: setConvoyProtocolL2(${mid}, ${conv_addr})"
+    # 1a. Bind missionId → L2 contract address on Registry (so Registry.deploy
+    #     knows where to dispatch the L1→L2 open_mission message)
+    echo "[register/${swarm}] step 1a: Registry.setConvoyProtocolL2(${mid}, ${conv_addr})"
     CAST send "${REGISTRY_ADDR}" \
-        "'setConvoyProtocolL2(uint256,uint256)'" \
+        "setConvoyProtocolL2(uint256,uint256)" \
         "${mid}" "${conv_addr}" \
         --rpc-url "${L1_RPC}" \
         --private-key "${DEPLOYER_PK}" \
+        --legacy \
+        2>&1 | tail -3
+
+    # 1b. Bind missionId → L2 sender on Verifier (so Verifier.consumeL2Message
+    #     accepts MissionSafe messages from this L2 contract for this mission)
+    echo "[register/${swarm}] step 1b: Verifier.setConvoyProtocolL2(${mid}, ${conv_addr})"
+    CAST send "${VERIFIER_ADDR}" \
+        "setConvoyProtocolL2(uint256,uint256)" \
+        "${mid}" "${conv_addr}" \
+        --rpc-url "${L1_RPC}" \
+        --private-key "${DEPLOYER_PK}" \
+        --legacy \
         2>&1 | tail -3
 
     # 2. Build MissionSpec tuple — order must match Registry.sol's struct:
@@ -118,13 +134,14 @@ register_swarm() {
     #    [0x..., 0x..., 0x..., 0x..., 0x...]
     local drones="[${drone_addrs[0]},${drone_addrs[1]},${drone_addrs[2]},${drone_addrs[3]},${drone_addrs[4]}]"
 
-    echo "[register/${swarm}] step 2: deploy(${mid}, spec, drones, ${TS_START})"
+    echo "[register/${swarm}] step 2: Registry.deploy(${mid}, spec, drones, ${TS_START})"
     echo "[register/${swarm}]   → also fires StarknetCoreStub.sendMessageToL2(...) for L1→L2 open_mission"
     CAST send "${REGISTRY_ADDR}" \
-        "'deploy(uint256,(bytes32,uint32,uint32,uint32,uint32,uint8,uint32,uint16,uint16,uint64),uint256[5],uint256)'" \
+        "deploy(uint256,(bytes32,uint32,uint32,uint32,uint32,uint8,uint32,uint16,uint16,uint64),uint256[5],uint256)" \
         "${mid}" "${spec}" "${drones}" "${TS_START}" \
         --rpc-url "${L1_RPC}" \
         --private-key "${COMMANDER_PK}" \
+        --legacy \
         2>&1 | tail -3
 
     echo "[register/${swarm}] OK"

@@ -40,21 +40,14 @@ import "../src/CommandLog.sol";
  */
 contract DeployL1 is Script {
     function run() external {
-        address commanderAddr   = vm.envAddress("COMMANDER_ADDR");
-        address alphaRelayAddr  = vm.envAddress("ALPHA_RELAY_ADDR");
-        address bravoRelayAddr  = vm.envAddress("BRAVO_RELAY_ADDR");
-        // Fail-loud: no mock fallback. Run DeployStarkVerifier first and
-        // pipe its GpsStatementVerifier address into STARK_VERIFIER_ADDR.
-        address starkVerifierAddr = vm.envAddress("STARK_VERIFIER_ADDR");
-        require(
-            starkVerifierAddr != address(0),
-            "DeployL1: STARK_VERIFIER_ADDR must be set (run DeployStarkVerifier first)"
-        );
+        address commanderAddr = vm.envAddress("COMMANDER_ADDR");
 
         vm.startBroadcast();
         address deployer = msg.sender;
 
-        // 1. StarknetCoreStub — the L1↔L2 bridge stub Madara needs
+        // 1. StarknetCoreStub — the L1↔L2 bridge stub Madara needs.
+        //    Registry uses it for L1→L2 (open_mission dispatch); Verifier
+        //    uses it for L2→L1 (MissionSafe consumption).
         StarknetCoreStub starknet = new StarknetCoreStub();
         console2.log("StarknetCoreStub deployed at:", address(starknet));
 
@@ -64,17 +57,13 @@ contract DeployL1 is Script {
         Registry registry = new Registry(deployer, commanderAddr, address(starknet));
         console2.log("Registry         deployed at:", address(registry));
 
-        // 3. Verifier — Stage B of the two-stage verification model.
-        //    Only calls starkVerifier.isValid(factHash); never sees the
-        //    proof bytes. Path-a-runner (Stage A) is what actually
-        //    submits the proof to GpsStatementVerifier off-chain via
-        //    the Rust binary.
+        // 3. Verifier — consumes L2→L1 MissionSafe messages and flips
+        //    Registry.missionSafe. No STARK-proof gating any more (that
+        //    moved to L2's convoy_protocol contract in commit 4fa6ad4).
         Verifier verifier = new Verifier(
             deployer,
             address(registry),
-            alphaRelayAddr,
-            bravoRelayAddr,
-            starkVerifierAddr
+            address(starknet)
         );
         console2.log("Verifier         deployed at:", address(verifier));
 
@@ -86,7 +75,7 @@ contract DeployL1 is Script {
         );
         console2.log("CommandLog       deployed at:", address(commandLog));
 
-        // 5. Wire Verifier into Registry so registerSafeProof can write verdicts
+        // 5. Wire Verifier into Registry so it can call setMissionSafe.
         registry.setVerifier(address(verifier));
         console2.log("Registry.verifier set to Verifier address");
 
@@ -99,10 +88,7 @@ contract DeployL1 is Script {
         console2.log("Registry:        ", address(registry));
         console2.log("Verifier:        ", address(verifier));
         console2.log("CommandLog:      ", address(commandLog));
-        console2.log("STARK verifier:  ", starkVerifierAddr);
         console2.log("Owner / deployer:", deployer);
         console2.log("Commander (D):   ", commanderAddr);
-        console2.log("Alpha relay (F): ", alphaRelayAddr);
-        console2.log("Bravo relay (B): ", bravoRelayAddr);
     }
 }
