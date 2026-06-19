@@ -120,4 +120,9 @@ MSYS_NO_PATHCONV=1 docker run --rm \
     convoy-cairo-builder \
     starkli invoke "${CONV_ADDR}" submit_telemetry ${CALL_ARGS} \
         --rpc "${RPC_URL}" \
+        --l1-gas 100000 \
         --watch 2>&1 | tail -10
+        # --l1-gas 100000 covers the send_message_to_l1_syscall that fires
+        # when this submission is the 5th SAFE one (mission complete). The
+        # syscall actually uses ~28k L1 gas; the 100k cap is generous so we
+        # never lack budget. For drones 1..4 the cap is unused → no cost.
