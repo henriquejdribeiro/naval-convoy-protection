@@ -9,34 +9,6 @@ This project's architecture derives from the author's Master's thesis at Institu
 
 The repository is a standalone mission archetype, with its own contracts, container topology, and visualisation.
 
-## Where each layer's contracts live
-
-### L1 (shared by both swarms)
-
-| Contract | Source | What it does |
-|---|---|---|
-| `StarknetCoreStub` | [contracts/src/StarknetCoreStub.sol](contracts/src/StarknetCoreStub.sol) | Minimal L1↔L2 message bridge — same interface as StarkWare's real `StarknetCore`, gutted of cryptographic checks for dev use |
-| `Registry` | [contracts/src/Registry.sol](contracts/src/Registry.sol) | Stores per-mission specs (zone geometry, thresholds), per-drone verdicts, per-mission `missionSafe` aggregate |
-| `Verifier` | [contracts/src/Verifier.sol](contracts/src/Verifier.sol) | Application-layer STARK-proof checker + Registry bookkeeping orchestrator |
-| `CommandLog` | [contracts/src/CommandLog.sol](contracts/src/CommandLog.sol) | Append-only log of convoy-advance orders; reverts unless both missions are SAFE and caller is commander |
-| StarkWare verifier stack | [contracts/lib/starkware-mainnet/](contracts/lib/starkware-mainnet/) | 17 vendored mainnet-source contracts: `GpsStatementVerifier`, `CpuFrilessVerifier`, `MerkleStatementContract`, `FriStatementContract`, `MemoryPageFactRegistry`, `CpuOods`, `CairoBootloaderProgram`, + 10 periodic-column constant contracts |
-
-### L2 (one deployment per swarm, on different Madara chains)
-
-| Contract | Source | Per-swarm |
-|---|---|---|
-| `convoy_protocol` (Cairo 1) | [cairo/convoy_protocol/src/lib.cairo](cairo/convoy_protocol/src/lib.cairo) | Same source, declared and deployed independently on each Madara — different storage state, different address |
-| 5× drone OZ accounts | Madara devnet's pre-declared OZ class | One ContractAddress per drone, registered in `convoy_protocol.open_mission(spec, drone_addresses)` |
-| Predeclared on Madara | UDC, ETH/STRK ERC20, OZ Account class, 10 pre-funded accounts | Standard Madara devnet genesis |
-
-### Off-chain (out of the proof-of-record path)
-
-| Tool | Source | What it does |
-|---|---|---|
-| `convoy-cairo-builder` Docker image | [infrastructure/cairo-builder/](infrastructure/cairo-builder/) | scarb 2.11.4, starkli 0.4.1, `starknet-sierra-compile` v2.12.3, `compute-casm-hash` (custom) — together bridge the version gap between scarb's CASM emit and Madara's CASM hash function |
-| `scripts/deploy-l2.sh` | [scripts/deploy-l2.sh](scripts/deploy-l2.sh) | Declares + deploys `convoy_protocol` to both Madaras |
-| `scripts/generate-drone-accounts.sh` | [scripts/generate-drone-accounts.sh](scripts/generate-drone-accounts.sh) | Generates 5 fresh keypairs per swarm, deploys OZ account contracts on each Madara via UDC signed by account #1 |
-
 ## Project status
 
 This is an in-progress thesis project. The architecture diagram above shows the **target state**; not every box is wired end-to-end yet.
