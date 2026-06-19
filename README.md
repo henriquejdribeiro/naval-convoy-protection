@@ -1,5 +1,14 @@
 # Naval Convoy Protection
 
+## Provenance
+
+This project's architecture derives from the author's Master's thesis at Instituto Superior Técnico (2026):
+
+> **Modular blockchain architectures applied to drone swarms with low computational resources**
+> *Execution of smart contracts and analysis of consensus time*
+
+The repository is a standalone mission archetype, with its own contracts, container topology, and visualisation.
+
 ## Where each layer's contracts live
 
 ### L1 (shared by both swarms)
@@ -148,28 +157,6 @@ For hand-written UNSAFE scenarios beyond what `generate-mission.py` ships, copy 
 |---|---|
 | <http://localhost:8000> | Web visualiser (`python -m http.server` in `webapp/`) |
 
-## Technology stack
-
-| Layer | Component | Pinned version |
-|---|---|---|
-| L1 chain | Geth (Clique PoA, 6 validators) | `ethereum/client-go:v1.10.17` |
-| L1 contracts | Solidity + Foundry | `^0.8.20` (convoy), `^0.6.12` (vendored StarkWare) |
-| L2 sequencer | Madara | `v0.9.1` (cairo-lang-sierra-to-casm 2.12.3) |
-| L2 indexer | Pathfinder | `v0.21.3` |
-| Cairo contract | Cairo 1 (Sierra 1.7.0) | scarb 2.11.4 |
-| L2 tooling | starkli + custom `starknet-sierra-compile` + `compute-casm-hash` | 0.4.1 + cairo-lang 2.12.3 |
-| Off-chain prover (when wired) | Stone (Atlantic mock) | via `ghcr.io/madara-alliance/orchestrator:nightly` |
-| Visualisation | Vanilla JS + SVG (no framework) | — |
-
 ## License
 
 Apache-2.0 — see `LICENSE`.
-
-## Provenance
-
-This project's architecture derives from the author's Master's thesis at Instituto Superior Técnico (2026):
-
-> **Modular blockchain architectures applied to drone swarms with low computational resources**
-> *Execution of smart contracts and analysis of consensus time*
-
-The repository is a standalone mission archetype, with its own contracts, container topology, and visualisation.
