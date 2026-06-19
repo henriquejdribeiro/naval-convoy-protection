@@ -1,87 +1,5 @@
 # Naval Convoy Protection
 
-Verifiable mission compliance for naval drone clearance operations, built on a per-swarm rollup architecture.
-
-A six-ship naval convoy holds position while **two five-drone swarms** independently sweep the frontal sectors ahead. Each swarm runs its own Layer-2 chain; the drones submit telemetry on L2; the L2 contract evaluates four `SAFE_AREA` predicates **in-contract**; when all five drones in a swarm pass, the L2 emits an L1 message; once **both swarms** emit their SAFE message on L1, the convoy commander (ship D) is permitted to issue the advance order.
-
-## The two swarms
-
-| Swarm | Mission ID | Frontal sector | L2 chain    | Drones                   | Strip layout |
-|-------|-----------:|----------------|-------------|--------------------------|--------------|
-| **Alpha** | `1`    | Left           | `L2-Alpha`  | drone 1..5 of mission 1 | zone 15×8, 5 strips of width 3 |
-| **Bravo** | `2`    | Right corridor | `L2-Bravo`  | drone 1..5 of mission 2 | zone 20×8, 5 strips of width 4 |
-
-Each swarm's 5 drones each cover a **vertical strip** of the swarm's zone. Drone *i* sweeps strip *i*; the strip bounds are derived deterministically by the L2 contract from the mission spec (`x_start = zone_x + (i-1)·strip_width`, etc.) so the drone-side software can't claim coverage of someone else's strip.
-
-## The four `SAFE_AREA` predicates
-
-The L2 `convoy_protocol` contract checks each drone's raw telemetry against four conditions:
-
-```
-① Strip bounds:   every cell ∈ [strip.x_start, strip.x_end) × [strip.y_start, strip.y_end)
-② Detection:     every cell.p_contact < mission.p_min               (basis points)
-③ Time window:   max(cell.ts) − ts_start ≤ mission.time_window      (seconds)
-④ Coverage:      n_cells × 1000 / strip_total_cells ≥ coverage_min  (permille)
-```
-
-If all four hold → verdict = `SAFE`. Otherwise → `UNSAFE`, with the failing predicate recorded on chain (`FAIL_STRIP`, `FAIL_DETECTION`, `FAIL_TIME`, `FAIL_COVERAGE`).
-
-## Convoy formation
-
-```
-                A (front)
-              ╱   │   ╲
-             F    │    B
-             │   ▓▓    │     ← three high-value ships (▓) protected in the centre
-             E   ▓▓    C
-              ╲   │   ╱
-                D (rear, commander)
-```
-
-All six ships (A, B, C, D, E, F) are validators of the same L1 Clique-PoA chain. Ship D additionally holds the **commander key** — distinct from D's validator key — which is the only signer accepted by both `Registry.deploy()` (mission deployment) and `CommandLog.advance()` (the convoy-advance order). The commander key is immutable; the design fails closed by intent (no rotation path).
-
-## End-to-end data flow
-
-```
-[Per drone, off-chain]            [L2 — Madara α or β]                     [L1 — Geth Clique PoA]
-                                                                            
-Drone keystore signs              convoy_protocol.submit_telemetry()        Registry.deploy(spec)
-   invoke txs                          ├ Caller check:                          (mission registered)
-        │                              │   get_caller_address()
-        │  submit_telemetry(           │   == drone_addr[(mid, did)]?
-        ▼  mid, did, cells_x[],        │
-                cells_y[],             ├ Run 4 SAFE_AREA predicates             ┌──────────────────┐
-                p_contact[],           │   on the raw cells                     │  StarknetCoreStub│
-                cells_ts[])            │                                        │  (L1 ↔ L2 bridge │
-                                       ├ Store verdict + n_cells                │   message queue) │
-                                       │                                        └────────┬─────────┘
-                                       └ if safe_count == 5:                             │
-                                              send_message_to_l1_syscall ───────────────►│
-                                              (L1 verifier addr, payload)               │
-                                                                                          │
-                                                                                          ▼
-                                                                            Verifier.consumeL2Message()
-                                                                                          │
-                                                                                          ├─► Registry.setVerdict
-                                                                                          │   (per-drone, when proof
-                                                                                          │    pipeline lands per-drone
-                                                                                          │    messages — future)
-                                                                                          │
-                                                                                          └─► Registry.setMissionSafe
-                                                                                              (per-mission aggregate)
-                                                                                          │
-                                                                                          ▼
-                                                              Commander (ship D) waits for
-                                                              both missionSafe[1] && missionSafe[2]
-                                                              then signs:
-                                                                  CommandLog.advance(1, 2, speed)
-                                                                       │
-                                                                       └─► appends AdvanceRecord
-                                                                           emits ConvoyAdvance
-```
-
-**Telemetry is public on L2** (chosen explicitly — see the architecture note in `cairo/convoy_protocol/src/lib.cairo`). The predicate check runs against the raw cells in the same L2 transaction that submitted them. The SAFE/UNSAFE verdict + which predicate failed are stored on L2; only the aggregate "all 5 SAFE → trigger L1 message" crosses the L2→L1 boundary.
-
 ## Where each layer's contracts live
 
 ### L1 (shared by both swarms)
@@ -109,40 +27,6 @@ Drone keystore signs              convoy_protocol.submit_telemetry()        Regi
 | `convoy-cairo-builder` Docker image | [infrastructure/cairo-builder/](infrastructure/cairo-builder/) | scarb 2.11.4, starkli 0.4.1, `starknet-sierra-compile` v2.12.3, `compute-casm-hash` (custom) — together bridge the version gap between scarb's CASM emit and Madara's CASM hash function |
 | `scripts/deploy-l2.sh` | [scripts/deploy-l2.sh](scripts/deploy-l2.sh) | Declares + deploys `convoy_protocol` to both Madaras |
 | `scripts/generate-drone-accounts.sh` | [scripts/generate-drone-accounts.sh](scripts/generate-drone-accounts.sh) | Generates 5 fresh keypairs per swarm, deploys OZ account contracts on each Madara via UDC signed by account #1 |
-
-## Per-swarm topology — what runs in Docker
-
-The "blue region" is duplicated per swarm; only the red L1 layer is shared.
-
-```
-┌─────────────────────────────────────┐   ┌─────────────────────────────────────┐
-│  Alpha lane                          │   │  Bravo lane                          │
-│  ─────────────                       │   │  ─────────────                       │
-│  madara-alpha    (chain_id=convoy_α) │   │  madara-bravo   (chain_id=convoy_β)  │
-│  pathfinder-alpha                    │   │  pathfinder-bravo                    │
-│  orchestrator-alpha   (port 13000)   │   │  orchestrator-bravo  (port 13001)    │
-│  prover-api-alpha                    │   │  prover-api-bravo                    │
-│  snos-alpha                          │   │  snos-bravo                          │
-└────────────────┬────────────────────┘   └────────────────┬────────────────────┘
-                 │                                          │
-                 │     ┌────────────────────────────────────┐
-                 └─────┤      L1 — shared layer             ├─────┘
-                       │  ship-{a,b,c,d,e,f} (Geth Clique)  │
-                       │  StarknetCoreStub                  │
-                       │  Registry, Verifier, CommandLog    │
-                       │  StarkWare 17-contract verifier    │
-                       │  stack                              │
-                       │  mongo + localstack (shared infra) │
-                       └────────────────────────────────────┘
-```
-
-Per-swarm isolation:
-- Different `chain_id` (`convoy_alpha` vs `convoy_bravo`) — proofs of one swarm's blocks can't be replayed on the other
-- Different signer key on each orchestrator (`ALPHA_RELAY = anvil[5]` / `BRAVO_RELAY = anvil[1]`)
-- Different MongoDB database names (`orchestrator_alpha` / `orchestrator_bravo`) inside the shared mongo
-- Different SQS queue prefixes (`mo_alpha_*` / `mo_bravo_*`) inside the shared localstack
-
-A compromise of one swarm's sequencer or orchestrator can't tamper with the other swarm's verdict.
 
 ## Project status
 
