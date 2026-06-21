@@ -30,8 +30,12 @@
 # then submit telemetry per drone. See README for the full sequence.
 # =============================================================================
 
+# -e (errexit) exit on any error
+# -u (nounset) error on undefined variables
+# -o pipefail  a pipe fails if any stage fails
 set -euo pipefail
 
+# parse arguments
 NO_DEBUGGER=false
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -44,6 +48,7 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+# root directory 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "${REPO_ROOT}"
 
