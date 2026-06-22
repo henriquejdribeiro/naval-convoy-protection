@@ -52,7 +52,7 @@ done
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "${REPO_ROOT}"
 
-# Wait for a docker container to reach the healthy state. Polls every 3s.
+# Helper that waits for a docker container to reach the healthy state. Polls every 3s.
 wait_healthy() {
     local name="$1"
     local label="$2"
