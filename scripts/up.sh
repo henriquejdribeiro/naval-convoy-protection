@@ -64,6 +64,7 @@ wait_healthy() {
     printf " ✓\n"
 }
 
+# compose all docker containers for the Layer 1 network with 6 ships
 echo "═══════════════════════════════════════════════════════════════"
 echo "  [1/4] L1 chain — 6 geth ships + wire-mesh"
 echo "═══════════════════════════════════════════════════════════════"
