@@ -24,8 +24,14 @@
 # Pass --swarm alpha or --swarm bravo to deploy to just one; default = both.
 # =============================================================================
 
+
+# -e abort on first error
+# -u error on undefined variables
+# -o pipefail
 set -euo pipefail
 
+
+# Absolute path to the repo root (one level up from this script).
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Madara devnet account #1 — pre-funded, OZ-style. Same account exists on
@@ -150,10 +156,7 @@ deploy_to() {
     fi
     echo "[deploy-l2/${swarm}] contract_addr: ${contract_addr}"
 
-    # 5. Smoke test — safe_count for a non-existent mission returns 0
-    #    (Cairo 1 Map default). Confirms the contract responds to calls.
-    #    Retry a few times because the deploy tx may still be in the
-    #    preconfirmed block when we get here.
+
     # 5. Persist the address IMMEDIATELY so downstream scripts can pick it
     #    up even if the smoke test below times out (the deploy is already
     #    confirmed at this point; the smoke is just a liveness sanity check).
@@ -195,6 +198,7 @@ EOF
 mkdir -p "${REPO_ROOT}/.tmp-l2"
 
 # Account file
+# Who is signing the declare/deploy txs? This is a pre-funded Madara devnet account #1
 cat > "${REPO_ROOT}/.tmp-l2/account.json" <<EOF
 {
   "version": 1,
