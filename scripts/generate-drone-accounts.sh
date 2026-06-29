@@ -40,11 +40,22 @@
 #   - convoy-cairo-builder image built
 # =============================================================================
 
+
+# -e about on first error
+# -u about unset variables
+# -o pipefail about any command in a pipeline failing
 set -euo pipefail
 
+# absolute path to the repo root (parent of this script)
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Starknet RPC version to use for starkli calls. Madara's RPC is pinned to 0.8.1, so starkli must match.
 RPC_VERSION="0.8.1"
+
+# Number of drone accounts to create per swarm. Each account is deployed
 N_DRONES=5
+
+# Password for starkli keystore encryption. This is a constant because the
 KEYSTORE_PWD="convoy"
 
 # Madara devnet pre-declared OZ account class. Same on both alpha and bravo
@@ -69,6 +80,8 @@ STRK_TOKEN_ADDR="0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c9
 FUND_AMOUNT_WEI="1000000000000000000"
 
 # Run starkli inside cairo-builder.
+# Wrapper for calls of the form `starkli <subcommand> <args>...` (e.g. `starkli signer keystore new ...`).
+# Two modes: local crypto ops(empty RPC) or on-chain ops (Madara RPC). The starkli container is already built and tagged as convoy-cairo-builder.
 SK() {
     local rpc="$1"; shift
     local rpc_env=""
@@ -124,7 +137,7 @@ mint_drone_account() {
     mkdir -p "${out_dir}"
     local ks_rel="${d_rel}/keystore.json"
 
-    # 1. Generate a fresh encrypted keystore (random keypair)
+    # 1. Generate a fresh encrypted keystore (random keypair). Create the drone's identity.
     SK "" signer keystore new --password "${KEYSTORE_PWD}" --force "${ks_rel}" >/dev/null
 
     # 2. Read the public key out of the keystore (must pass --password
