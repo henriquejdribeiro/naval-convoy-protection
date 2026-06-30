@@ -27,42 +27,75 @@
 #   - .tmp-l2/drones-{alpha,bravo}.env present
 # =============================================================================
 
+
+# Strict mode — fail fast and loud:
+#   -e           exit immediately if any command returns non-zero
+#   -u           treat use of an unset variable as an error (catches typos)
+#   -o pipefail  a pipeline fails if ANY stage fails, not just the last one
 set -euo pipefail
 
+# Absolute path to the repo root (one level up from this script in scripts/).
+# Kept absolute — passed to `docker run -v "${REPO_ROOT}:/work"` (Docker needs
+# an absolute host path) and used to read the .tmp-l2/*.env files written by
+# deploy-l2.sh and generate-drone-accounts.sh.
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Starknet JSON-RPC spec version. Madara serves /rpc/v0.7.1, v0.8.1, v0.9.0;
+# starkli targets 0.8.x, so we hit the /rpc/v0.8.1 endpoint.
 RPC_VERSION="0.8.1"
+
+# Keystore password to DECRYPT the signing key. open-missions calls
+# open_mission_local on L2, signed via starkli — so it needs to unlock a
+# keystore, hence this password (the dev constant used across all keystores).
 KEYSTORE_PWD="convoy"
 
 # Account #1 (Madara devnet pre-funded) issues the open_mission_local invoke.
 DEPLOYER_DIR_TEMPLATE=".tmp-l2/drones/{SWARM}/_deployer"
 
-# Mission spec — identical thresholds for both swarms; geometry differs.
-# Field order must match cairo/convoy_protocol/src/lib.cairo's MissionSpec.
+# ── Mission spec ────────────────────────────────────────────────────────────
+# DUPLICATE of register-missions.sh's spec, ON PURPOSE: this is the L2 copy.
+# register-missions wrote the spec to L1 (Registry); this writes it to L2
+# (convoy_protocol via open_mission_local). They MUST match exactly — and must
+# match generate-mission.py too — or L1/L2 disagree or telemetry fails the
+# predicates. In a working bridge the L1→L2 message would carry the spec and
+# this duplication would vanish; it exists only because the bridge is bypassed.
+# Field order here must match cairo/convoy_protocol/src/lib.cairo's MissionSpec.
 AREA_HASH="0x6172656172656172656172656172656172656172656172656172656172656131"
 
-# Per-swarm spec parameters
-declare -A SPEC_ZONE_W=( [alpha]=15 [bravo]=20 )
-declare -A SPEC_STRIP_WIDTH=( [alpha]=3 [bravo]=4 )
-declare -A MISSION_ID=( [alpha]=1 [bravo]=2 )
-declare -A SWARM_ID=( [alpha]=1 [bravo]=2 )
+# Per-swarm values (geometry differs by swarm):
+declare -A SPEC_ZONE_W=( [alpha]=15 [bravo]=20 )            # zone width in cells
+declare -A SPEC_STRIP_WIDTH=( [alpha]=3 [bravo]=4 )         # per-drone lane width = zone_w / n_drones
+declare -A MISSION_ID=( [alpha]=1 [bravo]=2 )               # on-chain mission id
+declare -A SWARM_ID=( [alpha]=1 [bravo]=2 )                 # swarm id (L2 spec field; not in the L1 tuple)
 
-# Shared thresholds
-ZONE_X=0
-ZONE_Y=0
-ZONE_H=8
-N_DRONES=5
-COVERAGE_MIN=950      # 950 / 1000 = 95%
-P_MIN=7000            # 7000 / 10000 = 70% basis points
-TIME_WINDOW=360       # seconds
+# Shared thresholds — identical for both swarms (the SAFE-area rules):
+ZONE_X=0              # zone origin x
+ZONE_Y=0              # zone origin y
+ZONE_H=8              # zone height in cells → each strip is strip_width × 8
+N_DRONES=5            # drones per swarm = number of strips
+COVERAGE_MIN=950      # min coverage, permille (950/1000 = 95% of strip cells must be swept) → predicate ① Coverage
+P_MIN=7000            # detection threshold, basis points (cell p_contact must be < 7000/10000 = 70%) → predicate ② Detection
+TIME_WINDOW=360        # seconds; every cell ts must be within [ts_start, ts_start+360] → predicate ③ Time
+
 # Fixed mission start timestamp — matches generate-mission.py's TS_START so
 # its generated cells_ts values fall within [ts_start, ts_start + time_window]
 # and satisfy predicate ③ (Time). Set to 2023-11-14 22:13:20 UTC.
 TS_START=1700000000
 
+# Open one swarm's mission on L2 — the BYPASS for the broken L1→L2 bridge.
+# In production, register-missions' Registry.deploy → sendMessageToL2 would
+# trigger the #[l1_handler] open_mission automatically (carrying this spec,
+# validated as coming from the commander's Registry). Since Madara doesn't
+# consume that message from the barebones stub, we call open_mission_local
+# directly here instead.
 open_mission_for_swarm() {
+
+    # Target the swarm's MADARA (L2) RPC — this is an L2 script (cf. register
+    # which used ship-a/L1).
     local swarm="$1"
     local madara_host="convoy-madara-${swarm}"
     local rpc_url="http://${madara_host}:9944/rpc/v${RPC_VERSION}"
+
     local conv_env="${REPO_ROOT}/.tmp-l2/convoy_l2_${swarm}.env"
     local drone_env="${REPO_ROOT}/.tmp-l2/drones-${swarm}.env"
 
@@ -122,6 +155,11 @@ open_mission_for_swarm() {
     echo "[open/${swarm}]   zone: ${SPEC_ZONE_W[$swarm]}×${ZONE_H}, strip_width=${SPEC_STRIP_WIDTH[$swarm]}"
     echo "[open/${swarm}]   drones: ${drones[*]}"
 
+    # Invoke open_mission_local on L2, signed by the DEPLOYER (account #1) — NOT
+    # the commander. open_mission_local is the dev door: callable directly, with
+    # NO L1-sender validation, so it loses the commander-authority check that the
+    # production open_mission (#[l1_handler]) enforces. Dev-only; remove for prod.
+    # After this, the mission exists on L2 + drones are registered → submit_telemetry works.
     MSYS_NO_PATHCONV=1 docker run --rm \
         --network convoy-l1 \
         -v "${REPO_ROOT}:/work" -w /work \
