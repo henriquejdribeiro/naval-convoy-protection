@@ -10,7 +10,7 @@
 //   2. Records the N drone account addresses (one per drone_id 1..N)
 //   3. Accepts a drone's RAW telemetry (per-cell measurements) via
 //      submit_telemetry and checks the four SAFE_AREA predicates DIRECTLY
-//      ON-CHAIN — no per-drone STARK proof, no off-chain prover
+//      ON-CHAIN
 //   4. Aggregates verdicts; emits L1 message when all N drones SAFE
 //
 // SAFE_AREA predicates (evaluated in submit_telemetry):
@@ -33,26 +33,26 @@
 //   strip[i].y_start = spec.zone_y
 //   strip[i].y_end   = spec.zone_y + spec.zone_h
 //
-// ── Design note (architecture reversal from rev 2026-05) ─────────────────
+// ── Design note  ─────────────────
 //
-// The previous design kept cells in drone-local Cairo hints and submitted
-// a per-drone STARK proof to L2 via a Stone-cairo verifier contract. This
-// rev reverses that decision: cells are submitted as L2 invoke calldata
+// Cells are submitted as L2 invoke calldata
 // and the contract evaluates the four predicates directly.
 //
 // Implications:
 //   - Telemetry is PUBLIC on L2 — anyone reading Madara history sees
 //     each cell's (x, y, p_contact, ts). The Pedersen-hiding commitment H
 //     is no longer required (kept only as an audit trail).
-//   - No per-drone STARK proof. The cryptographic proof L1 verifies is
+//   - The cryptographic proof L1 verifies is
 //     the Madara-block STARK proof produced by SNOS + Stone (which
 //     attests that THIS contract correctly evaluated the predicates on
 //     the public telemetry — i.e. zk-rollup execution proof, not a
 //     drone-side privacy proof).
-//   - The cairo_verifier construction argument is removed — there is
-//     no per-drone proof for the contract to verify.
 // =============================================================================
 
+// Starknet's native address type (a felt252-backed contract/account address).
+// Imported at module top so the public types + the IConvoyProtocol trait below
+// can refer to it — e.g. the drone account addresses in open_mission_local's
+// `Array<ContractAddress>` and the `get_drone_addr` view's return type.
 use core::starknet::ContractAddress;
 
 // ── Public types (visible to dispatchers, ABI, off-chain callers) ──────────
@@ -75,7 +75,17 @@ pub struct MissionSpec {
     pub ts_start:     u64,        // mission-start timestamp
 }
 
-/// One drone's assigned sub-area (derived deterministically from MissionSpec).
+/// One drone's assigned sub-area: the rectangle [x_start, x_end) × [y_start, y_end).
+/// Bounds are HALF-OPEN (x_end / y_end exclusive) so adjacent strips tile the
+/// zone without overlap — drone i's x_end == drone i+1's x_start.
+///
+/// NOT #[starknet::Store] on purpose: a strip is never persisted. It's derived
+/// on demand from the stored MissionSpec via derive_strip(spec, drone_id), so
+/// storing it would be redundant. We keep:
+///   Drop  — discardable
+///   Copy  — passed by value into the predicate checks
+///   Serde — get_strip() RETURNS this across the ABI (output must serialize to
+///           felts). Note: needed for crossing the ABI, NOT for storage.
 #[derive(Drop, Copy, Serde)]
 pub struct StripBounds {
     pub x_start: u32,
@@ -170,17 +180,46 @@ pub trait IConvoyProtocol<TContractState> {
 
 // ── Contract module ────────────────────────────────────────────────────────
 
+
+// #[starknet::contract] = the deployable contract (gets a class hash + address).
+// (Compare: #[starknet::interface] above = the ABI trait; #[..contract(account)]
+//  in drone_account = an account contract.) Storage, events, constructor, and
+// the external impl all live inside this module.
+//
+// NOTE: a Cairo module is its OWN scope — it does NOT inherit the file's
+// top-level imports, so we re-`use` everything the contract body needs below
+// (that's why ContractAddress appears here again).
 #[starknet::contract]
 mod ConvoyProtocol {
+
+    // Caller identity + address type.
+    //   get_caller_address() → who invoked this fn. submit_telemetry uses it to
+    //   assert the caller IS the registered drone account (account-abstraction
+    //   enforcement — the whole "telemetry is unforgeable per drone" guarantee).
     use core::starknet::{
         ContractAddress, get_caller_address,
     };
+
+    // Storage access.
+    //   Map                     the key→value storage type used in `struct Storage`.
+    //   StoragePointer*Access   enable .read()/.write() on PLAIN storage vars.
+    //   StorageMap*Access       enable .read(key)/.write(key,val) on Maps.
+    //   ⚠ In Cairo, .read()/.write() are TRAIT methods — the trait must be in
+    //     scope or the call won't compile. Importing `Map` alone is not enough;
+    //     you also need these *Access traits. (Common first-time gotcha.)
     use core::starknet::storage::{
         Map, StoragePointerReadAccess, StoragePointerWriteAccess,
         StorageMapReadAccess, StorageMapWriteAccess,
     };
+
+    // The L2→L1 message hook. Fired by submit_telemetry when the 5th drone lands
+    // SAFE; the relay then hand-credits it on L1. (This is the syscall that needs
+    // L1 gas — the reason only the 5th drone's tx hit the gas issue.)
     use core::starknet::syscalls::send_message_to_l1_syscall;
 
+    // Shared types + codes defined at FILE scope (outside this module) so BOTH
+    // the interface trait and this contract can use them. `super::` = the parent
+    // (file) module; we reach up to pull them into the contract's scope.
     use super::{
         MissionSpec, StripBounds,
         VERDICT_PENDING, VERDICT_SAFE, VERDICT_UNSAFE,
@@ -189,28 +228,49 @@ mod ConvoyProtocol {
 
     // ── Storage ────────────────────────────────────────────────────────────
     //
-    // Storage keys for the per-(mission, drone) maps are computed via
-    // `encode_drone_key(mid, did)` so the parallel maps share the
-    // same slot space without colliding.
+    // THE contract's permanent, PUBLIC, on-chain state — the only data that
+    // survives between transactions. Exactly one #[storage] struct per contract.
+    //
+    // Most fields are Map<K,V>: a family of storage slots addressed by a key
+    // (slot ≈ hash(field, key)), i.e. a key→value mapping — NOT a single value.
+    //
+    // IMPORTANT — what is NOT here: the raw cells (x/y/p_contact/ts). Those
+    // arrive as calldata, get checked, and are thrown away — only the DECISION
+    // is stored. The raw telemetry lives in the L2 block history (the tx
+    // calldata), which IS the audit trail. Contract stores the verdict; the
+    // chain stores the evidence.
+    //
+    // The per-drone maps below are "parallel maps": four separate maps that all
+    // use the SAME key = encode_drone_key(mid, did) (= mid*256 + did). Compute
+    // the key once, read/write all four at it. The packing guarantees distinct
+    // (mission, drone) pairs never collide within a map.
     #[storage]
     struct Storage {
-        // Per-mission specs
-        missions:       Map<felt252, MissionSpec>,
-        mission_exists: Map<felt252, bool>,
+        // ── Per-mission spec (the mission's "constitution") ─────────────────
+        missions:       Map<felt252, MissionSpec>, // mission_id → full spec, stored verbatim
+        mission_exists: Map<felt252, bool>,        // mission_id → "was this deployed?"
+        // ↑ needed because reading a never-set mission returns a ZEROED spec,
+        //   indistinguishable from a real all-zero one. You can't tell "unset"
+        //   from "zero" without a flag — so every entry point checks this bool.
 
         // Per-drone state — keyed by encode_drone_key(mid, did)
-        drone_addr:    Map<felt252, ContractAddress>,
-        verdicts:      Map<felt252, u8>,
-        fail_reasons:  Map<felt252, u8>,
-        n_cells_map:   Map<felt252, u32>,
+        drone_addr:    Map<felt252, ContractAddress>,   // → the L2 account allowed to submit
+        verdicts:      Map<felt252, u8>,                // → PENDING(0)/SAFE(1)/UNSAFE(2)  (0 = default = not yet submitted)
+        fail_reasons:  Map<felt252, u8>,                // → which predicate rejected it (FAIL_* code)
+        n_cells_map:   Map<felt252, u32>,               // → how many cells the drone reported
 
         // Per-mission aggregates
-        safe_count: Map<felt252, u8>,
-        l1_emitted: Map<felt252, bool>,
+        safe_count: Map<felt252, u8>,                   // mission_id → # of SAFE drones so far. THE counter relay-l2-messages reads.
+        l1_emitted: Map<felt252, bool>,                 // mission_id → has the all-SAFE L1 message been sent?
+        // ↑ idempotency latch: guarantees the L2→L1 MissionSafe message fires
+        //   EXACTLY ONCE, even if the 5th submission is somehow re-run.
 
-        // Configuration (set at constructor, immutable thereafter)
-        l1_commander_addr: felt252,    // L1 address authorised to call open_mission
-        l1_verifier_addr:  felt252,    // L1 destination for the all-SAFE message
+        // ── Configuration — written once in constructor, immutable after ────
+        // Note: felt252, NOT ContractAddress. These are L1 (Ethereum) addresses;
+        // ContractAddress is an L2 type. An L1 address (160 bits) crosses the
+        // bridge as a plain felt252. Type = which chain the address belongs to.
+        l1_commander_addr: felt252,    // L1 address authorised to call open_mission (#[l1_handler] sender check)
+        l1_verifier_addr:  felt252,    // L1 destination of the all-SAFE send_message_to_l1
     }
 
     // ── Events ─────────────────────────────────────────────────────────────
