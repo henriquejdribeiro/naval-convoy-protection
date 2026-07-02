@@ -669,22 +669,30 @@ mod ConvoyProtocol {
     }
 
     // ── Pure helpers ───────────────────────────────────────────────────────
+    // Module-level (outside the impl) = PRIVATE. Internal utilities, not in the
+    // ABI. Both are pure/stateless: they compute from inputs, never touch storage.
 
-    /// Encode `(mission_id, drone_id)` into a single felt252 storage key.
+    /// Pack (mission_id, drone_id) into one felt252 so the per-drone Maps can be
+    /// keyed by the pair. `mission_id * 256 + drone_id` is a bit-shift: mission_id
+    /// occupies the high bits, drone_id the low 8. Since drone_id is u8 (<256) it
+    /// can't collide into the mission portion → distinct pairs give distinct keys.
     fn encode_drone_key(mission_id: felt252, drone_id: u8) -> felt252 {
-        let drone_felt: felt252 = drone_id.into();
+        let drone_felt: felt252 = drone_id.into();     // u8 → felt252 (infallible widening)
         mission_id * 256 + drone_felt
     }
 
-    /// Derive the sub-area assigned to `drone_id ∈ [1, n_drones]`.
+    /// Turn the stored geometry into drone_id's actual rectangle. Pure (no storage)
+    /// — that's why StripBounds isn't #[Store]; it's recomputed on demand here and
+    /// in the get_strip view. Assumes 1-based drone_id (caller guards drone_id>=1;
+    /// drone_id==0 would underflow at `drone_id - 1`).
     fn derive_strip(spec: MissionSpec, drone_id: u8) -> StripBounds {
-        let i_u32: u32 = (drone_id - 1_u8).into();
-        let x_start = spec.zone_x + i_u32 * spec.strip_width;
+        let i_u32: u32 = (drone_id - 1_u8).into();                   // 1-based id → 0-based index 
+        let x_start = spec.zone_x + i_u32 * spec.strip_width;        // walk i strips right of origin
         StripBounds {
             x_start: x_start,
-            x_end:   x_start + spec.strip_width,
+            x_end:   x_start + spec.strip_width,                     // one strip wide (exclusive)
             y_start: spec.zone_y,
-            y_end:   spec.zone_y + spec.zone_h,
+            y_end:   spec.zone_y + spec.zone_h,                      // full zone height for every drone
         }
     }
 
@@ -723,7 +731,7 @@ mod ConvoyProtocol {
             let p = *cells_p_contact.at(i);
             let ts = *cells_ts.at(i);
 
-            // ① Strip bounds
+            // ① Strip bounds: the cell must lie inside this drone's assigned rectangle
             if x < strip.x_start || x >= strip.x_end {
                 break FAIL_STRIP;
             }
@@ -731,7 +739,7 @@ mod ConvoyProtocol {
                 break FAIL_STRIP;
             }
 
-            // ② Detection: p_contact must be strictly below threshold
+            // ② Detection: every cell must show contact probability below threshold
             if p >= p_min {
                 break FAIL_DETECTION;
             }
@@ -743,7 +751,7 @@ mod ConvoyProtocol {
             }
             let elapsed = ts - ts_start;
             if elapsed > time_window {
-                break FAIL_TIME;
+                break FAIL_TIME; // too late
             }
 
             i += 1_u32;
@@ -769,9 +777,7 @@ mod ConvoyProtocol {
 
     // ── Constructor ────────────────────────────────────────────────────────
     //
-    // Note: the cairo_verifier_addr argument is REMOVED from this rev.
-    // The contract no longer delegates to a per-drone STARK verifier;
-    // the predicate check is now in-contract.
+    // Information known at deployment time (L1 commander/verifier addresses) is written once and never changed.
     #[constructor]
     fn constructor(
         ref self: ContractState,
