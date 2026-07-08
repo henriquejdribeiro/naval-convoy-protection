@@ -33,9 +33,7 @@ interface IStarknetMessaging {
  *      strip from `(missionId, droneIndex)`.
  *
  *   2. **Verdict storage** — only the Verifier contract may call
- *      `setVerdict()`. The Verifier writes a per-(missionId, droneIndex)
- *      flag as a side-effect of each successful STARK-proof
- *      registration. When all `nDrones` of a mission are SAFE, the
+ *      `setVerdict()`. When mission SAFE, the
  *      Verifier additionally calls `setMissionSafe()` which writes the
  *      mission-level aggregate (missionSafe + aggH) — CommandLog reads
  *      that to gate `advance()`.
@@ -135,13 +133,7 @@ contract Registry is Ownable {
     ///      read by isDualSafe / CommandLog. This is the real state-of-truth.
     mapping(uint256 => bool) public missionSafe;
 
-    // ⚠ STRANDED from the per-drone-STARK design — nothing feeds these in the
-    //   new aggregate-message flow. safeCount is the field your bug's require
-    //   checked; droneVerdict is never set; missionAggH is always bytes32(0).
-    //   Removal/deprecation candidates.
-    mapping(uint256 => mapping(uint8 => bool)) public droneVerdict;
     mapping(uint256 => bytes32) public missionAggH;
-    mapping(uint256 => uint8) public safeCount;
 
     // ───────────────────────────────────────────────────────────────────
     //  Events
@@ -153,15 +145,6 @@ contract Registry is Ownable {
     event MissionDeployed(
         uint256 indexed missionId,
         MissionSpec     spec
-    );
-
-    /// @notice (STRANDED) Per-drone verdict. Emitted by setVerdict — which the new
-    ///         aggregate-message flow never calls, so this never fires. Fossil of
-    ///         the per-drone-STARK design; remove with setVerdict/droneVerdict.
-    event VerdictSet(
-        uint256 indexed missionId,
-        uint8   indexed droneIndex,
-        bool            safe
     );
 
     /// @notice Emitted by setMissionSafe when a mission flips SAFE on L1. The live
@@ -366,45 +349,6 @@ contract Registry is Ownable {
         );
     }
 
-    // ───────────────────────────────────────────────────────────────────
-    //  setVerdict — Verifier writes one drone's verdict after STARK pass
-    // ───────────────────────────────────────────────────────────────────
-
-    // ── setVerdict — STRANDED per-drone accumulator (old STARK design) ──
-    /**
-     * @notice (DEAD CODE in the aggregate-message design) Mark one drone's verdict
-     *         SAFE and increment safeCount. Was called once per drone after each
-     *         per-drone STARK proof; the new Verifier skips this and calls
-     *         setMissionSafe DIRECTLY with the [mission_id, n_drones] aggregate.
-     *         Nothing calls this now → safeCount stays 0 (the root of the
-     *         "not all drones SAFE" bug that Option-A removed the require for).
-     *         REMOVAL CANDIDATE (with droneVerdict, safeCount, VerdictSet).
-     * @dev    Idempotent: a re-submit of an already-SAFE drone returns the current
-     *         count instead of reverting, so it never double-counts.
-     * @return the mission's SAFE count after this call.
-     */
-    function setVerdict(uint256 missionId, uint8 droneIndex)
-        external
-        onlyVerifier
-        returns (uint8)
-    {
-        MissionSpec storage spec = specs[missionId];
-        require(spec.nDrones > 0,                          "Registry: unknown mission");
-        require(droneIndex >= 1 && droneIndex <= spec.nDrones,
-                                                            "Registry: droneIndex out of range");
-
-        if (droneVerdict[missionId][droneIndex]) {
-            // Idempotent re-submission — no double-counting.
-            return safeCount[missionId];
-        }
-
-        droneVerdict[missionId][droneIndex] = true;
-        uint8 newCount = safeCount[missionId] + 1;
-        safeCount[missionId] = newCount;
-        emit VerdictSet(missionId, droneIndex, true);
-        return newCount;
-    }
-
     /**
      * @notice Write the mission-level aggregate after all `nDrones` have
      *         landed SAFE.
@@ -434,12 +378,6 @@ contract Registry is Ownable {
     /// @notice Is one mission SAFE (reads the flag setMissionSafe flips).
     function isMissionSafe(uint256 missionId) external view returns (bool) {
         return missionSafe[missionId];
-    }
-
-    /// @notice (DEAD) Reads droneVerdict, which nothing sets in the aggregate-message
-    ///         design → always false. Removal candidate (with setVerdict/droneVerdict).
-    function isDroneSafe(uint256 missionId, uint8 droneIndex) external view returns (bool) {
-        return droneVerdict[missionId][droneIndex];
     }
 
     /// @notice THE advance gate: both swarms must be SAFE before the convoy moves.
