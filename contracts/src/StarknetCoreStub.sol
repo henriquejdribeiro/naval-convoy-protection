@@ -10,16 +10,18 @@ pragma solidity ^0.8.20;
  *         (production GPS/Starknet contracts target Solidity 0.6.12).
  *
  * Roles in the convoy protocol:
- *   - Madara reads `stateBlockNumber()`, `stateRoot()`, `stateBlockHash()`,
- *     and `identify()` on startup to confirm the L1 settlement contract is
- *     reachable.
- *   - The orchestrator daemon calls `updateState(...)` after each L2 block
- *     it settles (Phase 3+). For Phase 2 (hardcoded facts), this stays at
- *     genesis values.
- *   - `sendMessageToL2(...)` is the L1 → L2 message hook. The convoy
- *     protocol does NOT use it for the core flow (Pattern B uses radio
- *     dispatch via the relay ships, not the bridge), but Madara's startup
- *     checks expect the function to exist.
+ *   - Madara reads stateBlockNumber(), stateRoot(), stateBlockHash(), and
+ *     identify() on startup to confirm the L1 settlement contract is reachable.
+ *   - updateState(...) is the settlement hook the orchestrator WOULD call after
+ *     proving each block (it should also credit l2ToL1Messages from the proven
+ *     block — currently it only sets the 3 state slots; that gap is why the
+ *     L2→L1 queue is fed by injectL2Message instead). Unused pre-proving-pipeline.
+ *   - L2→L1 (the CORE convoy path): a swarm's convoy_protocol emits the
+ *     "all SAFE" message; injectL2Message (DEV) hand-credits it into
+ *     l2ToL1Messages, then the Verifier claims it via consumeMessageFromL2.
+ *   - L1→L2: sendMessageToL2 is fired by Registry.deploy to queue the
+ *     open_mission message, but Madara runs --l1-sync-disabled so it's never
+ *     consumed — the working flow bypasses it with open_mission_local.
  *
  * Pattern matches the StarkWare reference implementation; the surface here
  * is the minimum needed to bring up Madara devnet and is NOT a full
@@ -46,20 +48,50 @@ contract StarknetCoreStub {
     //                        with `stateBlockNumber` it uniquely
     //                        identifies the settled chain head.
     // ───────────────────────────────────────────────────────────────────
-    uint256 public stateRoot;
-    int256  public stateBlockNumber;
-    uint256 public stateBlockHash;
+    uint256 public stateRoot;         // fingerprint of the whole L2 State
+    int256  public stateBlockNumber;  // -1 = no L2 block settled yet, 0 = genesis, 1 = first block, ...
+    uint256 public stateBlockHash;    // Poseidon hash of the most-recently-settled L2 block (uniquely identifies the block)
 
     // ───────────────────────────────────────────────────────────────────
-    //  L1 ↔ L2 message tracking (kept as a queue for Madara compatibility)
+    // ── L1↔L2 message mailboxes: hash → COUNT (a multiset, not a bool, so the
+    //    SAME message can be queued/consumed N times). The queue stores only a
+    //    HASH commitment (cheap); the consumer re-supplies the message data and
+    //    the hash is recomputed to authorize consumption. The hash binds
+    //    sender+recipient+payload, so ONLY the addressed recipient computes a
+    //    matching hash — that binding IS the access control (no modifier needed).
     // ───────────────────────────────────────────────────────────────────
-    mapping(bytes32 => uint256) public l1ToL2Messages;
-    mapping(bytes32 => uint256) public l2ToL1Messages;
+    mapping(bytes32 => uint256) public l1ToL2Messages;  // L1→L2; filled by sendMessageToL2
+    mapping(bytes32 => uint256) public l2ToL1Messages;  // L2→L1 (convoy verdict path);
+                                                        // real: filled by proven updateState
+                                                        // stub: filled by injectL2Message, drained by consumeMessageFromL2                         
 
     // ───────────────────────────────────────────────────────────────────
-    //  Events
+    //  Events: off-chain broadcast signals (contracts can't read these).
+    //    `indexed` = filterable topic (like Cairo's #[key]); max 3 per event.
     // ───────────────────────────────────────────────────────────────────
+
+    /// @notice Emitted by `updateState` when L1 accepts a newly-settled L2
+    ///         state. Off-chain observers and the orchestrator watch this to
+    ///         track L2→L1 finality (in production it fires once per proven block).
+    /// @param  globalRoot  New L2 state root — the Patricia trie root committing
+    ///                     to ALL L2 storage after the settled block.
+    /// @param  blockNumber Settled L2 block height (int256; -1 = none settled yet).
+    /// @param  blockHash   Poseidon hash of the settled L2 block; with
+    ///                     `blockNumber` it pins the exact settled chain head.
     event LogStateUpdate(uint256 globalRoot, int256 blockNumber, uint256 blockHash);
+
+    /// @notice Emitted by `sendMessageToL2` to queue an L1 → L2 message. This is
+    ///         the L1→L2 trigger: a real Madara L1-sync WATCHES this event and,
+    ///         on seeing one, injects a matching `l1_handler` transaction into
+    ///         L2. (Here Madara runs --l1-sync-disabled, so it's ignored and the
+    ///         flow bypasses with open_mission_local.) The 3 indexed fields are
+    ///         exactly the keys Madara filters on.
+    /// @param  fromAddress L1 sender — becomes the handler's `from_address` arg.
+    /// @param  toAddress   Target L2 contract to receive the message.
+    /// @param  selector    Which `l1_handler` entry point to invoke.
+    /// @param  payload     Felt args passed to the handler.
+    /// @param  nonce       Unique per-message nonce (ordering / replay defence).
+    /// @param  fee         L1 fee paid (msg.value) to incentivise delivery.
     event LogMessageToL2(
         address indexed fromAddress,
         uint256 indexed toAddress,
@@ -68,11 +100,12 @@ contract StarknetCoreStub {
         uint256         nonce,
         uint256         fee
     );
+
     /// @notice Emitted by `consumeMessageFromL2` when an L1 contract
     ///         successfully claims a message queued from L2.
     /// @param  fromAddress L2 sender (the convoy_protocol address that
-    ///                     called `send_message_to_l1_syscall`)
-    /// @param  toAddress   L1 consumer (msg.sender of consumeMessageFromL2)
+    ///                     called `send_message_to_l1_syscall`).
+    /// @param  toAddress   L1 consumer (msg.sender of consumeMessageFromL2).
     /// @param  payload     The arbitrary felt array L2 attached to the
     ///                     message — for the convoy flow this is
     ///                     `[mission_id, n_drones]`.
@@ -82,24 +115,41 @@ contract StarknetCoreStub {
         uint256[]       payload
     );
 
-    // ───────────────────────────────────────────────────────────────────
-    //  Madara startup checks
-    // ───────────────────────────────────────────────────────────────────
+    // ── Madara startup checks ────────────────────────────────────────────
+    // Together with the stateRoot/stateBlockNumber/stateBlockHash getters,
+    // these are what Madara's L1-sync reads on boot to validate + locate its
+    // settlement contract. (Only exercised when L1-sync is ON — currently
+    // Madara runs --l1-sync-disabled, so this isn't called yet.)
 
-    /// @notice Identifier string Madara checks against during startup.
+    /// @notice Identity/version handshake Madara calls on startup to confirm
+    ///         this is a genuine Starknet Core contract before trusting it as
+    ///         the settlement layer. The stub returns a plausible version string
+    ///         to impersonate the real contract. `pure` = touches no state, so
+    ///         it's a free call. NOT a bridge gap: the real Starknet.sol
+    ///         implements this too (with its real version), so it becomes
+    ///         production-ready for free.
     function identify() external pure returns (string memory) {
         return "StarkWare_Starknet_2025_10";
     }
 
     // ───────────────────────────────────────────────────────────────────
-    //  State settlement (called by the orchestrator post-Phase 3)
+    //  State settlement THE settlement hook (currently gutted = "gap 1")
     // ───────────────────────────────────────────────────────────────────
 
     /**
-     * @notice Update L2 state — called by the orchestrator after each L2
-     *         block is settled.
-     * @dev    For Phase 2 this is unused; Phase 3 wires the orchestrator
-     *         daemon to call this after each successful proof verification.
+     * @notice Settle a proven L2 block on L1. In real Starknet.sol the
+     *         orchestrator calls this after proving a block, and it (a) checks
+     *         the block's proof was verified (verifier.isValid(factHash) over the
+     *         program output), (b) advances the state slots, and (c) credits the
+     *         block's L2→L1 messages into l2ToL1Messages — all from ONE proof.
+     *
+     * @dev    THIS STUB DOES NONE OF THAT. It just assigns the 3 slots and emits.
+     *         Missing: proof verification (no security!), l2ToL1Messages crediting
+     *         (why the L2→L1 queue is empty → injectL2Message fakes it), operator
+     *         access control, and the program-output/proof argument. Making the
+     *         L2→L1 bridge real = making THIS function real + wiring the
+     *         orchestrator to call it, after which injectL2Message can be deleted.
+     *         Currently unused (nothing calls it → state sits at genesis).
      */
     function updateState(
         uint256 globalRoot_,
@@ -117,10 +167,23 @@ contract StarknetCoreStub {
     // ───────────────────────────────────────────────────────────────────
 
     /**
-     * @notice Queue an L1 → L2 message (Madara consumes the queue).
-     * @dev    NOT used by the convoy protocol's main flow — relay ships
-     *         dispatch over radio, not via this bridge. Kept for Madara
-     *         compatibility and future extensibility.
+     * @notice Queue an L1 → L2 message. An L1 contract calls this to invoke an
+     *         l1_handler on an L2 contract. Emits LogMessageToL2, which a real
+     *         Madara L1-sync WATCHES to inject the matching l1_handler tx on L2
+     *         (with msg.sender as the handler's from_address).
+     * @dev    Called by Registry.deploy to queue the open_mission message — but
+     *         Madara runs --l1-sync-disabled, so nothing consumes it and the flow
+     *         bypasses with open_mission_local. Making L1→L2 real = deploy a real
+     *         Core + enable L1-sync (no proof needed), then drop open_mission_local.
+     *         payable: real Starknet.sol requires a delivery FEE (msg.value); the
+     *         stub only records it. NONCE CAVEAT: real Starknet.sol uses a stored
+     *         monotonic counter; this timestamp-derived nonce can collide within
+     *         one block (fine for devnet, not faithful to production).
+     * @param toAddress L2 target contract (felt as uint256).
+     * @param selector  Which l1_handler entry point to call.
+     * @param payload   Felt args for the handler.
+     * @return msgHash  Hash tracked in l1ToL2Messages.
+     * @return nonce    Per-message nonce (uniqueness).
      */
     function sendMessageToL2(
         uint256          toAddress,
@@ -196,19 +259,24 @@ contract StarknetCoreStub {
     )
         external returns (bytes32 msgHash)
     {
+        // Recompute the message hash. msg.sender (the caller) is baked in as the
+        // recipient — so this only matches a queued message that L2 ADDRESSED to
+        // this exact caller. That binding IS the access control (no modifier).
         msgHash = keccak256(
             abi.encodePacked(
                 fromAddress,
-                uint256(uint160(msg.sender)),
+                uint256(uint160(msg.sender)),   // L1 consumer = caller, the caller is forced to be the recipient
                 payload.length,
                 payload
             )
         );
 
+        // Reverts if not queued: never sent, wrong caller (hash mismatch), or
+        // already consumed. Revert string is verbatim from real Starknet.sol.
         require(l2ToL1Messages[msgHash] > 0, "INVALID_MESSAGE_TO_CONSUME");
 
         emit ConsumedMessageToL1(fromAddress, msg.sender, payload);
-        l2ToL1Messages[msgHash] -= 1;
+        l2ToL1Messages[msgHash] -= 1;   // consume one copy (multiset)
     }
 
     // ───────────────────────────────────────────────────────────────────
@@ -235,7 +303,7 @@ contract StarknetCoreStub {
     ///         tooling can flag dev-injected vs proof-anchored messages.
     event DevInjectedL2Message(
         uint256 indexed fromAddress,
-        address indexed toAddress,
+        address indexed toAddress,   
         uint256[]       payload,
         bytes32         msgHash
     );
@@ -261,12 +329,12 @@ contract StarknetCoreStub {
         msgHash = keccak256(
             abi.encodePacked(
                 fromAddress,
-                uint256(uint160(toAddress)),
+                uint256(uint160(toAddress)),  // the caller declares who the recipient is
                 payload.length,
                 payload
             )
         );
-        l2ToL1Messages[msgHash] += 1;
+        l2ToL1Messages[msgHash] += 1;  // hand-credit, NO proof
         emit DevInjectedL2Message(fromAddress, toAddress, payload, msgHash);
     }
 }

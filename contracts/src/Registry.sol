@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";  // Registry is Ownable (owner-only config)
 
-/// Minimal interface to the L1↔L2 message bridge (StarknetCoreStub in dev,
-/// real StarknetMessaging.sol on mainnet). Only the L1→L2 path is used
-/// from this contract.
+/// Minimal, self-declared interface to the Core's L1→L2 SEND path. Parallels the
+/// Verifier's IStarknetMessagingConsumer, but for the opposite direction: the
+/// Registry SENDS (Registry.deploy → sendMessageToL2 queues the open_mission
+/// order to L2), whereas the Verifier CONSUMES. Only sendMessageToL2 is declared
+/// because that's the only Core function this contract uses. Talking to the Core
+/// by interface+address (not import) keeps it Core-agnostic: StarknetCoreStub in
+/// dev, real StarknetMessaging.sol in prod, unchanged. payable = the real Core
+/// charges an L1→L2 delivery fee (msg.value).
 interface IStarknetMessaging {
     function sendMessageToL2(
         uint256          toAddress,
@@ -71,19 +76,22 @@ contract Registry is Ownable {
     // payload.
     uint8 public constant N_DRONES = 5;
 
-    // ───────────────────────────────────────────────────────────────────
-    //  Mission spec — full zone + thresholds. The Verifier derives each
-    //  drone's strip from (zoneX, zoneY, zoneW, zoneH, stripWidth)
-    //  and droneIndex, so we DO NOT store per-drone strip bounds here
-    //  (the spec captures everything needed to compute them).
+    // ── Mission spec — L1's record of a mission (Registry.specs[missionId]).
+    //    L1 counterpart to convoy_protocol.MissionSpec, but a DIFFERENT schema:
+    //    shares the geometry+thresholds, ADDS areaHash (L1-only provenance), and
+    //    OMITS mission_id (it's the map key), ts_start (a separate deploy arg),
+    //    and swarm_id (implied by mission_id: 1=Alpha, 2=Bravo).
+    //
+    //    NOTE: L1 reads only nDrones (Verifier's cross-check); the rest is stored
+    //    as the anchor + forwarded to L2 in the open_mission payload.
     // ───────────────────────────────────────────────────────────────────
     struct MissionSpec {
-        bytes32 areaHash;          // Poseidon hash of polygon vertices (provenance)
+        bytes32 areaHash;          // L1-ONLY: Poseidon hash of the zone polygon (provenance); not sent to L2
         uint32  zoneX;             // grid origin x
         uint32  zoneY;             // grid origin y
         uint32  zoneW;             // 15 (Alpha) or 20 (Bravo)
         uint32  zoneH;             // 8 (both swarms)
-        uint8   nDrones;           // 5
+        uint8   nDrones;           // 5 — the ONLY field L1 logic reads (drone-count cross-check)
         uint32  stripWidth;        // = zoneW / nDrones (must be exact; enforced at deploy)
         uint16  coverageMin;       // permille; 950 = ≥ 95% strip coverage
         uint16  pMin;              // basis points; 7000 = p_contact < 0.7
@@ -94,8 +102,9 @@ contract Registry is Ownable {
     //  Storage
     // ───────────────────────────────────────────────────────────────────
 
-    /// @dev D's commander key; set once at deployment, no rotation path.
-    ///      Fail-closed by design — see Verifier.sol commentary.
+    // ── Immutable anchors (locked at deployment) ────────────────────────
+    /// @dev Commander (ship D) key — the only caller allowed to deploy() a
+    ///      mission. No rotation path (fail-closed; see CommandLog.sol).
     address public immutable commander;
 
     /// @dev L1↔L2 message bridge (StarknetCoreStub in dev, real
@@ -105,7 +114,9 @@ contract Registry is Ownable {
     ///      verifiable LogMessageToL2 event.
     IStarknetMessaging public immutable starknetCore;
 
-    /// @dev Bound Verifier contract; only it may write verdicts.
+    // ── Mutable bindings (set AFTER deploy, cross-contract ordering) ─────
+    /// @dev Bound Verifier — only it may write verdicts. Not immutable: Verifier
+    ///      is deployed after Registry, so it's wired later via setVerifier.
     address public verifier;
 
     /// @dev Per-mission L2 convoy_protocol address — different on alpha
@@ -119,54 +130,70 @@ contract Registry is Ownable {
     /// missionId → spec.
     mapping(uint256 => MissionSpec) public specs;
 
-    /// missionId → droneIndex (1..nDrones) → SAFE flag.
-    mapping(uint256 => mapping(uint8 => bool)) public droneVerdict;
-
-    /// missionId → number of drones that have flipped to SAFE.
-    /// Updated by Verifier; capped at spec.nDrones.
-    mapping(uint256 => uint8) public safeCount;
-
-    /// missionId → all-drones-safe aggregate flag.
-    ///   Flipped true exactly once, by Verifier, the moment the
-    ///   nDrones-th SAFE submission lands.
+    // ── Per-mission state ───────────────────────────────────────────────
+    /// @dev THE live flag: all-drones-safe. Flipped once by setMissionSafe;
+    ///      read by isDualSafe / CommandLog. This is the real state-of-truth.
     mapping(uint256 => bool) public missionSafe;
 
-    /// missionId → aggregate Pedersen-chain of all nDrones commitments.
-    ///   Computed off-chain by the Verifier (Pedersen chain over the H_i
-    ///   values stored in its own ProofRecord[]) and written here at the
-    ///   same time as missionSafe flips true.
+    // ⚠ STRANDED from the per-drone-STARK design — nothing feeds these in the
+    //   new aggregate-message flow. safeCount is the field your bug's require
+    //   checked; droneVerdict is never set; missionAggH is always bytes32(0).
+    //   Removal/deprecation candidates.
+    mapping(uint256 => mapping(uint8 => bool)) public droneVerdict;
     mapping(uint256 => bytes32) public missionAggH;
+    mapping(uint256 => uint8) public safeCount;
 
     // ───────────────────────────────────────────────────────────────────
     //  Events
     // ───────────────────────────────────────────────────────────────────
+
+    /// @notice Emitted by deploy() when the commander issues a mission order.
+    ///         Carries the FULL spec as data so off-chain can reconstruct it from
+    ///         the log. indexed missionId → relay orchestrators filter by swarm.
     event MissionDeployed(
         uint256 indexed missionId,
         MissionSpec     spec
     );
+
+    /// @notice (STRANDED) Per-drone verdict. Emitted by setVerdict — which the new
+    ///         aggregate-message flow never calls, so this never fires. Fossil of
+    ///         the per-drone-STARK design; remove with setVerdict/droneVerdict.
     event VerdictSet(
         uint256 indexed missionId,
         uint8   indexed droneIndex,
         bool            safe
     );
+
+    /// @notice Emitted by setMissionSafe when a mission flips SAFE on L1. The live
+    ///         "verified" event. NOTE: aggH is always bytes32(0) now (vestigial).
+    ///         Distinct from L2's MissionSafe and Verifier's MissionSafeConsumed.
     event MissionSafe(
         uint256 indexed missionId,
         bytes32         aggH
     );
+
+    /// @notice Emitted by setVerifier when the bound Verifier changes — security
+    ///         audit trail of who is trusted to write verdicts.
     event VerifierUpdated(address indexed previous, address indexed current);
 
     // ───────────────────────────────────────────────────────────────────
-    //  Modifiers
+    //  Modifiers - authority model
     // ───────────────────────────────────────────────────────────────────
 
-    /// @dev Restricts a function to the convoy commander key (ship D's
-    ///      separate signing key, NOT D's validator key).
+    /// @dev Only the commander (ship D's SEPARATE commander key, NOT its geth
+    ///      validator key) may call — used on deploy(). Separating the keys means
+    ///      commanding the convoy ≠ validating blocks (defense in depth).
+    ///      `commander` is immutable → this authority is locked (fail-closed).
     modifier onlyCommander() {
         require(msg.sender == commander, "Registry: onlyCommander");
         _;
     }
 
-    /// @dev Restricts a function to the bound Verifier contract.
+    /// @dev Only the bound Verifier CONTRACT may call — used on setMissionSafe/
+    ///      setVerdict. msg.sender is the Verifier itself (contract-call semantics).
+    ///      So verdicts can be WRITTEN only by the Verifier, even though anyone can
+    ///      TRIGGER the Verifier's consumeL2Message. NOTE: `verifier` is mutable
+    ///      (owner rebindable) → this trust is as strong as the owner key.
     modifier onlyVerifier() {
         require(msg.sender == verifier, "Registry: onlyVerifier");
         _;
@@ -186,16 +213,21 @@ contract Registry is Ownable {
         address commanderAddress,
         address starknetCoreAddr
     ) Ownable(initialOwner) {
+        // Fail fast: both become immutable, so 0x0 would brick the contract.
         require(commanderAddress != address(0), "Registry: commander = 0x0");
         require(starknetCoreAddr != address(0), "Registry: starknetCore = 0x0");
-        commander    = commanderAddress;
-        starknetCore = IStarknetMessaging(starknetCoreAddr);
+        commander    = commanderAddress;                      // operational key (deploy/advance)
+        starknetCore = IStarknetMessaging(starknetCoreAddr);  // L1→L2 send binding (immutable)
+        // NOTE: verifier is NOT set here — it's deployed after Registry, so it's
+        // wired later via setVerifier (hence mutable, not immutable).
     }
 
-    /// @notice Bind a mission-id to its L2 convoy_protocol contract address.
-    /// @dev    Owner-only because the L2 address comes from `deploy-l2.sh`
-    ///         output and isn't known at contract-construction time. Must be
-    ///         set before `deploy()` so the L1→L2 message knows where to go.
+    /// @notice Bind a mission to its L2 convoy_protocol address = the DESTINATION
+    ///         of the L1→L2 open_mission send in deploy(). (Pairs with the
+    ///         Verifier's expectedL2Sender, the receive-from side.)
+    /// @dev    onlyOwner; late-bound because the L2 address only exists after
+    ///         deploy-l2.sh. Must run before deploy(). register-missions step 1a.
+    ///         (Owner-mutable, and — unlike the Verifier's version — emits no event.)
     function setConvoyProtocolL2(uint256 missionId, uint256 l2Addr) external onlyOwner {
         require(l2Addr != 0, "Registry: l2Addr = 0");
         convoyProtocolL2[missionId] = l2Addr;
@@ -205,6 +237,14 @@ contract Registry is Ownable {
     //  Verifier wiring — set once after Verifier is deployed
     // ───────────────────────────────────────────────────────────────────
 
+    /// @notice Bind the Verifier contract that's allowed to write verdicts
+    ///         (onlyVerifier). Separate from the constructor because the Verifier
+    ///         is deployed AFTER the Registry — this is DeployL1's last step.
+    /// @dev    onlyOwner: guards the verdict-writer trust anchor (an unrestricted
+    ///         version would let anyone bind a malicious "verifier" and forge SAFE).
+    ///         Emits BEFORE the write so VerifierUpdated captures the OLD value as
+    ///         `previous`. No re-bind guard → owner CAN rebind (the event exists to
+    ///         audit exactly that); owner-mutable trust — harden for prod.
     function setVerifier(address verifierAddress) external onlyOwner {
         require(verifierAddress != address(0), "Registry: verifier = 0x0");
         emit VerifierUpdated(verifier, verifierAddress);
@@ -250,30 +290,30 @@ contract Registry is Ownable {
     function deploy(
         uint256 missionId,
         MissionSpec calldata spec,
-        uint256[N_DRONES] calldata droneAddresses,
-        uint256 tsStart
+        uint256[N_DRONES] calldata droneAddresses, // fixed-size → ABI enforces exactly 5
+        uint256 tsStart                            // separate: L1 spec doesn't store ts_start
     )
-        external payable
+        external payable // payable: forwards the L1→L2 fee
         onlyCommander
     {
         require(missionId == ALPHA_MISSION_ID || missionId == BRAVO_MISSION_ID,
-                "Registry: invalid missionId");
-        require(specs[missionId].nDrones == 0, "Registry: mission already deployed");
-        require(convoyProtocolL2[missionId] != 0,
-                "Registry: L2 contract addr not set");
+                "Registry: invalid missionId");  // only 1 or 2
+        require(specs[missionId].nDrones == 0, "Registry: mission already deployed"); // idempotency
+        require(convoyProtocolL2[missionId] != 0, 
+                "Registry: L2 contract addr not set"); // ordering
 
         // Spec sanity
-        require(spec.nDrones == N_DRONES,                          "Registry: nDrones must be 5");
-        require(spec.zoneW > 0 && spec.zoneH > 0,                  "Registry: zone dims = 0");
-        require(spec.stripWidth > 0,                               "Registry: stripWidth = 0");
+        require(spec.nDrones == N_DRONES,                          "Registry: nDrones must be 5"); // exactly 5
+        require(spec.zoneW > 0 && spec.zoneH > 0,                  "Registry: zone dims = 0");     // TILING INVARIANT
+        require(spec.stripWidth > 0,                               "Registry: stripWidth = 0");    // permille range
         require(spec.zoneW == spec.stripWidth * uint32(spec.nDrones),
-                "Registry: zoneW != stripWidth * nDrones");
+                "Registry: zoneW != stripWidth * nDrones");  // basis-points range
         require(spec.coverageMin > 0 && spec.coverageMin <= 1000,  "Registry: bad coverageMin");
         require(spec.pMin > 0 && spec.pMin <= 10000,               "Registry: bad pMin");
         require(spec.timeWindow > 0,                               "Registry: bad timeWindow");
         require(tsStart > 0,                                       "Registry: tsStart = 0");
 
-        specs[missionId] = spec;
+        specs[missionId] = spec; // the L1 ANCHOR
 
         // Keep nextMissionId monotone for any callers that still use it
         // as a "deployed missions count" probe.
@@ -316,10 +356,13 @@ contract Registry is Ownable {
         payload[16] = droneAddresses[3];
         payload[17] = droneAddresses[4];
 
+        // Fire the L1→L2 message: toAddress=L2 convoy_protocol, selector=open_mission.
+        // Emits LogMessageToL2 (which a live Madara L1-sync would route to open_mission).
+        // THIS is the convoy protocol's use of sendMessageToL2 (cf. the stub's header).
         starknetCore.sendMessageToL2{value: msg.value}(
-            convoyProtocolL2[missionId],
-            OPEN_MISSION_SELECTOR,
-            payload
+            convoyProtocolL2[missionId],   // toAddress = the L2 convoy_protocol
+            OPEN_MISSION_SELECTOR,         // selector → routes to open_mission
+            payload                        // the 18 felts
         );
     }
 
@@ -327,16 +370,18 @@ contract Registry is Ownable {
     //  setVerdict — Verifier writes one drone's verdict after STARK pass
     // ───────────────────────────────────────────────────────────────────
 
+    // ── setVerdict — STRANDED per-drone accumulator (old STARK design) ──
     /**
-     * @notice Mark a (missionId, droneIndex) verdict as SAFE.
-     * @dev    Only the bound Verifier may call. Reverts if:
-     *           - mission not deployed
-     *           - droneIndex out of range [1, nDrones]
-     *           - already SAFE (idempotent fast-path returns rather than
-     *             reverting, so re-submission attempts don't break the
-     *             aggregation)
-     * @return drones now SAFE for this mission (= old safeCount + 1 unless
-     *         idempotent no-op, in which case == old safeCount)
+     * @notice (DEAD CODE in the aggregate-message design) Mark one drone's verdict
+     *         SAFE and increment safeCount. Was called once per drone after each
+     *         per-drone STARK proof; the new Verifier skips this and calls
+     *         setMissionSafe DIRECTLY with the [mission_id, n_drones] aggregate.
+     *         Nothing calls this now → safeCount stays 0 (the root of the
+     *         "not all drones SAFE" bug that Option-A removed the require for).
+     *         REMOVAL CANDIDATE (with droneVerdict, safeCount, VerdictSet).
+     * @dev    Idempotent: a re-submit of an already-SAFE drone returns the current
+     *         count instead of reverting, so it never double-counts.
+     * @return the mission's SAFE count after this call.
      */
     function setVerdict(uint256 missionId, uint8 droneIndex)
         external
@@ -363,14 +408,12 @@ contract Registry is Ownable {
     /**
      * @notice Write the mission-level aggregate after all `nDrones` have
      *         landed SAFE.
-     * @dev    Only the bound Verifier may call. Reverts if missionSafe is
-     *         already set (idempotent), or if safeCount != nDrones.
+     * @dev    Only the bound Verifier may call. Reverts if the mission is unknown
+     *         or already SAFE.
      */
     function setMissionSafe(uint256 missionId, bytes32 aggH) external onlyVerifier {
         MissionSpec storage spec = specs[missionId];
         require(spec.nDrones > 0,                "Registry: unknown mission");
-        require(safeCount[missionId] == spec.nDrones,
-                                                  "Registry: not all drones SAFE");
         require(!missionSafe[missionId],         "Registry: mission already SAFE");
 
         missionSafe[missionId] = true;
@@ -382,23 +425,26 @@ contract Registry is Ownable {
     //  View helpers (used by CommandLog + frontends)
     // ───────────────────────────────────────────────────────────────────
 
+    /// @notice Full spec AS A STRUCT (the auto-getter returns a tuple). Used by
+    ///         the Verifier's drone-count cross-check in consumeL2Message.
     function getSpec(uint256 missionId) external view returns (MissionSpec memory) {
         return specs[missionId];
     }
 
+    /// @notice Is one mission SAFE (reads the flag setMissionSafe flips).
     function isMissionSafe(uint256 missionId) external view returns (bool) {
         return missionSafe[missionId];
     }
 
+    /// @notice (DEAD) Reads droneVerdict, which nothing sets in the aggregate-message
+    ///         design → always false. Removal candidate (with setVerdict/droneVerdict).
     function isDroneSafe(uint256 missionId, uint8 droneIndex) external view returns (bool) {
         return droneVerdict[missionId][droneIndex];
     }
 
-    /**
-     * @notice Dual-mission SAFE — convoy advance precondition.
-     * @dev    CommandLog.advance() calls this to enforce that both swarms
-     *         have ALL nDrones SAFE before the convoy may move.
-     */
+    /// @notice THE advance gate: both swarms must be SAFE before the convoy moves.
+    ///         CommandLog.advance() enforces this. isDualSafe(1,2)==true is the
+    ///         end-to-end "it worked" signal after both relays.
     function isDualSafe(uint256 alphaMissionId, uint256 bravoMissionId)
         external
         view

@@ -5,51 +5,49 @@ import "./Registry.sol";
 
 /**
  * @title  CommandLog
- * @notice Records the convoy advance command. Pattern B — D explicitly
- *         triggers, the Verifier does NOT auto-fire.
+ * @notice Records the convoy ADVANCE command. Pattern B: the commander (D)
+ *         EXPLICITLY triggers advance() — the Verifier does NOT auto-fire.
+ *         The on-chain check GATES the advance (both swarms must be SAFE), but a
+ *         human commander gives the final order. Machine verifies; human commands.
  *
- * Two preconditions enforced on-chain when D calls `advance`:
- *   1. `msg.sender == commander` (the commander key, NOT D's validator key)
- *   2. Both the α-mission and the β-mission listed in the call must have
- *      `Registry.missionSafe[missionId] == true` — meaning ALL `nDrones`
- *      drones in each swarm have landed valid SAFE STARK proofs and the
- *      Verifier has written the mission-level aggregate (missionSafe +
- *      aggH). This is strictly stronger than the previous per-drone
- *      `verdict` check used in the 2-drone-per-swarm rev: a single drone
- *      passing is no longer enough — the whole 5-drone strip cover must
- *      be proved.
+ * advance() preconditions:
+ *   1. msg.sender == commander (commander key, NOT D's validator key)
+ *   2. Registry.missionSafe == true for BOTH α and β (via isDualSafe)
+ *   NOTE: missionSafe is set from the aggregate L2→L1 message
+ *   (aggH == 0).
  *
- * The `commander` slot is set once at deployment and is **immutable**.
- * The protocol provides no on-chain rotation path: if the commander
- * key is lost or compromised, the entire contract suite must be
- * re-deployed. This is a deliberate fail-closed semantic chosen to
- * remove any administrative-vector attack on the highest-privilege
- * role; the convoy commits at deploy time to a single, unambiguous
- * authority for issuing the advance order.
+ * commander is immutable — no rotation path (fail-closed): lost/compromised key
+ * ⇒ redeploy the whole suite. Deliberate: removes any admin attack vector on the
+ * top authority.
  *
  * Emits `ConvoyAdvance` after a successful call. Event includes the L1
  * block where the advance was recorded — relay ships use this as the
  * "context" field when they bridge the advance over radio (replay-attack
  * defence).
  */
-contract CommandLog {
+contract CommandLog {  // ← NOT Ownable (simplest L1 contract)
     // ───────────────────────────────────────────────────────────────────
     //  External binding
     // ───────────────────────────────────────────────────────────────────
-    Registry public immutable registry;
+
+    Registry public immutable registry; // for isDualSafe()
+
     /// @dev D's commander key, set once at deployment. No rotation path.
-    address public immutable commander;
+    address public immutable commander; // the advance authority
 
     // ───────────────────────────────────────────────────────────────────
     //  Stored advance records
+    //
+    //  One AdvanceRecord is written per advance() call: a permanent, immutable,
+    //  auditable entry answering who / what / when / under-what-verification.
     // ───────────────────────────────────────────────────────────────────
     struct AdvanceRecord {
-        uint256 alphaMissionId;
-        uint256 bravoMissionId;
-        uint256 speed;
-        uint256 blockNumber;
-        uint256 timestamp;
-        address commander;
+        uint256 alphaMissionId;  // ┐ UNDER WHAT verification —
+        uint256 bravoMissionId;  // ┘ the two missions that were SAFE to gate this advance
+        uint256 speed;           //   WHAT was ordered — the convoy's advance speed
+        uint256 blockNumber;     // ┐ WHEN — L1 block height (+ replay-defence context)
+        uint256 timestamp;       // ┘ WHEN — wall-clock (block.timestamp)
+        address commander;       //   WHO — the authority that issued the order
     }
 
     AdvanceRecord[] public advances;
@@ -57,6 +55,13 @@ contract CommandLog {
     // ───────────────────────────────────────────────────────────────────
     //  Events
     // ───────────────────────────────────────────────────────────────────
+
+    /// @notice THE system's final output: the convoy is cleared and ordered to
+    ///         advance. Relay ships watch for this and broadcast the order to the
+    ///         fleet over radio; blockNumber is the replay-defence "context".
+    ///         Mirrors the stored AdvanceRecord.
+    ///         3 indexed topics: blockNumber (replay context) + both mission ids
+    ///         (filter by mission). speed/commander are data.
     event ConvoyAdvance(
         uint256 indexed blockNumber,
         uint256 indexed alphaMissionId,
@@ -91,10 +96,11 @@ contract CommandLog {
         address registryAddr,
         address commanderAddress
     ) {
+        // Fail fast: both become immutable → 0x0 would brick the contract.
         require(registryAddr     != address(0), "CommandLog: registry = 0x0");
         require(commanderAddress != address(0), "CommandLog: commander = 0x0");
-        registry  = Registry(registryAddr);
-        commander = commanderAddress;
+        registry  = Registry(registryAddr);  // cast to typed handle (for isDualSafe)
+        commander = commanderAddress;        // already an address, no cast
     }
 
     // ───────────────────────────────────────────────────────────────────
@@ -119,7 +125,7 @@ contract CommandLog {
         external
         onlyCommander
     {
-        require(speed > 0, "CommandLog: speed must be > 0");
+        require(speed > 0, "CommandLog: speed must be > 0"); // 100 = full ahead; any non-zero ok
 
         // Dual-SAFE precondition — both swarms must have ALL nDrones drones
         // SAFE before the convoy may move. Re-checked on every node as the
@@ -130,7 +136,7 @@ contract CommandLog {
             "CommandLog: dual-mission not SAFE"
         );
 
-        // Record the advance
+        // Permanent audit record of the order (who/what/when/under-what-verification).
         advances.push(AdvanceRecord({
             alphaMissionId:    alphaMissionId,
             bravoMissionId:     bravoMissionId,
@@ -140,6 +146,7 @@ contract CommandLog {
             commander:   msg.sender
         }));
 
+        // Final signal: relay ships broadcast this to the fleet (block.number = replay context).
         emit ConvoyAdvance(block.number, alphaMissionId, bravoMissionId, speed, msg.sender);
     }
 
