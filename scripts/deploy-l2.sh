@@ -147,7 +147,7 @@ deploy_to() {
         "${l1_verifier}" \
         --rpc "${rpc_url}" \
         --watch \
-        2>&1)
+        2>&1)  || true
     echo "${deploy_out}" | tail -5
     local contract_addr
     contract_addr=$(echo "${deploy_out}" | grep -E "deployed at address" | grep -Eo '0x[0-9a-fA-F]{40,}' | head -n1)
@@ -180,7 +180,7 @@ EOF
         local smoke_out
         smoke_out=$(SCARB_RUN "${rpc_url}" starkli call \
             "${contract_addr}" safe_count 0 \
-            --rpc "${rpc_url}" 2>&1)
+            --rpc "${rpc_url}" 2>&1) || true
         if echo "${smoke_out}" | grep -q '0x0000000000000000000000000000000000000000000000000000000000000000'; then
             echo "[deploy-l2/${swarm}] smoke OK"
             return 0

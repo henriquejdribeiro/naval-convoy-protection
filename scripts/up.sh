@@ -127,9 +127,9 @@ echo
 echo "═══════════════════════════════════════════════════════════════"
 echo "  Stack is up. Suggested next steps:"
 echo "═══════════════════════════════════════════════════════════════"
-echo "    ./scripts/deploy-l2.sh"
+echo "    ./scripts/deploy-l2.sh --swarm both"
 echo "    ./scripts/generate-drone-accounts.sh --swarm both"
-echo "    ./scripts/register-missions.sh"
+echo "    ./scripts/register-missions.sh --swarm both"
 echo "    ./scripts/open-missions.sh"
 echo "    python3 scripts/generate-mission.py --scenario both-safe --output-dir .tmp-l2/missions/"
 echo "    for swarm in alpha bravo; do"
@@ -138,3 +138,20 @@ echo "            f=.tmp-l2/missions/both-safe/\${swarm}_\${did}.json"
 echo "            [ -f \"\$f\" ] && ./scripts/submit-telemetry.sh \$swarm \$did \"\$f\""
 echo "        done"
 echo "    done"
+echo "    ./scripts/relay-l2-messages.sh "
+echo "    
+
+docker run --rm --network convoy-l1 ghcr.io/foundry-rs/foundry:latest \
+  -c "cast call 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9 'advanceCount()(uint256)' --rpc-url http://ship-a:8545"   
+  
+"
+echo "    
+
+docker run --rm --network convoy-l1 ghcr.io/foundry-rs/foundry:latest -c "\
+  cast send 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9 \
+    'advance(uint256,uint256,uint256)' 1 2 100 \
+    --rpc-url http://ship-a:8545 \
+    --private-key 0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356 \
+    --legacy"  
+    
+"
