@@ -265,6 +265,8 @@ services:
       ship-a:
         condition: service_healthy
     labels: { dev.dozzle.group: "Alpha 1 (leader)" }
+    environment:                                    
+      RUST_LOG: "info,alloy=trace,ethers=trace,mc_settlement=trace"
     volumes:
       - madara-alpha-data:/madara_db
     command: >
@@ -279,7 +281,7 @@ services:
       --gateway-external
       --gateway-port 8080
       --gateway-trusted-add-transaction-endpoint
-      --l1-sync-disabled
+      --l1-endpoint http://ship-a:8545
       --no-transaction-validation
       --l1-gas-price 1000000000
       --blob-gas-price 100000
