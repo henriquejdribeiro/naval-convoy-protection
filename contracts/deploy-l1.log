@@ -2,17 +2,17 @@ No files changed, compilation skipped
 Script ran successfully.
 
 == Logs ==
-  StarknetCoreStub deployed at: 0x5FbDB2315678afecb367f032d93F642f64180aa3
-  Registry         deployed at: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
-  Verifier         deployed at: 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
-  CommandLog       deployed at: 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
+  StarknetCoreStub deployed at: 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+  Registry         deployed at: 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
+  Verifier         deployed at: 0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9
+  CommandLog       deployed at: 0x5FC8d32690cc91D4c39d9d3abcBD16989F875707
   Registry.verifier set to Verifier address
   
   ======== L1 deployment summary ========
-  StarknetCoreStub: 0x5FbDB2315678afecb367f032d93F642f64180aa3
-  Registry:         0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
-  Verifier:         0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
-  CommandLog:       0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
+  StarknetCoreStub: 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+  Registry:         0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
+  Verifier:         0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9
+  CommandLog:       0x5FC8d32690cc91D4c39d9d3abcBD16989F875707
   Owner / deployer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
   Commander (D):    0x14dC79964da2C08b23698B3D3cc7Ca32193d9955
 
@@ -22,14 +22,13 @@ Script ran successfully.
 
 Chain 11155111
 
-Estimated gas price: 2.000000001 gwei
+Estimated gas price: 1.750000001 gwei
 
-Estimated total gas used for script: 3483300
+Estimated total gas used for script: 3483283
 
-Estimated amount required: 0.0069666000034833 ETH
+Estimated amount required: 0.006095745253483283 ETH
 
-==========================
-
+=========================
 
 ==========================
 

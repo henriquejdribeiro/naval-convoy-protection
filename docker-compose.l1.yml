@@ -24,7 +24,7 @@ services:
 
   # ───────────────────────────── Ship A — primary validator + deploy target ─
   ship-a:
-    image: ethereum/client-go:v1.10.17
+    image: ethereum/client-go:v1.13.14
     container_name: convoy-ship-a
     labels: { dev.dozzle.group: "L1 (geth fleet)" }
     hostname: ship-a
@@ -61,7 +61,7 @@ services:
 
   # ───────────────────────────── Ship B — bravo lane relay ─────────────────
   ship-b:
-    image: ethereum/client-go:v1.10.17
+    image: ethereum/client-go:v1.13.14
     container_name: convoy-ship-b
     labels: { dev.dozzle.group: "L1 (geth fleet)" }
     hostname: ship-b
@@ -91,7 +91,7 @@ services:
 
   # ───────────────────────────── Ship C ────────────────────────────────────
   ship-c:
-    image: ethereum/client-go:v1.10.17
+    image: ethereum/client-go:v1.13.14
     container_name: convoy-ship-c
     labels: { dev.dozzle.group: "L1 (geth fleet)" }
     hostname: ship-c
@@ -121,7 +121,7 @@ services:
 
   # ───────────────────────────── Ship D — commander ship ───────────────────
   ship-d:
-    image: ethereum/client-go:v1.10.17
+    image: ethereum/client-go:v1.13.14
     container_name: convoy-ship-d
     labels: { dev.dozzle.group: "L1 (geth fleet)" }
     hostname: ship-d
@@ -154,7 +154,7 @@ services:
 
   # ───────────────────────────── Ship E ────────────────────────────────────
   ship-e:
-    image: ethereum/client-go:v1.10.17
+    image: ethereum/client-go:v1.13.14
     container_name: convoy-ship-e
     labels: { dev.dozzle.group: "L1 (geth fleet)" }
     hostname: ship-e
@@ -184,7 +184,7 @@ services:
 
   # ───────────────────────────── Ship F — alpha lane relay ─────────────────
   ship-f:
-    image: ethereum/client-go:v1.10.17
+    image: ethereum/client-go:v1.13.14
     container_name: convoy-ship-f
     labels: { dev.dozzle.group: "L1 (geth fleet)" }
     hostname: ship-f
