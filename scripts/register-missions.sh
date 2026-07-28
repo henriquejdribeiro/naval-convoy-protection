@@ -226,6 +226,7 @@ register_swarm() {
     CAST send "${REGISTRY_ADDR}" \
         "deploy(uint256,(bytes32,uint32,uint32,uint32,uint32,uint8,uint32,uint16,uint16,uint64),uint256[5],uint256)" \
         "${mid}" "${spec}" "${drones}" "${TS_START}" \
+        --value 0.01ether \
         --rpc-url "${L1_RPC}" \
         --private-key "${COMMANDER_PK}" \
         --legacy \
