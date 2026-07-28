@@ -45,16 +45,22 @@ contract DeployL1 is Script {
         vm.startBroadcast();
         address deployer = msg.sender;
 
-        // 1. StarknetCoreStub — the L1↔L2 bridge stub Madara needs.
-        //    Registry uses it for L1→L2 (open_mission dispatch); Verifier
-        //    uses it for L2→L1 (MissionSafe consumption).
-        StarknetCoreStub starknet = new StarknetCoreStub();
-        console2.log("StarknetCoreStub deployed at:", address(starknet));
+        // 1. Starknet core — the L1↔L2 bridge. On the PoS L1 this is the
+        //    REAL StarknetMessaging core (STARKNET_CORE_ADDR); unset falls
+        //    back to a fresh StarknetCoreStub (pure-dev). Registry uses it
+        //    for L1→L2 (open_mission dispatch); Verifier for L2→L1.
+        address starknetCore = vm.envOr("STARKNET_CORE_ADDR", address(0));
+        if (starknetCore == address(0)) {
+            starknetCore = address(new StarknetCoreStub());
+            console2.log("StarknetCoreStub deployed at:", starknetCore);
+        } else {
+            console2.log("Using real Starknet core at:", starknetCore);
+        }
 
         // 2. Registry — owner is the deployer; commander is D's key;
         //    starknetCore is the L1↔L2 bridge it will dispatch the
         //    open_mission L1→L2 message through during deploy().
-        Registry registry = new Registry(deployer, commanderAddr, address(starknet));
+        Registry registry = new Registry(deployer, commanderAddr, starknetCore);
         console2.log("Registry         deployed at:", address(registry));
 
         // 3. Verifier — consumes L2→L1 MissionSafe messages and flips
@@ -63,7 +69,7 @@ contract DeployL1 is Script {
         Verifier verifier = new Verifier(
             deployer,
             address(registry),
-            address(starknet)
+            starknetCore
         );
         console2.log("Verifier         deployed at:", address(verifier));
 
@@ -84,7 +90,7 @@ contract DeployL1 is Script {
         // Summary block — handy for piping into deploy logs
         console2.log("");
         console2.log("======== L1 deployment summary ========");
-        console2.log("StarknetCoreStub:", address(starknet));
+        console2.log("StarknetCore:", starknetCore);
         console2.log("Registry:        ", address(registry));
         console2.log("Verifier:        ", address(verifier));
         console2.log("CommandLog:      ", address(commandLog));
