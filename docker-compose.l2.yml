@@ -271,9 +271,10 @@ services:
       - madara-alpha-data:/madara_db
     command: >
       --name MadaraAlpha
-      --devnet
+      --sequencer
+      --preset devnet
       --base-path /madara_db
-      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=0x1e330fd514d2427616b4516a594e00f919c23b49,block_time=30s
       --rpc-external
       --rpc-cors all
       --feeder-gateway-enable
@@ -281,16 +282,18 @@ services:
       --gateway-external
       --gateway-port 8080
       --gateway-trusted-add-transaction-endpoint
-      --l1-endpoint http://ship-a:8545
+      --l1-endpoint http://l1-shim:8545
       --no-transaction-validation
       --l1-gas-price 1000000000
       --blob-gas-price 100000
+      --strk-per-eth 1000
     ports:
       # Alpha keeps the original host ports.
       - "19944:9944"  # StarkNet JSON-RPC  (host:19944)
       - "18080:8080"  # feeder-gateway     (host:18080)
     networks:
       - convoy-l1
+      - eth-pos-devnet_default
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9944/health"]
@@ -860,6 +863,23 @@ services:
       - convoy-l1
     restart: unless-stopped
 
+  # ═══ L1 RPC shim — madara ↔ geth filter-tag adapter ══════════════════
+  # Madara's settlement client creates its L1→L2 messaging filter with a
+  # `finalized` toBlock tag (eth_newFilter). reth/Anvil accept it; stock
+  # geth rejects it ("invalid block range params"). This stdlib proxy
+  # rewrites that one tag to `latest` and passes everything else through.
+  # Finality is still enforced by madara (l1_messages_finality_blocks=10).
+  l1-shim:
+    image: python:3.11-slim
+    container_name: convoy-l1-shim
+    profiles: ["l2", "proving", "proving-direct"]
+    command: ["python", "/shim.py"]
+    volumes:
+      - ./infrastructure/l1-shim/shim.py:/shim.py:ro
+    networks:
+      - convoy-l1
+      - eth-pos-devnet_default
+    restart: unless-stopped
 
 volumes:
   prover-alpha-output:
@@ -903,3 +923,6 @@ networks:
   convoy-l1:
     external: true
     name: convoy-l1
+  eth-pos-devnet_default:          # ← the PoS L1's network
+    external: true
+    name: eth-pos-devnet_default
