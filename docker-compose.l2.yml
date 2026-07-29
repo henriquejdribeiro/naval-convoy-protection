@@ -293,7 +293,6 @@ services:
       - "18080:8080"  # feeder-gateway     (host:18080)
     networks:
       - convoy-l1
-      - eth-pos-devnet_default
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9944/health"]
@@ -878,7 +877,6 @@ services:
       - ./infrastructure/l1-shim/shim.py:/shim.py:ro
     networks:
       - convoy-l1
-      - eth-pos-devnet_default
     restart: unless-stopped
 
 volumes:
@@ -917,12 +915,8 @@ volumes:
   snos-bravo-output:
     driver: local
 
-
 # convoy-l1 network is created by docker-compose.l1.yml.
 networks:
   convoy-l1:
     external: true
     name: convoy-l1
-  eth-pos-devnet_default:          # ← the PoS L1's network
-    external: true
-    name: eth-pos-devnet_default
