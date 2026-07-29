@@ -1,7 +1,7 @@
 {
   "base_layer": {
     "layer": "ETHEREUM",
-    "rpc_url": "http://ship-a:8545",
+    "rpc_url": "http://host.docker.internal:8545",
     "implementation_addresses": {},
     "core_contract_init_data": {
       "programHash": "0x0207fde0facdcfcb085194635233fc46aa3dc8ca7182abf51079e31c88180905",

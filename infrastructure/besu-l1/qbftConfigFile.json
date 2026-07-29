@@ -1,0 +1,32 @@
+{
+  "genesis": {
+    "config": {
+      "chainId": 1337,
+      "berlinBlock": 0,
+      "londonBlock": 0,
+      "shanghaiTime": 0,
+      "cancunTime": 0,
+      "zeroBaseFee": true,
+      "blobSchedule": { "cancun": { "target": 3, "max": 6, "baseFeeUpdateFraction": 3338477 } },
+      "qbft": { "blockperiodseconds": 2, "epochlength": 30000, "requesttimeoutseconds": 4 }
+    },
+    "nonce": "0x0",
+    "timestamp": "0x0",
+    "gasLimit": "0x1C9C380",
+    "difficulty": "0x1",
+    "mixHash": "0x63746963616c2062797a616e74696e65206661756c7420746f6c6572616e6365",
+    "coinbase": "0x0000000000000000000000000000000000000000",
+    "excessBlobGas": "0x0",
+    "blobGasUsed": "0x0",
+    "alloc": {
+      "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266": { "balance": "1000000000000000000000000" },
+      "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955": { "balance": "1000000000000000000000000" },
+      "0x123463a4b065722e99115d6c222f267d9cABb524": { "balance": "1000000000000000000000000" },
+      "0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02": {
+        "balance": "0", "nonce": "1",
+        "code": "0x3373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500"
+      }
+    }
+  },
+  "blockchain": { "nodes": { "generate": true, "count": 1 } }
+}
