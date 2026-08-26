@@ -12,3 +12,5 @@ lib/forge-std/
 # Coverage / debug
 *.dbg.json
 report/
+deploy-l1.log
+deploy-stark.log

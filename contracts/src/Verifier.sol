@@ -1,214 +1,203 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.20;   // same as all convoy contracts; NOTE: real StarkWare
-                           // contracts are 0.6.12 — hence the interface below.
+pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol"; // Verifier is Ownable (owner-only
-                                                    // wiring: setConvoyProtocolL2)
-
-import "./Registry.sol"; // DIRECT import — Verifier calls Registry.setMissionSafe/getSpec.
-                        // Fine because both are ^0.8.20 (unlike the Core).
-
-/// Minimal, self-declared interface to the Core's L2→L1 consume function.
-/// Only ONE function is needed, so we declare only that. Talking to the Core
-/// through THIS interface (by address, not by import) decouples the Verifier
-/// from the concrete Core: it works against StarknetCoreStub in dev and the
-/// real Starknet.sol in prod, UNCHANGED — the 0.6.12/0.8.20 version skew is
-/// irrelevant because an interface is an ABI shape, not code. Swapping to the
-/// real bridge = just repoint the Core address; this stays identical.
-interface IStarknetMessagingConsumer {
-    function consumeMessageFromL2(
-        uint256          fromAddress,
-        uint256[] calldata payload
-    ) external returns (bytes32 msgHash);
-}
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "./Registry.sol";
+import "./IStarkVerifier.sol";
 
 /**
  * @title  Verifier
- * @notice L1 endpoint that consumes the "all drones SAFE" message a swarm's
- *         L2 convoy_protocol emits when its 5th drone lands SAFE.
+ * @notice On-chain registry for STARK-verified per-drone SAFE_AREA proofs,
+ *         with mission-level aggregation across the 5 drones of a swarm.
+ *         Restored from pre-4fa6ad4 (the trustless registerSafeProof design),
+ *         adapted: per-drone SAFE tally lives here now (the current Registry
+ *         exposes only mission-level setMissionSafe, not per-drone setVerdict).
  *
- * Predicates run inside `convoy_protocol.cairo`
- * directly against the raw cells, and the only cross-chain signal is one
- * L2 → L1 message per swarm containing `[mission_id, n_drones]`.
- *
- * # What this contract does
- *
- *   1. Consume the L2 → L1 message via StarknetCoreStub.consumeMessageFromL2
- *      (hash binds msg.sender, so only this Verifier address can claim
- *      messages addressed to it from a swarm's convoy_protocol)
- *   2. Sanity-check the payload and the L2 sender (must match the
- *      convoy_protocol address bound for that mission_id via
- *      setConvoyProtocolL2)
- *   3. Call Registry.setMissionSafe(missionId, bytes32(0))
- *      - aggH is bytes32(0) because the new design no longer aggregates
- *        per-drone commitments at the application layer (cells are public
- *        on L2; the audit trail is the L2 chain history). The Registry
- *        kept the aggH field for ABI continuity; we just pass zero.
- *
- * # The advance gate (unchanged)
- *
- *   - Registry.missionSafe[1] = true  ← consumed alpha message
- *   - Registry.missionSafe[2] = true  ← consumed bravo message
- *   - CommandLog.advance(1, 2, speed) reads Registry.isDualSafe and lets
- *     the commander emit ConvoyAdvance — unchanged from the previous rev.
+ * Stage A (path-a-runner) verifies the STARK against the StarkWare contracts
+ * and registers factHash on the GpsStatementVerifier. Stage B (here) submits
+ * only the 11-field SafeProofInputs and gates on starkVerifier.isValid(factHash).
  */
-contract Verifier is Ownable {  // Ownable → owner does the deploy-time wiring (setConvoyProtocolL2)
+contract Verifier is Ownable {
+    // ── local fact cache ────────────────────────────────────────────────
+    mapping(bytes32 => bool) public verifiedFacts;
 
-    // ───────────────────────────────────────────────────────────────────
-    //  Immutable bindings
-    //
-    //  The two contracts this Verifier talks to, LOCKED at deployment ──
-    //  immutable = set once in constructor, baked into bytecode (cheap reads,
-    //  and un-repointable → the trust anchors can never be swapped).
-    // ───────────────────────────────────────────────────────────────────
-    Registry                   public immutable registry;           // typed import; calls setMissionSafe/getSpec
-    IStarknetMessagingConsumer public immutable starknetCore;       // INTERFACE type → Core-agnostic.
+    function isValid(bytes32 fact) public view returns (bool) {
+        return verifiedFacts[fact];
+    }
 
-    // ───────────────────────────────────────────────────────────────────
-    //  Storage
-    //
-    // mission_id → the L2 convoy_protocol address allowed to emit that mission's
-    // all-SAFE message. Per-mission because alpha/bravo run on different Madara
-    // chains (different chain_id → different address). uint256, not address,
-    // because it's an L2 (felt) address. This is security layer 2: only the
-    // REGISTERED L2 sender's message is accepted (layer 1 is the Core binding
-    // msg.sender to this Verifier). Set by setConvoyProtocolL2 (owner-only).
-    // ───────────────────────────────────────────────────────────────────
-    mapping(uint256 => uint256) public expectedL2Sender;
+    function _registerFact(bytes32 fact) internal {
+        if (!verifiedFacts[fact]) {
+            verifiedFacts[fact] = true;
+            emit FactRegistered(fact);
+        }
+    }
 
-    // ───────────────────────────────────────────────────────────────────
-    //  Events — audit trail for the two things this contract does:
-    //  (1) get wired to a swarm's L2 sender, and (2) consume its verdict.
-    // ───────────────────────────────────────────────────────────────────
-    
-    /// @notice Emitted by `setConvoyProtocolL2` when a mission is bound to the
-    ///         L2 convoy_protocol address allowed to emit its all-SAFE message.
-    ///         This is deploy-time wiring (register-missions step 1b) — the
-    ///         on-chain record of which L2 sender is trusted for this mission.
-    /// @param  missionId Mission being wired (indexed so you can filter by mission).
-    /// @param  l2Sender  The L2 convoy_protocol contract address (a felt, hence
-    ///                   uint256) now authorised as this mission's sole sender.
-    event ConvoyProtocolL2Bound(uint256 indexed missionId, uint256 l2Sender);
+    // ── per-mission relay whitelist (alpha→ship F, bravo→ship B) ────────
+    mapping(uint256 => address) public relayOf;
 
-    /// @notice Emitted by `consumeL2Message` when a swarm's "all drones SAFE"
-    ///         verdict is successfully claimed on L1 (right before Registry.
-    ///         setMissionSafe flips the mission safe). The proof-of-delivery
-    ///         that the L2→L1 message crossed and was accepted.
-    /// @param  missionId Mission whose verdict was consumed (indexed for filtering).
-    /// @param  nDrones   Drone count carried in the message payload (= the swarm's
-    ///                   n_drones; cross-checked against the Registry spec).
-    /// @param  msgHash   Hash returned by StarknetCore.consumeMessageFromL2 —
-    ///                   uniquely identifies the exact message consumed, for
-    ///                   traceability / replay auditing.
-    event MissionSafeConsumed(
+    // ── ADAPTED: per-drone SAFE aggregation now lives HERE (Registry no
+    //    longer exposes setVerdict / per-drone safeCount) ─────────────────
+    mapping(uint256 => uint8) public safeCount;                        // missionId → # SAFE drones counted
+    mapping(uint256 => mapping(uint8 => bool)) public droneSafeCounted; // (missionId, droneIndex) → counted?
+
+    // ── bound external contracts ────────────────────────────────────────
+    Registry        public immutable registry;
+    //IStarkVerifier  public immutable starkVerifier;   // the GpsStatementVerifier on Besu
+    IStarkVerifier  public starkVerifier;   // the GpsStatementVerifier on Besu
+    // new setter:
+    function setStarkVerifier(address newStarkVerifier) external onlyOwner {
+        require(newStarkVerifier != address(0), "Verifier: starkVerifier = 0x0");
+        starkVerifier = IStarkVerifier(newStarkVerifier);
+    }
+
+    struct ProofRecord {
+        bytes32 programHash;
+        bytes32 outputHash;
+        uint256 missionId;
+        uint8   droneIndex;
+        uint32  stripXStart;
+        uint32  stripXEnd;
+        uint32  stripYStart;
+        uint32  stripYEnd;
+        uint8   verdictBool;
+        bytes32 commitment;
+        uint256 nSteps;
+        uint256 timestamp;
+        uint256 blockNumber;
+    }
+
+    ProofRecord[] public proofs;
+    uint256       public proofCount;
+    mapping(uint256 => mapping(uint8 => bytes32)) public droneCommitment;
+
+    event FactRegistered(bytes32 indexed factHash);
+    event DroneVerified(
+        uint256 indexed proofId,
         uint256 indexed missionId,
-        uint8           nDrones,
-        bytes32         msgHash
+        uint8   indexed droneIndex,
+        bytes32         factHash,
+        uint8           verdictBool,
+        bytes32         commitment
     );
+    event MissionAggregated(uint256 indexed missionId, bytes32 aggH, uint8 nDrones);
+    event RelayUpdated(uint256 indexed missionId, address indexed previous, address indexed current);
 
-    // ───────────────────────────────────────────────────────────────────
-    //  Constructor
-    // ───────────────────────────────────────────────────────────────────
+    struct SafeProofInputs {
+        bytes32 programHash;
+        bytes32 outputHash;
+        uint256 missionId;
+        uint8   droneIndex;
+        uint32  stripXStart;
+        uint32  stripXEnd;
+        uint32  stripYStart;
+        uint32  stripYEnd;
+        uint8   verdictBool;
+        bytes32 commitment;
+        uint256 nSteps;
+    }
 
-    /**
-     * @param initialOwner       address that may bind convoy_protocol
-     *                           addresses per mission (deploy-time wiring)
-     * @param registryAddr       L1 Registry contract — Verifier writes
-     *                           setMissionSafe on it
-     * @param starknetCoreAddr   StarknetCoreStub (dev) / StarknetMessaging
-     *                           (mainnet) — Verifier claims L2 messages here
-     */
     constructor(
         address initialOwner,
         address registryAddr,
-        address starknetCoreAddr
-    ) Ownable(initialOwner) {  // set the owner via the parent constructor
-        // Fail fast: these become immutable, so a 0x0 here would brick the
-        // contract permanently. Reject at deploy rather than ship a dead Verifier.
-        require(registryAddr     != address(0), "Verifier: registry = 0x0");
-        require(starknetCoreAddr != address(0), "Verifier: starknetCore = 0x0");
-
-        // Cast raw addresses to typed handles (compile-time only, no runtime
-        // check). starknetCore uses the INTERFACE type → Core-agnostic. These
-        // assign the immutables: the one and only place they can be set.
-        registry     = Registry(registryAddr);
-        starknetCore = IStarknetMessagingConsumer(starknetCoreAddr);
+        address alphaRelay,
+        address bravoRelay,
+        address starkVerifierAddr
+    ) Ownable(initialOwner) {
+        require(registryAddr      != address(0), "Verifier: registry = 0x0");
+        require(alphaRelay        != address(0), "Verifier: alphaRelay = 0x0");
+        require(bravoRelay        != address(0), "Verifier: bravoRelay = 0x0");
+        require(starkVerifierAddr != address(0), "Verifier: starkVerifier = 0x0");
+        registry      = Registry(registryAddr);
+        starkVerifier = IStarkVerifier(starkVerifierAddr);
+        relayOf[Registry(registryAddr).ALPHA_MISSION_ID()] = alphaRelay;
+        relayOf[Registry(registryAddr).BRAVO_MISSION_ID()] = bravoRelay;
     }
 
-    // ───────────────────────────────────────────────────────────────────
-    //  Owner-only wiring
-    // ───────────────────────────────────────────────────────────────────
-
-    /// @notice Bind a mission to the ONE L2 convoy_protocol address whose
-    ///         all-SAFE message this Verifier will accept (security layer 2,
-    ///         checked in consumeL2Message against the message's fromAddress).
-    /// @dev    Separate from the constructor because the L2 address only exists
-    ///         AFTER deploy-l2.sh runs — L1 is deployed first. This is
-    ///         register-missions step 1b. Must run BEFORE the first consume, or
-    ///         consume reverts "L2 sender not bound or wrong".
-    ///
-    ///         onlyOwner is load-bearing: whoever can call this decides which L2
-    ///         contract is trusted for a mission — an unrestricted version would
-    ///         let anyone rebind to a malicious L2 and forge verdicts.
-    ///
-    ///         NOTE (hardening): no re-bind guard — the owner can overwrite a
-    ///         mission's sender at any time. Flexible, but it centralises the
-    ///         L2→L1 trust anchor in the owner key. Production: immutable-after-set
-    ///         or a multisig/timelock owner.
-    function setConvoyProtocolL2(uint256 missionId, uint256 l2Sender) external onlyOwner {
-        require(l2Sender != 0, "Verifier: l2Sender = 0");        // reject invalid/empty binding
-        expectedL2Sender[missionId] = l2Sender;
-        emit ConvoyProtocolL2Bound(missionId, l2Sender);
+    function setRelay(uint256 missionId, address newRelay) external onlyOwner {
+        require(newRelay != address(0), "Verifier: relay = 0x0");
+        require(missionId == registry.ALPHA_MISSION_ID()
+             || missionId == registry.BRAVO_MISSION_ID(), "Verifier: invalid missionId");
+        emit RelayUpdated(missionId, relayOf[missionId], newRelay);
+        relayOf[missionId] = newRelay;
     }
 
-    // ───────────────────────────────────────────────────────────────────
-    //  L2 → L1 message consumption
-    // ───────────────────────────────────────────────────────────────────
+    function registerSafeProof(SafeProofInputs calldata inputs)
+        external
+        returns (uint256 proofId, bytes32 factHash)
+    {
+        // 1. Relay-whitelist gate
+        require(msg.sender == relayOf[inputs.missionId], "Verifier: onlyRelay");
 
-    /**
-     * @notice Claim one queued L2 → L1 "MissionSafe" message and propagate
-     *         the verdict to Registry. Callable by anyone — the security
-     *         property is that StarknetCoreStub.consumeMessageFromL2's
-     *         hash binds `msg.sender` to this Verifier address, so only
-     *         a message that the L2 explicitly addressed here can be
-     *         consumed. The payload's mission_id is then matched against
-     *         the configured L2 sender for that mission.
-     *
-     * @param fromAddress L2 convoy_protocol address that emitted the message
-     * @param payload     Exactly [mission_id, n_drones]
-     */
-    function consumeL2Message(
-        uint256          fromAddress,
-        uint256[] calldata payload
-    ) external {
-        // Shape check.
-        require(payload.length == 2, "Verifier: bad payload length");
+        // 2. Mission spec sanity
+        Registry.MissionSpec memory spec = registry.getSpec(inputs.missionId);
+        require(spec.nDrones > 0, "Verifier: unknown mission");
+        require(inputs.droneIndex >= 1 && inputs.droneIndex <= spec.nDrones,
+                "Verifier: droneIndex out of range");
+        require(inputs.verdictBool <= 1, "Verifier: verdictBool not 0/1");
 
-        uint256 missionId = payload[0];
-        uint256 nDrones   = payload[1];
+        // 3. Strip-bounds gate — derive expected bounds from spec + droneIndex
+        uint32 expectedXStart = spec.zoneX + (uint32(inputs.droneIndex) - 1) * spec.stripWidth;
+        uint32 expectedXEnd   = expectedXStart + spec.stripWidth;
+        require(inputs.stripXStart == expectedXStart, "Verifier: wrong stripXStart");
+        require(inputs.stripXEnd   == expectedXEnd,   "Verifier: wrong stripXEnd");
+        require(inputs.stripYStart == spec.zoneY,     "Verifier: wrong stripYStart");
+        require(inputs.stripYEnd   == spec.zoneY + spec.zoneH, "Verifier: wrong stripYEnd");
 
-        // Layer 2: message must come from the REGISTERED L2 sender for this mission.
-        require(expectedL2Sender[missionId] == fromAddress,
-                "Verifier: L2 sender not bound or wrong");
+        // 4. Cryptographic gate — reuse Stage A's verification on the GPS
+        factHash = keccak256(abi.encodePacked(inputs.programHash, inputs.outputHash));
+        require(starkVerifier.isValid(factHash),
+                "Verifier: STARK fact not registered (run path-a-runner first?)");
 
-        // Layer 3: drone count in the message must match the L1 Registry spec
-        // (defence in depth against a corrupted L2).
-        Registry.MissionSpec memory spec = registry.getSpec(missionId);
-        require(nDrones == uint256(spec.nDrones),
-                "Verifier: drone-count mismatch");
+        // 5. Register the fact + audit record
+        _registerFact(factHash);
+        proofId = proofs.length;
+        proofs.push(ProofRecord({
+            programHash: inputs.programHash, outputHash: inputs.outputHash,
+            missionId:   inputs.missionId,   droneIndex:  inputs.droneIndex,
+            stripXStart: inputs.stripXStart, stripXEnd:   inputs.stripXEnd,
+            stripYStart: inputs.stripYStart, stripYEnd:   inputs.stripYEnd,
+            verdictBool: inputs.verdictBool, commitment:  inputs.commitment,
+            nSteps:      inputs.nSteps,      timestamp:   block.timestamp,
+            blockNumber: block.number
+        }));
+        proofCount = proofs.length;
+        droneCommitment[inputs.missionId][inputs.droneIndex] = inputs.commitment;
 
-        // Claim the message — reverts if not queued (gap 1: queue is empty
-        // until updateState or injectL2Message populates it).
-        bytes32 msgHash = starknetCore.consumeMessageFromL2(fromAddress, payload);
+        emit DroneVerified(proofId, inputs.missionId, inputs.droneIndex,
+                           factHash, inputs.verdictBool, inputs.commitment);
 
-        // Flip the mission-level aggregate on Registry. aggH is bytes32(0)
-        // in the new design — cells are public on L2; the audit trail is
-        // the L2 chain history, not an on-L1 Pedersen aggregate.
-        registry.setMissionSafe(missionId, bytes32(0));
+        // 6. ADAPTED: per-drone SAFE tally here (was registry.setVerdict)
+        if (inputs.verdictBool == 1) {
+            require(!droneSafeCounted[inputs.missionId][inputs.droneIndex],
+                    "Verifier: drone already counted SAFE");
+            droneSafeCounted[inputs.missionId][inputs.droneIndex] = true;
+            uint8 newCount = safeCount[inputs.missionId] + 1;
+            safeCount[inputs.missionId] = newCount;
+            if (newCount == spec.nDrones) {
+                bytes32 aggH = _aggregateCommitment(inputs.missionId, spec.nDrones);
+                registry.setMissionSafe(inputs.missionId, aggH);
+                emit MissionAggregated(inputs.missionId, aggH, spec.nDrones);
+            }
+        }
+    }
 
-        // Cast is safe — we required `nDrones == spec.nDrones` above and
-        // spec.nDrones is already uint8 (max value 255).
-        // forge-lint: disable-next-line(unsafe-typecast)
-        emit MissionSafeConsumed(missionId, uint8(nDrones), msgHash);
+    function _aggregateCommitment(uint256 missionId, uint8 nDrones)
+        internal view returns (bytes32 aggH)
+    {
+        bytes memory buf = new bytes(uint256(nDrones) * 32);
+        for (uint8 i = 1; i <= nDrones; i++) {
+            bytes32 h = droneCommitment[missionId][i];
+            assembly { mstore(add(add(buf, 32), mul(sub(i, 1), 32)), h) }
+        }
+        aggH = keccak256(buf);
+    }
+
+    function getProof(uint256 proofId) external view returns (ProofRecord memory) {
+        require(proofId < proofs.length, "Verifier: invalid proofId");
+        return proofs[proofId];
+    }
+    function getDroneCommitment(uint256 missionId, uint8 droneIndex)
+        external view returns (bytes32) {
+        return droneCommitment[missionId][droneIndex];
     }
 }

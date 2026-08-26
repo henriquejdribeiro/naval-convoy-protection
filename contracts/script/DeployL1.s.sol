@@ -66,10 +66,16 @@ contract DeployL1 is Script {
         // 3. Verifier — consumes L2→L1 MissionSafe messages and flips
         //    Registry.missionSafe. No STARK-proof gating any more (that
         //    moved to L2's convoy_protocol contract in commit 4fa6ad4).
+        // 3. Verifier — gated: reads isValid(factHash) on the GpsStatementVerifier.
+        address alphaRelay    = vm.envAddress("ALPHA_RELAY_ADDR");
+        address bravoRelay    = vm.envAddress("BRAVO_RELAY_ADDR");
+        address starkVerifier = vm.envAddress("STARK_VERIFIER_ADDR");
         Verifier verifier = new Verifier(
             deployer,
             address(registry),
-            starknetCore
+            alphaRelay,
+            bravoRelay,
+            starkVerifier
         );
         console2.log("Verifier         deployed at:", address(verifier));
 
