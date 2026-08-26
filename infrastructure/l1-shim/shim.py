@@ -1,7 +1,7 @@
 import json, urllib.request, urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-GETH = "http://host.docker.internal:8545"
+GETH = "http://ship-a:8545"
 
 def fix(obj):
     # Madara's .watch() sends eth_newFilter with toBlock:"finalized",

@@ -261,6 +261,8 @@ services:
     depends_on:
       ship-a:
         condition: service_healthy
+      l1-shim:
+        condition: service_started
     labels: { dev.dozzle.group: "Alpha 1 (leader)" }
     environment:                                    
       RUST_LOG: "info,alloy=trace,ethers=trace,mc_settlement=trace"
@@ -310,6 +312,8 @@ services:
     depends_on:
       ship-a:
         condition: service_healthy
+      l1-shim:
+        condition: service_started
     labels: { dev.dozzle.group: "Bravo 1 (leader)" }
     volumes:
       - madara-bravo-data:/madara_db
@@ -555,6 +559,23 @@ services:
       --blob-gas-price 100000
     ports: ["29948:9944"]
     labels: { dev.dozzle.group: "Bravo 5" }
+
+  # ═══ L1 RPC shim — madara ↔ geth filter-tag adapter ══════════════════
+  # Madara's settlement client creates its L1→L2 messaging filter with a
+  # `finalized` toBlock tag (eth_newFilter). reth/Anvil accept it; stock
+  # geth rejects it ("invalid block range params"). This stdlib proxy
+  # rewrites that one tag to `latest` and passes everything else through.
+  # Finality is still enforced by madara (l1_messages_finality_blocks=10).
+  l1-shim:
+    image: python:3.11-slim
+    container_name: convoy-l1-shim
+    profiles: ["l2", "proving", "proving-direct"]
+    command: ["python", "/shim.py"]
+    volumes:
+      - ./infrastructure/l1-shim/shim.py:/shim.py:ro
+    networks:
+      - convoy-l1
+    restart: unless-stopped
 
 volumes:
   prover-alpha-output:
