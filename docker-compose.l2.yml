@@ -158,27 +158,24 @@ services:
     image: convoy-prover-api:latest
     container_name: convoy-prover-api-alpha
     labels: { dev.dozzle.group: "Alpha 1 (leader)" }
-    depends_on:
-      ship-a:
-        condition: service_healthy
     volumes:
       - prover-alpha-output:/proofs
     environment:
       STONE_OUTPUT_DIR:  /proofs
       SWARM:             alpha
-      # ── Stage B (submit_proof_l1.py against the convoy Verifier) ─────
+      # ── Stage B (submit_proof_l1.py → gated convoy Verifier) — BESU ──
       GETH_RPC_URL:      http://ship-a:8545
-      VERIFIER_ADDR:     "0x3aa5ebb10dc797cac828524e59a333d0a371443c"
-      REGISTRY_ADDR:     "0x68b1d87f95878fe05b998f19b66f4baba5de1aed"
+      VERIFIER_ADDR:     "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"   # gated convoy Verifier
+      REGISTRY_ADDR:     "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"   # convoy Registry
       ALPHA_RELAY_PK:    "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
       BRAVO_RELAY_PK:    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
-      # ── Stage A — Alpha lane signs with ALPHA_RELAY (ship F / anvil[5]) ──
+      # ── Stage A (path-a-runner → StarkWare suite) — BESU addresses ──
       URL:                              http://ship-a:8545
       PRIVATE_KEY:                      "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
-      MERKLE_STATEMENT_CONTRACT_ADDR:   "0xa51c1fc2f0d1a1b8494ed1fe312d7c3a78ed91c0"
-      FRI_STATEMENT_CONTRACT_ADDR:      "0x0dcd1bf9a1b36ce34237eeafef220932846bcd82"
-      MEMORY_PAGE_FACT_REGISTRY_ADDR:   "0xb7f8bc63bbcad18155201308c8f3540b07f84f5e"
-      GPS_STATEMENT_VERIFIER_ADDR:      "0x959922be3caee4b8cd9a407cc3ac1c251c2007b1"
+      MERKLE_STATEMENT_CONTRACT_ADDR:   "0x95401dc811bb5740090279Ba06cfA8fcF6113778"
+      FRI_STATEMENT_CONTRACT_ADDR:      "0x998abeb3E57409262aE5b751f60747921B33613E"
+      MEMORY_PAGE_FACT_REGISTRY_ADDR:   "0xf5059a5D33d5853360D16C683c16e67980206f36"
+      GPS_STATEMENT_VERIFIER_ADDR:      "0x99bbA657f2BbC93c02D617f8bA121cB8Fc104Acf"
     networks:
       - convoy-l1
     deploy:
@@ -203,8 +200,8 @@ services:
       STONE_OUTPUT_DIR:  /proofs
       SWARM:             bravo
       GETH_RPC_URL:      http://ship-a:8545
-      VERIFIER_ADDR:     "0x3aa5ebb10dc797cac828524e59a333d0a371443c"
-      REGISTRY_ADDR:     "0x68b1d87f95878fe05b998f19b66f4baba5de1aed"
+      VERIFIER_ADDR:     "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"
+      REGISTRY_ADDR:     "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
       ALPHA_RELAY_PK:    "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
       BRAVO_RELAY_PK:    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
       # ── Stage A — Bravo lane signs with BRAVO_RELAY (ship B / anvil[1]) ──
@@ -274,7 +271,7 @@ services:
       --sequencer
       --preset devnet
       --base-path /madara_db
-      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=0x1e330fd514d2427616b4516a594e00f919c23b49,block_time=30s
+      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
       --rpc-external
       --rpc-cors all
       --feeder-gateway-enable
