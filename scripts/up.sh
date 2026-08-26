@@ -64,12 +64,23 @@ wait_healthy() {
     printf " ✓\n"
 }
 
-# compose all docker containers for the Layer 1 network with 6 ships
-echo "═══════════════════════════════════════════════════════════════"
-echo "  [1/4] L1 chain — 6 geth ships + wire-mesh"
+# Wait for the Besu L1 RPC (ship-a) to answer. Besu has no docker healthcheck,
+# so we poll the JSON-RPC directly instead of docker health status.
+wait_besu() {
+    printf "  waiting for Besu ship-a RPC (localhost:8545)..."
+    until curl -fs -X POST -H 'Content-Type: application/json' \
+        --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+        http://localhost:8545 >/dev/null 2>&1; do
+        printf "."
+        sleep 3
+    done
+    printf " ✓\n"
+}
+
+echo "  [1/4] L1 chain — 6 Besu QBFT validators (ships A–F)"
 echo "═══════════════════════════════════════════════════════════════"
 docker compose -f docker-compose.l1.yml up -d 2>&1 | tail -3
-wait_healthy "convoy-ship-a" "ship-a"
+wait_besu
 
 echo
 echo "═══════════════════════════════════════════════════════════════"

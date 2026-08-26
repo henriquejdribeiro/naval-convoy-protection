@@ -1,338 +1,213 @@
 # =============================================================================
-# Phase 2 — L1 Clique PoA chain (6 validators) + Foundry deploy service.
-#
-# Brings up the convoy's L1 settlement layer:
-#   - 6 Geth nodes (one per ship A/B/C/D/E/F), each a Clique signer
-#   - All on the same Docker bridge network so they peer with each other
-#   - Ship A exposes 8545 (HTTP RPC) + 8546 (WS) to the host
-#   - A `deploy-l1` service (Foundry) deploys the 4 contracts when invoked
-#
-# Bring up:
+# L1 — Hyperledger Besu QBFT, 6 validators (ships A–F). Replaces the geth fleet.
+# Same convoy-l1 aliases + ship-a:8545 so the L2 stack + scripts keep working.
+# Static IPs so each node advertises a reachable P2P address (nat-method=DOCKER
+# advertised 127.0.0.1 → no peers). Includes the deploy-l1 Foundry service.
 #   docker compose -f docker-compose.l1.yml up -d
-#
-# Deploy contracts (after chain is healthy):
 #   docker compose -f docker-compose.l1.yml --profile deploy run --rm deploy-l1
-#
-# Tail logs:
-#   docker compose -f docker-compose.l1.yml logs -f ship-a
-#
-# Tear down:
-#   docker compose -f docker-compose.l1.yml down -v
 # =============================================================================
+
+x-besu-base: &besu-base
+  image: hyperledger/besu:26.7.1
+  restart: unless-stopped
 
 services:
 
-  # ───────────────────────────── Ship A — primary validator + deploy target ─
   ship-a:
-    image: ethereum/client-go:v1.13.14
+    <<: *besu-base
     container_name: convoy-ship-a
-    labels: { dev.dozzle.group: "L1 (geth fleet)" }
     hostname: ship-a
-    restart: unless-stopped
-    entrypoint: ["/bin/sh", "/init-geth.sh"]
-    environment:
-      SHIP_ID: A
-      SIGNER_ADDR: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-      SIGNER_KEYFILE: /keys/A.json
-      PASSWORD_FILE: /password.txt
-      P2P_PORT: "30303"
-      BOOTNODES: ""
     volumes:
-      - ./infrastructure/geth/init-geth.sh:/init-geth.sh:ro
-      - ./infrastructure/geth/genesis.json:/genesis.json:ro
-      - ./infrastructure/geth/password.txt:/password.txt:ro
-      - ./infrastructure/geth/keys:/keys:ro
+      - ./infrastructure/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
+      - ./infrastructure/besu-l1/networkFiles/keys/0x1b8926a8193ec65c3d011304bd8240bbb30cfbe3/key.priv:/config/key.priv:ro
       - ship-a-data:/data
-    ports:
-      # Host ports moved off 8545/6 to avoid clashing with verifiable_grid's
-      # geth-node1 (or anything else listening there). Inside the convoy-l1
-      # network, ships still talk to each other on 8545.
-      - "18545:8545"
-      - "18546:8546"
-      - "30303:30303"
-    networks:
-      convoy-l1:
-        aliases: [ ship-a ]
-    healthcheck:
-      test: ["CMD-SHELL", "geth attach --exec 'eth.blockNumber' http://localhost:8545 || exit 1"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-
-  # ───────────────────────────── Ship B — bravo lane relay ─────────────────
-  ship-b:
-    image: ethereum/client-go:v1.13.14
-    container_name: convoy-ship-b
-    labels: { dev.dozzle.group: "L1 (geth fleet)" }
-    hostname: ship-b
-    restart: unless-stopped
-    depends_on:
-      ship-a:
-        condition: service_healthy
-    entrypoint: ["/bin/sh", "/init-geth.sh"]
-    environment:
-      SHIP_ID: B
-      SIGNER_ADDR: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
-      SIGNER_KEYFILE: /keys/B.json
-      PASSWORD_FILE: /password.txt
-      P2P_PORT: "30304"
-      BOOTNODES: "enode://ship-a:30303"
-    volumes:
-      - ./infrastructure/geth/init-geth.sh:/init-geth.sh:ro
-      - ./infrastructure/geth/genesis.json:/genesis.json:ro
-      - ./infrastructure/geth/password.txt:/password.txt:ro
-      - ./infrastructure/geth/keys:/keys:ro
-      - ship-b-data:/data
-    ports:
-      - "8645:8545"
-    networks:
-      convoy-l1:
-        aliases: [ ship-b ]
-
-  # ───────────────────────────── Ship C ────────────────────────────────────
-  ship-c:
-    image: ethereum/client-go:v1.13.14
-    container_name: convoy-ship-c
-    labels: { dev.dozzle.group: "L1 (geth fleet)" }
-    hostname: ship-c
-    restart: unless-stopped
-    depends_on:
-      ship-a:
-        condition: service_healthy
-    entrypoint: ["/bin/sh", "/init-geth.sh"]
-    environment:
-      SHIP_ID: C
-      SIGNER_ADDR: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
-      SIGNER_KEYFILE: /keys/C.json
-      PASSWORD_FILE: /password.txt
-      P2P_PORT: "30305"
-      BOOTNODES: "enode://ship-a:30303"
-    volumes:
-      - ./infrastructure/geth/init-geth.sh:/init-geth.sh:ro
-      - ./infrastructure/geth/genesis.json:/genesis.json:ro
-      - ./infrastructure/geth/password.txt:/password.txt:ro
-      - ./infrastructure/geth/keys:/keys:ro
-      - ship-c-data:/data
-    ports:
-      - "8745:8545"
-    networks:
-      convoy-l1:
-        aliases: [ ship-c ]
-
-  # ───────────────────────────── Ship D — commander ship ───────────────────
-  ship-d:
-    image: ethereum/client-go:v1.13.14
-    container_name: convoy-ship-d
-    labels: { dev.dozzle.group: "L1 (geth fleet)" }
-    hostname: ship-d
-    restart: unless-stopped
-    depends_on:
-      ship-a:
-        condition: service_healthy
-    entrypoint: ["/bin/sh", "/init-geth.sh"]
-    environment:
-      SHIP_ID: D
-      SIGNER_ADDR: "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
-      SIGNER_KEYFILE: /keys/D.json
-      PASSWORD_FILE: /password.txt
-      P2P_PORT: "30306"
-      BOOTNODES: "enode://ship-a:30303"
-    volumes:
-      - ./infrastructure/geth/init-geth.sh:/init-geth.sh:ro
-      - ./infrastructure/geth/genesis.json:/genesis.json:ro
-      - ./infrastructure/geth/password.txt:/password.txt:ro
-      - ./infrastructure/geth/keys:/keys:ro
-      # D also has the commander keystore mounted — this is what D's
-      # orchestrator (in Phase 3) will use to sign Registry.deploy and
-      # CommandLog.advance txs. Separate from the validator key above.
-      - ship-d-data:/data
-    ports:
-      - "8845:8545"
-    networks:
-      convoy-l1:
-        aliases: [ ship-d ]
-
-  # ───────────────────────────── Ship E ────────────────────────────────────
-  ship-e:
-    image: ethereum/client-go:v1.13.14
-    container_name: convoy-ship-e
-    labels: { dev.dozzle.group: "L1 (geth fleet)" }
-    hostname: ship-e
-    restart: unless-stopped
-    depends_on:
-      ship-a:
-        condition: service_healthy
-    entrypoint: ["/bin/sh", "/init-geth.sh"]
-    environment:
-      SHIP_ID: E
-      SIGNER_ADDR: "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65"
-      SIGNER_KEYFILE: /keys/E.json
-      PASSWORD_FILE: /password.txt
-      P2P_PORT: "30307"
-      BOOTNODES: "enode://ship-a:30303"
-    volumes:
-      - ./infrastructure/geth/init-geth.sh:/init-geth.sh:ro
-      - ./infrastructure/geth/genesis.json:/genesis.json:ro
-      - ./infrastructure/geth/password.txt:/password.txt:ro
-      - ./infrastructure/geth/keys:/keys:ro
-      - ship-e-data:/data
-    ports:
-      - "8945:8545"
-    networks:
-      convoy-l1:
-        aliases: [ ship-e ]
-
-  # ───────────────────────────── Ship F — alpha lane relay ─────────────────
-  ship-f:
-    image: ethereum/client-go:v1.13.14
-    container_name: convoy-ship-f
-    labels: { dev.dozzle.group: "L1 (geth fleet)" }
-    hostname: ship-f
-    restart: unless-stopped
-    depends_on:
-      ship-a:
-        condition: service_healthy
-    entrypoint: ["/bin/sh", "/init-geth.sh"]
-    environment:
-      SHIP_ID: F
-      SIGNER_ADDR: "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
-      SIGNER_KEYFILE: /keys/F.json
-      PASSWORD_FILE: /password.txt
-      P2P_PORT: "30308"
-      BOOTNODES: "enode://ship-a:30303"
-    volumes:
-      - ./infrastructure/geth/init-geth.sh:/init-geth.sh:ro
-      - ./infrastructure/geth/genesis.json:/genesis.json:ro
-      - ./infrastructure/geth/password.txt:/password.txt:ro
-      - ./infrastructure/geth/keys:/keys:ro
-      - ship-f-data:/data
-    ports:
-      - "9045:8545"
-    networks:
-      convoy-l1:
-        aliases: [ ship-f ]
-
-  # ───────────────────────────── wire-mesh — peer everyone to ship-a ──────
-  # Runs once on `up`. Waits for all 6 ship containers to be healthy /
-  # responsive on RPC, fetches ship-a's enode via admin_nodeInfo, then
-  # calls admin_addPeer on each of B/C/D/E/F to establish the Clique mesh.
-  # Discovery should also work via discv4 on the bridge network, but this
-  # explicit wiring guarantees the mesh forms within seconds rather than
-  # minutes.
-  wire-mesh:
-    image: curlimages/curl:8.10.1
-    container_name: convoy-wire-mesh
-    restart: "no"
-    depends_on:
-      - ship-a
-      - ship-b
-      - ship-c
-      - ship-d
-      - ship-e
-      - ship-f
-    entrypoint: ["/bin/sh", "-c"]
     command:
-      - |
-        set -e
-        SHIPS="ship-a ship-b ship-c ship-d ship-e ship-f"
-
-        # 1. Wait for every ship's RPC to come up
-        for s in $$SHIPS; do
-            echo "[wire-mesh] waiting for $$s RPC"
-            until curl -fs -X POST -H 'Content-Type: application/json' \
-                --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
-                http://$$s:8545 >/dev/null 2>&1; do sleep 1; done
-        done
-
-        # 2. Fetch every ship's enode and rewrite the host part to its
-        #    docker DNS name so peers can route to it (geth advertises
-        #    127.0.0.1 by default which isn't reachable from siblings).
-        for s in $$SHIPS; do
-            E=$$(curl -fs -X POST -H 'Content-Type: application/json' \
-                --data '{"jsonrpc":"2.0","method":"admin_nodeInfo","params":[],"id":1}' \
-                http://$$s:8545 | sed -n 's/.*"enode":"\([^"]*\)".*/\1/p')
-            E_NET=$$(echo "$$E" | sed -E "s/@[0-9.]+:/@$$s:/" | sed "s|@\\[::\\]:|@$$s:|")
-            eval "ENODE_$$(echo $$s | tr '-' '_')=\"$$E_NET\""
-            echo "[wire-mesh] $$s enode: $$E_NET"
-        done
-
-        # 3. Full N×N mesh — addPeer every other ship's enode on every ship
-        for src in $$SHIPS; do
-            for dst in $$SHIPS; do
-                [ "$$src" = "$$dst" ] && continue
-                varname=ENODE_$$(echo $$dst | tr '-' '_')
-                eval "TARGET_ENODE=\$$$$varname"
-                R=$$(curl -fs -X POST -H 'Content-Type: application/json' \
-                    --data "{\"jsonrpc\":\"2.0\",\"method\":\"admin_addPeer\",\"params\":[\"$$TARGET_ENODE\"],\"id\":1}" \
-                    http://$$src:8545 | sed -n 's/.*"result":\([a-z]*\).*/\1/p')
-                echo "[wire-mesh] $$src -> $$dst : addPeer = $$R"
-            done
-        done
-
-        echo "[wire-mesh] mesh wired (N×N)"
+      - --genesis-file=/config/genesis.json
+      - --node-private-key-file=/config/key.priv
+      - --data-path=/data
+      - --nat-method=NONE
+      - --p2p-host=172.28.0.11
+      - --host-allowlist=*
+      - --min-gas-price=0
+      - --rpc-http-enabled
+      - --rpc-http-host=0.0.0.0
+      - --rpc-http-api=ETH,NET,WEB3,QBFT,DEBUG,TXPOOL,ADMIN
+      - --rpc-http-cors-origins=*
+      - --rpc-ws-enabled
+      - --rpc-ws-host=0.0.0.0
+      - --rpc-ws-api=ETH,NET,WEB3,QBFT,DEBUG,TXPOOL
+    ports:
+      - "8545:8545"
+      - "8546:8546"
     networks:
-      - convoy-l1
+      convoy-l1:
+        ipv4_address: 172.28.0.11
 
-  # ───────────────────────────── Foundry deploy service (manual run) ───────
+  ship-b:
+    <<: *besu-base
+    container_name: convoy-ship-b
+    hostname: ship-b
+    depends_on: [ship-a]
+    volumes:
+      - ./infrastructure/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
+      - ./infrastructure/besu-l1/networkFiles/keys/0x2f7b6c28cd816229d02825e131fd1b7b5ed35a3d/key.priv:/config/key.priv:ro
+      - ship-b-data:/data
+    command:
+      - --genesis-file=/config/genesis.json
+      - --node-private-key-file=/config/key.priv
+      - --data-path=/data
+      - --nat-method=NONE
+      - --p2p-host=172.28.0.12
+      - --host-allowlist=*
+      - --min-gas-price=0
+      - --rpc-http-enabled
+      - --rpc-http-host=0.0.0.0
+      - --rpc-http-api=ETH,NET,WEB3,QBFT,DEBUG,TXPOOL,ADMIN
+      - --rpc-http-cors-origins=*
+      - --bootnodes=enode://2cae8e32243ae9742cc19486f2f3dce76c119ec6132743eee24f615711918261eaf3a460259d7faa7341f81233ea6056c0ad1e5dad2cef8fd68e0baa50abd0c3@172.28.0.11:30303
+    networks:
+      convoy-l1:
+        ipv4_address: 172.28.0.12
+
+  ship-c:
+    <<: *besu-base
+    container_name: convoy-ship-c
+    hostname: ship-c
+    depends_on: [ship-a]
+    volumes:
+      - ./infrastructure/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
+      - ./infrastructure/besu-l1/networkFiles/keys/0x9a26fd747265b0c4abd15e8d8ad9e493c15efcce/key.priv:/config/key.priv:ro
+      - ship-c-data:/data
+    command:
+      - --genesis-file=/config/genesis.json
+      - --node-private-key-file=/config/key.priv
+      - --data-path=/data
+      - --nat-method=NONE
+      - --p2p-host=172.28.0.13
+      - --host-allowlist=*
+      - --min-gas-price=0
+      - --rpc-http-enabled
+      - --rpc-http-host=0.0.0.0
+      - --rpc-http-api=ETH,NET,WEB3,QBFT,DEBUG,TXPOOL,ADMIN
+      - --rpc-http-cors-origins=*
+      - --bootnodes=enode://2cae8e32243ae9742cc19486f2f3dce76c119ec6132743eee24f615711918261eaf3a460259d7faa7341f81233ea6056c0ad1e5dad2cef8fd68e0baa50abd0c3@172.28.0.11:30303
+    networks:
+      convoy-l1:
+        ipv4_address: 172.28.0.13
+
+  ship-d:
+    <<: *besu-base
+    container_name: convoy-ship-d
+    hostname: ship-d
+    depends_on: [ship-a]
+    volumes:
+      - ./infrastructure/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
+      - ./infrastructure/besu-l1/networkFiles/keys/0x9cbbfd6876318aff280535a395dad1b07eac352c/key.priv:/config/key.priv:ro
+      - ship-d-data:/data
+    command:
+      - --genesis-file=/config/genesis.json
+      - --node-private-key-file=/config/key.priv
+      - --data-path=/data
+      - --nat-method=NONE
+      - --p2p-host=172.28.0.14
+      - --host-allowlist=*
+      - --min-gas-price=0
+      - --rpc-http-enabled
+      - --rpc-http-host=0.0.0.0
+      - --rpc-http-api=ETH,NET,WEB3,QBFT,DEBUG,TXPOOL,ADMIN
+      - --rpc-http-cors-origins=*
+      - --bootnodes=enode://2cae8e32243ae9742cc19486f2f3dce76c119ec6132743eee24f615711918261eaf3a460259d7faa7341f81233ea6056c0ad1e5dad2cef8fd68e0baa50abd0c3@172.28.0.11:30303
+    networks:
+      convoy-l1:
+        ipv4_address: 172.28.0.14
+
+  ship-e:
+    <<: *besu-base
+    container_name: convoy-ship-e
+    hostname: ship-e
+    depends_on: [ship-a]
+    volumes:
+      - ./infrastructure/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
+      - ./infrastructure/besu-l1/networkFiles/keys/0xc41fb2e0dde63b7ea181cc65fd37a129ad8ad93a/key.priv:/config/key.priv:ro
+      - ship-e-data:/data
+    command:
+      - --genesis-file=/config/genesis.json
+      - --node-private-key-file=/config/key.priv
+      - --data-path=/data
+      - --nat-method=NONE
+      - --p2p-host=172.28.0.15
+      - --host-allowlist=*
+      - --min-gas-price=0
+      - --rpc-http-enabled
+      - --rpc-http-host=0.0.0.0
+      - --rpc-http-api=ETH,NET,WEB3,QBFT,DEBUG,TXPOOL,ADMIN
+      - --rpc-http-cors-origins=*
+      - --bootnodes=enode://2cae8e32243ae9742cc19486f2f3dce76c119ec6132743eee24f615711918261eaf3a460259d7faa7341f81233ea6056c0ad1e5dad2cef8fd68e0baa50abd0c3@172.28.0.11:30303
+    networks:
+      convoy-l1:
+        ipv4_address: 172.28.0.15
+
+  ship-f:
+    <<: *besu-base
+    container_name: convoy-ship-f
+    hostname: ship-f
+    depends_on: [ship-a]
+    volumes:
+      - ./infrastructure/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
+      - ./infrastructure/besu-l1/networkFiles/keys/0xd211edae231b5ec240035cf56e8cd302bd5d0879/key.priv:/config/key.priv:ro
+      - ship-f-data:/data
+    command:
+      - --genesis-file=/config/genesis.json
+      - --node-private-key-file=/config/key.priv
+      - --data-path=/data
+      - --nat-method=NONE
+      - --p2p-host=172.28.0.16
+      - --host-allowlist=*
+      - --min-gas-price=0
+      - --rpc-http-enabled
+      - --rpc-http-host=0.0.0.0
+      - --rpc-http-api=ETH,NET,WEB3,QBFT,DEBUG,TXPOOL,ADMIN
+      - --rpc-http-cors-origins=*
+      - --bootnodes=enode://2cae8e32243ae9742cc19486f2f3dce76c119ec6132743eee24f615711918261eaf3a460259d7faa7341f81233ea6056c0ad1e5dad2cef8fd68e0baa50abd0c3@172.28.0.11:30303
+    networks:
+      convoy-l1:
+        ipv4_address: 172.28.0.16
+
+  # ── Foundry deploy service (manual: --profile deploy) ────────────────────
   deploy-l1:
     image: ghcr.io/foundry-rs/foundry:latest
     container_name: convoy-deploy-l1
-    profiles: ["deploy"]      # only runs when invoked explicitly
-    depends_on:
-      ship-a:
-        condition: service_healthy
+    profiles: ["deploy"]
+    depends_on: [ship-a]
     working_dir: /workspace
     entrypoint: ["/bin/sh", "-c"]
     environment:
       FOUNDRY_PROFILE: default
-      # Convoy-protocol deploy parameters — adjust per env.
-      COMMANDER_ADDR:    "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955"   # anvil[7] — D's commander key
-      ALPHA_RELAY_ADDR:  "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"   # anvil[5] — ship F (alpha relay)
-      BRAVO_RELAY_ADDR:  "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"   # anvil[1] — ship B (bravo relay)
-      # GpsStatementVerifier deployed via DeployStarkVerifier.s.sol with the
-      # LSB-aligned COMMITMENT_MASK patch (see contracts/lib/starkware-mainnet/PATCH.md).
-      # Deterministic from anvil[0] + nonce 0 on a clean chain.
+      COMMANDER_ADDR:      "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955"
+      ALPHA_RELAY_ADDR:    "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+      BRAVO_RELAY_ADDR:    "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
       STARK_VERIFIER_ADDR: "0x959922be3caee4b8cd9a407cc3ac1c251c2007b1"
-      # Speed value the commander will pass when firing CommandLog.advance.
-      CONVOY_SPEED:      "100"
+      CONVOY_SPEED:        "100"
     command:
       - |
         set -e
         echo "[deploy-l1] installing forge dependencies"
         mkdir -p lib
-        [ -d lib/forge-std ] || git clone --depth 1 --branch v1.9.4 \
-            https://github.com/foundry-rs/forge-std lib/forge-std
-        [ -d lib/openzeppelin-contracts ] || git clone --depth 1 --branch v5.0.2 \
-            https://github.com/OpenZeppelin/openzeppelin-contracts lib/openzeppelin-contracts
+        [ -d lib/forge-std ] || git clone --depth 1 --branch v1.9.4 https://github.com/foundry-rs/forge-std lib/forge-std
+        [ -d lib/openzeppelin-contracts ] || git clone --depth 1 --branch v5.0.2 https://github.com/OpenZeppelin/openzeppelin-contracts lib/openzeppelin-contracts
         echo "[deploy-l1] building"
         forge build
-        echo "[deploy-l1] deploying convoy contracts (Stage A/B refactor)"
+        echo "[deploy-l1] deploying convoy contracts"
         forge script script/DeployL1.s.sol \
           --rpc-url http://ship-a:8545 \
           --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
           --broadcast | tee /workspace/deploy-l1.log
-
-        # Mission deployment is NO LONGER part of this step.
-        # Since Registry.deploy() now takes per-mission drone L2-addresses and
-        # the L2 convoy_protocol contract addresses (both of which only
-        # exist AFTER deploy-l2.sh + generate-drone-accounts.sh have run),
-        # the mission-registration step moves to a separate script that
-        # runs later in the bring-up sequence:
-        #
-        #   scripts/register-missions.sh
-        #
-        # It reads .tmp-l2/convoy_l2_{alpha,bravo}.env + .tmp-l2/drones-{alpha,bravo}.env,
-        # calls Registry.setConvoyProtocolL2 to bind each mission to its L2
-        # contract, then signs Registry.deploy(mid, spec, drones, ts_start)
-        # with the commander key. That call also dispatches the L1→L2
-        # `open_mission` message via StarknetCoreStub.sendMessageToL2.
-        echo "[deploy-l1] L1 contracts deployed; run ./scripts/register-missions.sh after L2 setup to register missions"
+        echo "[deploy-l1] L1 contracts deployed; run ./scripts/register-missions.sh after L2 setup"
     volumes:
       - ./contracts:/workspace
     networks:
       - convoy-l1
 
-# ───────────────────────────────────────────────────────────────────────────
 volumes:
   ship-a-data:
   ship-b-data:
@@ -345,3 +220,6 @@ networks:
   convoy-l1:
     name: convoy-l1
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
