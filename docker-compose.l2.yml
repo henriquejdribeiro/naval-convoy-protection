@@ -270,10 +270,9 @@ services:
       - madara-alpha-data:/madara_db
     command: >
       --name MadaraAlpha
-      --sequencer
-      --preset devnet
+      --devnet
       --base-path /madara_db
-      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --chain-config-override=chain_name=ConvoyAlpha,chain_id=convoy_alpha,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=6s
       --rpc-external
       --rpc-cors all
       --feeder-gateway-enable
@@ -321,7 +320,7 @@ services:
       --name MadaraBravo
       --devnet
       --base-path /madara_db
-      --chain-config-override=chain_id=convoy_bravo,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --chain-config-override=chain_name=ConvoyBravo,chain_id=convoy_bravo,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=6s
       --rpc-external
       --rpc-cors all
       --feeder-gateway-enable

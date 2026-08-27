@@ -108,6 +108,27 @@ deploy_to() {
         2>&1) || true
     echo "${declare_out}" | tail -3
 
+    # ── Wait for the class to actually be declared before deploying. ──────
+    # --watch can return before Madara's 30s block seals the declare, so the
+    # deploy below would revert "class is not declared". Poll class-by-hash
+    # until it resolves (up to ~2 min = 4 blocks). Also turns a silently
+    # failed declare into a clear error instead of a bogus deploy.
+    echo "[deploy-l2/${swarm}] waiting for class ${class_hash} to be declared on-chain..."
+    local declared=0 tries=24
+    while [ ${tries} -gt 0 ]; do
+        if SCARB_RUN "${rpc_url}" starkli class-by-hash "${class_hash}" --rpc "${rpc_url}" >/dev/null 2>&1; then
+            declared=1
+            echo "[deploy-l2/${swarm}] class is declared ✓"
+            break
+        fi
+        tries=$((tries - 1)); sleep 5
+    done
+    if [ ${declared} -ne 1 ]; then
+        echo "[deploy-l2/${swarm}] ERROR: class never became queryable — the DECLARE itself failed"
+        echo "                    (see the declare output above; likely a CASM/compiler-version mismatch or account issue)"
+        return 1
+    fi
+
     # 4. Deploy via UDC. Constructor takes (l1_commander_addr, l1_verifier_addr)
     #    as felt252.
     #
