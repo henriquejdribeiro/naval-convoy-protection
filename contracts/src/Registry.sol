@@ -105,12 +105,12 @@ contract Registry is Ownable {
     ///      mission. No rotation path (fail-closed; see CommandLog.sol).
     address public immutable commander;
 
-    /// @dev L1↔L2 message bridge (StarknetCoreStub in dev, real
-    ///      StarknetMessaging on mainnet). Bound at construction; deploy()
-    ///      sends the L1→L2 open_mission message through this contract so
-    ///      every mission deployment is anchored on the L1 chain with a
-    ///      verifiable LogMessageToL2 event.
-    IStarknetMessaging public immutable starknetCore;
+    /// @dev L1↔L2 message bridges — ONE per swarm. Each swarm is its own Madara
+    ///      L2 chain, so each settles on its OWN StarkWare core. deploy(missionId)
+    ///      routes the open_mission message to that swarm's core, so each
+    ///      sequencer's L1 sync sees only the messages for its chain.
+    IStarknetMessaging public immutable alphaCore;
+    IStarknetMessaging public immutable bravoCore;
 
     // ── Mutable bindings (set AFTER deploy, cross-contract ordering) ─────
     /// @dev Bound Verifier — only it may write verdicts. Not immutable: Verifier
@@ -186,23 +186,29 @@ contract Registry is Ownable {
     //  Constructor
     // ───────────────────────────────────────────────────────────────────
 
-    /**
+    /*
      * @param initialOwner       address that may update the verifier + L2 addresses
      * @param commanderAddress   D's commander key address (signs deploy + advance)
-     * @param starknetCoreAddr   StarknetCoreStub (dev) or StarknetMessaging (mainnet)
+     * @param alphaCoreAddr      alpha swarm's L1 StarkWare messaging core (real Starknet.sol)
+     * @param bravoCoreAddr      bravo swarm's L1 StarkWare messaging core (real Starknet.sol)
      */
     constructor(
         address initialOwner,
         address commanderAddress,
-        address starknetCoreAddr
+        address alphaCoreAddr,
+        address bravoCoreAddr
     ) Ownable(initialOwner) {
-        // Fail fast: both become immutable, so 0x0 would brick the contract.
         require(commanderAddress != address(0), "Registry: commander = 0x0");
-        require(starknetCoreAddr != address(0), "Registry: starknetCore = 0x0");
-        commander    = commanderAddress;                      // operational key (deploy/advance)
-        starknetCore = IStarknetMessaging(starknetCoreAddr);  // L1→L2 send binding (immutable)
-        // NOTE: verifier is NOT set here — it's deployed after Registry, so it's
-        // wired later via setVerifier (hence mutable, not immutable).
+        require(alphaCoreAddr    != address(0), "Registry: alphaCore = 0x0");
+        require(bravoCoreAddr    != address(0), "Registry: bravoCore = 0x0");
+        commander = commanderAddress;
+        alphaCore = IStarknetMessaging(alphaCoreAddr);   // alpha swarm's L1→L2 core
+        bravoCore = IStarknetMessaging(bravoCoreAddr);   // bravo swarm's L1→L2 core
+    }
+
+    /// @dev The L1↔L2 core for a mission's swarm (bravo=2 → bravoCore, else alphaCore).
+    function _coreFor(uint256 missionId) internal view returns (IStarknetMessaging) {
+        return missionId == BRAVO_MISSION_ID ? bravoCore : alphaCore;
     }
 
     /// @notice Bind a mission to its L2 convoy_protocol address = the DESTINATION
@@ -342,7 +348,7 @@ contract Registry is Ownable {
         // Fire the L1→L2 message: toAddress=L2 convoy_protocol, selector=open_mission.
         // Emits LogMessageToL2 (which a live Madara L1-sync would route to open_mission).
         // THIS is the convoy protocol's use of sendMessageToL2 (cf. the stub's header).
-        starknetCore.sendMessageToL2{value: msg.value}(
+        _coreFor(missionId).sendMessageToL2{value: msg.value}(
             convoyProtocolL2[missionId],   // toAddress = the L2 convoy_protocol
             OPEN_MISSION_SELECTOR,         // selector → routes to open_mission
             payload                        // the 18 felts

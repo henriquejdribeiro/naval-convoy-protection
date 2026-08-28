@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 # register-missions.sh — anchor mission deployment on L1 + dispatch L1→L2
-#                        open_mission message via StarknetCoreStub.
+#                        open_mission message via StarknetCore.
 #
 # For each swarm:
 #   1. Reads convoy_protocol L2 address from .tmp-l2/convoy_l2_<swarm>.env
@@ -10,7 +10,7 @@
 #         signed with the deployer (owner) key
 #   4. cast send Registry.deploy(missionId, spec, droneAddresses, tsStart)
 #         signed with the commander key
-#      → This call ALSO fires StarknetCoreStub.sendMessageToL2(
+#      → This call ALSO fires StarknetCore.sendMessageToL2(
 #            convoy_protocol_l2_addr, OPEN_MISSION_SELECTOR, payload)
 #        so the mission is now L1-anchored AND queued for L2 consumption.
 #
@@ -52,23 +52,20 @@ L1_RPC="${L1_RPC:-http://ship-a:8545}" # L1 node RPC — Docker DNS in dev, real
 # Two distinct roles, two keys (override via env in prod with managed secrets):
 DEPLOYER_PK="${DEPLOYER_PK:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}" # anvil[0] — contract OWNER; signs the onlyOwner setConvoyProtocolL2 bindings
 COMMANDER_PK="${COMMANDER_PK:-0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356}" # anvil[7] — COMMANDER; signs Registry.deploy (the mission order itself)
-TS_START=1700000000   # mission start timestamp (unix). MUST match generate-mission.py + open-missions.sh,
+TS_START=1700000000   # mission start timestamp (unix). MUST match generate-mission.py
                        # or the telemetry cells_ts will fall outside the time window and fail the time predicate.
 
 # Resolve contract addresses — env vars win, else deployments/local.env, else fail.
 REGISTRY_ADDR="${REGISTRY_ADDR:-}"
-VERIFIER_ADDR="${VERIFIER_ADDR:-${CONVOY_VERIFIER_ADDR:-}}"
 if [ -f "${REPO_ROOT}/deployments/local.env" ]; then
     [ -z "${REGISTRY_ADDR}" ] && REGISTRY_ADDR=$(grep -E "^export REGISTRY_ADDR="        "${REPO_ROOT}/deployments/local.env" | cut -d= -f2 | tr -d ' ')
-    [ -z "${VERIFIER_ADDR}" ] && VERIFIER_ADDR=$(grep -E "^export CONVOY_VERIFIER_ADDR=" "${REPO_ROOT}/deployments/local.env" | cut -d= -f2 | tr -d ' ')
 fi
 [ -z "${REGISTRY_ADDR}" ] && { echo "[register] REGISTRY_ADDR missing"; exit 1; }
-[ -z "${VERIFIER_ADDR}" ] && { echo "[register] VERIFIER_ADDR (or CONVOY_VERIFIER_ADDR) missing"; exit 1; }
 
 # ── Per-swarm mission geometry ──────────────────────────────────────────────
 # Defines the "area" each swarm must clear: a 2D grid of cells, sliced into
 # one vertical strip per drone. These values MUST stay identical to
-# generate-mission.py (which makes telemetry that fits) and open-missions.sh
+# generate-mission.py (which makes telemetry that fits)
 # (which sends the same spec to L2) — if they drift, good sweeps fail the
 # predicates or L1 and L2 disagree on the mission.
 
@@ -167,25 +164,6 @@ register_swarm() {
         --legacy \
         2>&1 | tail -3
 
-    # ── Step 1b: bind missionId → L2 sender on the Verifier ────────────────
-    # The mirror of 1a, for the OTHER bridge direction. Sets
-    # expectedL2Sender[${mid}] = ${conv_addr} on the Verifier, so that later —
-    # when this L2 contract sends its MissionSafe message UP to L1 — the
-    # Verifier.consumeL2Message check `expectedL2Sender[mid] == fromAddress`
-    # passes and the message is accepted ONLY from this exact L2 contract.
-    # This is the L2→L1 acceptance binding (1a was the L1→L2 dispatch binding).
-    #
-    # Same onlyOwner → DEPLOYER_PK (owner config, not the commander's order).
-    # Same --legacy (Clique-PoA geth doesn't seal type-2 txs).
-    echo "[register/${swarm}] step 1b: Verifier.setConvoyProtocolL2(${mid}, ${conv_addr})"
-    CAST send "${VERIFIER_ADDR}" \
-        "setConvoyProtocolL2(uint256,uint256)" \
-        "${mid}" "${conv_addr}" \
-        --rpc-url "${L1_RPC}" \
-        --private-key "${DEPLOYER_PK}" \
-        --legacy \
-        2>&1 | tail -3
-
     # ── Build the MissionSpec tuple as a cast literal ──────────────────────
     # cast fills tuple fields POSITIONALLY, so the order here must match
     # Registry.sol's MissionSpec struct exactly — a wrong order silently puts
@@ -209,20 +187,21 @@ register_swarm() {
     # This single call does TWO things on-chain:
     #   1. Records the mission (spec + drones + ts_start) in the Registry — the
     #      permanent L1 audit anchor: the commander's order, on the base chain.
-    #   2. Internally calls StarknetCoreStub.sendMessageToL2(...) — queuing the
+    #   2. Internally calls StarknetCore.sendMessageToL2(...) — queuing the
     #      L1→L2 open_mission message + emitting LogMessageToL2.
     #
-    # Signed with COMMANDER_PK (NOT the owner): steps 1a/1b were owner CONFIG;
+    # Signed with COMMANDER_PK (NOT the owner): steps 1a are owner CONFIG;
     # this is the commander's ORDER. That's the deployer/commander role split.
     #
     # The deploy(...) signature carries the MissionSpec (tuple) — its parens are
     # exactly why CAST() runs via --entrypoint cast.
     #
-    # ⚠ Bridge status: the L1 half works (message queued, event emitted, hash in
-    #   the stub), but Madara v0.9.1 doesn't consume it from the barebones stub —
-    #   so open-missions.sh delivers open_mission to L2 directly as the dev fallback.
+    # Bridge status: the L1→L2 message goes through each swarm's REAL StarkWare
+    #   core (deployed by madara-bootstrapper). Both alpha and bravo run
+    #   --sequencer with L1 sync, so Madara auto-consumes open_mission on each
+    #   chain from its own core.
     echo "[register/${swarm}] step 2: Registry.deploy(${mid}, spec, drones, ${TS_START})"
-    echo "[register/${swarm}]   → also fires StarknetCoreStub.sendMessageToL2(...) for L1→L2 open_mission"
+    echo "[register/${swarm}]   → also fires the real Starknet core sendMessageToL2(...) → L1→L2 open_mission"
     CAST send "${REGISTRY_ADDR}" \
         "deploy(uint256,(bytes32,uint32,uint32,uint32,uint32,uint8,uint32,uint16,uint16,uint64),uint256[5],uint256)" \
         "${mid}" "${spec}" "${drones}" "${TS_START}" \
@@ -255,6 +234,5 @@ case "${SWARM_FILTER}" in
     *) echo "[register] --swarm must be alpha | bravo | both"; exit 2 ;;
 esac
 
-echo
-echo "[register] both missions anchored on L1 + L1→L2 messages queued in StarknetCoreStub"
-echo "[register] (Madara won't pick them up while --l1-sync-disabled — run open-missions.sh as the dev fallback)"
+echo "[register] missions anchored on L1 + L1→L2 open_mission sent through the real Starknet core"
+echo "[register] both swarms auto-consume open_mission via their own core (--sequencer L1 sync)"

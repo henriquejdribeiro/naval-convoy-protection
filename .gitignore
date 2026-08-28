@@ -75,3 +75,6 @@ infrastructure/path-a-runner/target/
 infrastructure/path-a-runner/Cargo.lock
 infrastructure/bootloader-cli/target/
 infrastructure/submitter/target/
+
+# runtime output 
+bootstrap/output/

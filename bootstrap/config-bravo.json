@@ -11,13 +11,13 @@
       "state": { "globalRoot": "0x0", "blockNumber": "-1", "blockHash": "0x0" }
     },
     "config_hash_config": {
-      "madara_chain_id": "convoy_alpha",
+      "madara_chain_id": "convoy_bravo",
       "madara_fee_token": "0x6930a088f86270360b2d5a663ff32fd08496a34876caada9b89b207f521da23",
       "da_public_keys": []
     },
     "deploy_test_contracts": false
   },
   "madara": {
-    "rpc_url": "http://convoy-madara-alpha:9944"
+    "rpc_url": "http://convoy-madara-bravo:9944"
   }
 }

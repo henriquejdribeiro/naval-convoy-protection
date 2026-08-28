@@ -88,7 +88,7 @@ fi
 [ -z "${STARKNET_CORE_STUB_ADDR}" ] && { echo "[relay] STARKNET_CORE_STUB_ADDR missing"; exit 1; }
 [ -z "${VERIFIER_ADDR}" ]           && { echo "[relay] VERIFIER_ADDR missing"; exit 1; }
 
-# Per-swarm mission id (matches register/open-missions): alpha→1, bravo→2.
+# Per-swarm mission id (matches register): alpha→1, bravo→2.
 declare -A MISSION_ID=( [alpha]=1 [bravo]=2 )
 
 # starknet_keccak("MissionSafe") — the felt252 key Madara indexes that event

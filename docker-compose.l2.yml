@@ -165,8 +165,8 @@ services:
       SWARM:             alpha
       # ── Stage B (submit_proof_l1.py → gated convoy Verifier) — BESU ──
       GETH_RPC_URL:      http://ship-a:8545
-      VERIFIER_ADDR:     "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"   # gated convoy Verifier
-      REGISTRY_ADDR:     "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"   # convoy Registry
+      VERIFIER_ADDR:     "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"   # gated convoy Verifier
+      REGISTRY_ADDR:     "0x5FbDB2315678afecb367f032d93F642f64180aa3"   # convoy Registry
       ALPHA_RELAY_PK:    "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
       BRAVO_RELAY_PK:    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
       # ── Stage A (path-a-runner → StarkWare suite) — BESU addresses ──
@@ -200,8 +200,8 @@ services:
       STONE_OUTPUT_DIR:  /proofs
       SWARM:             bravo
       GETH_RPC_URL:      http://ship-a:8545
-      VERIFIER_ADDR:     "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"
-      REGISTRY_ADDR:     "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
+      VERIFIER_ADDR:     "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
+      REGISTRY_ADDR:     "0x5FbDB2315678afecb367f032d93F642f64180aa3"
       ALPHA_RELAY_PK:    "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
       BRAVO_RELAY_PK:    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
       # ── Stage A — Bravo lane signs with BRAVO_RELAY (ship B / anvil[1]) ──
@@ -250,6 +250,25 @@ services:
   # event) remains intact via `scripts/register-missions.sh`.
 
   # ─── Alpha sequencer ───────────────────────────────────────────────
+  # Seeds alpha's genesis + 10 devnet accounts, then exits. up.sh runs this
+  # BEFORE madara-alpha, because --sequencer runs L1 sync but does NOT create
+  # the devnet genesis; --devnet does. Shares madara-alpha-data.
+  madara-alpha-seed:
+    image: ghcr.io/madara-alliance/madara:v0.9.1
+    container_name: convoy-madara-alpha-seed
+    profiles: ["seed"]
+    depends_on:
+      ship-a: { condition: service_healthy }
+    volumes:
+      - madara-alpha-data:/madara_db
+    command: >
+      --name MadaraAlphaSeed
+      --devnet
+      --base-path /madara_db
+      --chain-config-override=chain_name=ConvoyAlpha,chain_id=convoy_alpha,eth_core_contract_address=${STARKNET_CORE_ADDR_ALPHA},block_time=6s
+      --rpc-external
+      --rpc-cors all
+    networks: [convoy-l1]
   madara-alpha:
     # Pinned to v0.10.0 — last release using cairo-lang-sierra-to-casm 2.12.3
     # (the OLD 2.x API). v0.10.1+ migrated to cairo-lang 1.0.0-alpha (the
@@ -270,9 +289,10 @@ services:
       - madara-alpha-data:/madara_db
     command: >
       --name MadaraAlpha
-      --devnet
+      --sequencer
+      --preset devnet
       --base-path /madara_db
-      --chain-config-override=chain_name=ConvoyAlpha,chain_id=convoy_alpha,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=6s
+      --chain-config-override=chain_name=ConvoyAlpha,chain_id=convoy_alpha,eth_core_contract_address=${STARKNET_CORE_ADDR_ALPHA},block_time=6s
       --rpc-external
       --rpc-cors all
       --feeder-gateway-enable
@@ -300,6 +320,22 @@ services:
       start_period: 30s
 
   # ─── Bravo sequencer ───────────────────────────────────────────────
+  madara-bravo-seed:
+    image: ghcr.io/madara-alliance/madara:v0.9.1
+    container_name: convoy-madara-bravo-seed
+    profiles: ["seed"]
+    depends_on:
+      ship-a: { condition: service_healthy }
+    volumes:
+      - madara-bravo-data:/madara_db
+    command: >
+      --name MadaraBravoSeed
+      --devnet
+      --base-path /madara_db
+      --chain-config-override=chain_name=ConvoyBravo,chain_id=convoy_bravo,eth_core_contract_address=${STARKNET_CORE_ADDR_BRAVO},block_time=6s
+      --rpc-external
+      --rpc-cors all
+    networks: [convoy-l1]
   madara-bravo:
     # Pinned to v0.10.0 — last release using cairo-lang-sierra-to-casm 2.12.3
     # (the OLD 2.x API). v0.10.1+ migrated to cairo-lang 1.0.0-alpha (the
@@ -318,9 +354,10 @@ services:
       - madara-bravo-data:/madara_db
     command: >
       --name MadaraBravo
-      --devnet
+      --sequencer
+      --preset devnet
       --base-path /madara_db
-      --chain-config-override=chain_name=ConvoyBravo,chain_id=convoy_bravo,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=6s
+      --chain-config-override=chain_name=ConvoyBravo,chain_id=convoy_bravo,eth_core_contract_address=${STARKNET_CORE_ADDR_BRAVO},block_time=6s
       --rpc-external
       --rpc-cors all
       --feeder-gateway-enable
@@ -328,10 +365,11 @@ services:
       --gateway-external
       --gateway-port 8080
       --gateway-trusted-add-transaction-endpoint
-      --l1-sync-disabled
+      --l1-endpoint http://l1-shim:8545
       --no-transaction-validation
       --l1-gas-price 1000000000
       --blob-gas-price 100000
+      --strk-per-eth 1000
     ports:
       # Bravo on a separate host-port range so both sequencers expose
       # their RPC + feeder-gateway to the host simultaneously.
@@ -392,7 +430,7 @@ services:
       --full
       --preset devnet
       --base-path /madara_db
-      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=${STARKNET_CORE_ADDR_ALPHA},block_time=30s
       --gateway-url http://convoy-madara-alpha:8080
       --validate-then-forward-txs-to http://convoy-madara-alpha:8080
       --rpc-external
@@ -413,7 +451,7 @@ services:
       --full
       --preset devnet
       --base-path /madara_db
-      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=${STARKNET_CORE_ADDR_ALPHA},block_time=30s
       --gateway-url http://convoy-madara-alpha:8080
       --validate-then-forward-txs-to http://convoy-madara-alpha:8080
       --rpc-external
@@ -434,7 +472,7 @@ services:
       --full
       --preset devnet
       --base-path /madara_db
-      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=${STARKNET_CORE_ADDR_ALPHA},block_time=30s
       --gateway-url http://convoy-madara-alpha:8080
       --validate-then-forward-txs-to http://convoy-madara-alpha:8080
       --rpc-external
@@ -455,7 +493,7 @@ services:
       --full
       --preset devnet
       --base-path /madara_db
-      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=${STARKNET_CORE_ADDR_ALPHA},block_time=30s
       --gateway-url http://convoy-madara-alpha:8080
       --validate-then-forward-txs-to http://convoy-madara-alpha:8080
       --rpc-external
@@ -485,7 +523,7 @@ services:
       --full
       --preset devnet
       --base-path /madara_db
-      --chain-config-override=chain_id=convoy_bravo,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --chain-config-override=chain_id=convoy_bravo,eth_core_contract_address=${STARKNET_CORE_ADDR_BRAVO},block_time=30s
       --gateway-url http://convoy-madara-bravo:8080
       --validate-then-forward-txs-to http://convoy-madara-bravo:8080
       --rpc-external
@@ -506,7 +544,7 @@ services:
       --full
       --preset devnet
       --base-path /madara_db
-      --chain-config-override=chain_id=convoy_bravo,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --chain-config-override=chain_id=convoy_bravo,eth_core_contract_address=${STARKNET_CORE_ADDR_BRAVO},block_time=30s
       --gateway-url http://convoy-madara-bravo:8080
       --validate-then-forward-txs-to http://convoy-madara-bravo:8080
       --rpc-external
@@ -527,7 +565,7 @@ services:
       --full
       --preset devnet
       --base-path /madara_db
-      --chain-config-override=chain_id=convoy_bravo,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --chain-config-override=chain_id=convoy_bravo,eth_core_contract_address=${STARKNET_CORE_ADDR_BRAVO},block_time=30s
       --gateway-url http://convoy-madara-bravo:8080
       --validate-then-forward-txs-to http://convoy-madara-bravo:8080
       --rpc-external
@@ -548,7 +586,7 @@ services:
       --full
       --preset devnet
       --base-path /madara_db
-      --chain-config-override=chain_id=convoy_bravo,eth_core_contract_address=0x5FbDB2315678afecb367f032d93F642f64180aa3,block_time=30s
+      --chain-config-override=chain_id=convoy_bravo,eth_core_contract_address=${STARKNET_CORE_ADDR_BRAVO},block_time=30s
       --gateway-url http://convoy-madara-bravo:8080
       --validate-then-forward-txs-to http://convoy-madara-bravo:8080
       --rpc-external

@@ -51,7 +51,7 @@
 
 // Starknet's native address type (a felt252-backed contract/account address).
 // Imported at module top so the public types + the IConvoyProtocol trait below
-// can refer to it — e.g. the drone account addresses in open_mission_local's
+// can refer to it — e.g. the drone account addresses in open_mission's
 // `Array<ContractAddress>` and the `get_drone_addr` view's return type.
 use core::starknet::ContractAddress;
 
@@ -110,24 +110,6 @@ pub const FAIL_COVERAGE:   u8 = 4;   // ④ coverage permille below threshold
 
 #[starknet::interface]
 pub trait IConvoyProtocol<TContractState> {
-    // ── Mutating entry points ───────────────────────────────────────
-    //
-    // open_mission lives in the contract module (it's #[l1_handler]); the
-    // dev-mode companion `open_mission_local` IS part of this trait so
-    // it can be invoked from a normal L2 account.
-
-    /// Dev-mode mission deployment — same effect as the L1→L2-bridged
-    /// `open_mission`, but callable as a regular invoke without needing
-    /// an L1 message. Skips the L1-sender authorisation check; rely on
-    /// the (mission_id) idempotency to prevent re-deployment.
-    ///
-    /// Use this until `--l1-sync-disabled` is dropped on the Madara
-    /// services and the production L1→L2 bridge is fully wired.
-    fn open_mission_local(
-        ref self: TContractState,
-        spec:            MissionSpec,
-        drone_addresses: Array<ContractAddress>,
-    );
 
     /// Drone → L2 submission of raw per-cell telemetry. The contract
     /// runs the four SAFE_AREA predicates on the cells against the
@@ -347,33 +329,14 @@ mod ConvoyProtocol {
     //   `from_address` auto-filled to the L1 sender (unforgeable), which the
     //   handler checks against l1_commander_addr for authorisation.
     //
-    // DEV PATH: open_mission_local — external via the
-    //   `#[abi(embed_v0)] impl ConvoyProtocolImpl of IConvoyProtocol` block
-    //   below (that impl embed is what makes trait fns callable; there is no
-    //   per-fn #[external_v0] attribute in this Cairo version). Same body, no
-    //   L1 round-trip — directly callable as a normal L2 invoke, with NO
-    //   sender check.
-    //
-    //   Why it exists: this direction (L1→L2) needs the message bridge active,
-    //   which requires a REAL Starknet Core contract on L1 (not our stub) AND
-    //   Madara running with L1-sync enabled. Our Madaras run
-    //   --l1-sync-disabled against the barebones StarknetCoreStub, so the
-    //   #[l1_handler] can never fire — open_mission_local substitutes for it.
-    //   (Note: this is the L1→L2 path specifically; SNOS + the orchestrator are
-    //   the L2→L1 proving/settlement direction and are NOT what gates this fn.)
-    //
-    //   Retire open_mission_local once the L1→L2 bridge is live: deploy a real
-    //   Starknet Core on L1, point Madara at it, and drop --l1-sync-disabled.
-    //   Then #[l1_handler] open_mission becomes the only authorised entry point.
-    //
     // Shared helper _do_open_mission contains the spec-sanity checks
-    // and storage writes so both entry points stay in lockstep.
+    // and storage writes for the l1_handler.
     #[l1_handler]
     // #[l1_handler] = this fn is callable ONLY via an L1→L2 message, never as a
     // normal L2 invoke. When the L1 StarknetCore emits sendMessageToL2 targeting
     // this contract + the open_mission selector, Madara's sequencer injects a
-    // transaction that calls this handler. (Inactive here — Madara runs
-    // --l1-sync-disabled — which is exactly why open_mission_local exists.)
+    // transaction that calls this handler. (Active on the convoy stack: each
+    // swarm's Madara runs --sequencer with L1 sync against its real Starknet core.)
     fn open_mission(
         ref self: ContractState,
         // ⚠ SPECIAL: an l1_handler's FIRST arg is always the L1 sender address,
@@ -385,8 +348,8 @@ mod ConvoyProtocol {
     ) {
         // AUTHORISATION: only the registered L1 commander may open a mission.
         // Because from_address is protocol-injected (not forgeable), this is a
-        // real authority check — and it's exactly the guarantee open_mission_local
-        // throws away (it skips straight to _do_open_mission with no sender check).
+        // real authority check: only the registered L1 commander can open a
+        // mission, via the unforgeable protocol-injected sender.
         // ('unauthorised L1 sender' is a Cairo short-string error: a felt252-
         //  encoded literal, max 31 chars.)
         assert(
@@ -399,10 +362,9 @@ mod ConvoyProtocol {
         _do_open_mission(ref self, spec, drone_addresses);
     }
 
-    // Shared deployment body used by BOTH entry points. Note: NO authorisation
-    // check here — that's the caller's job (open_mission asserts the L1 sender;
-    // open_mission_local deliberately skips it). Keeping the checks + writes in
-    // one place means the prod and dev paths can never diverge.
+    // Shared deployment body. NO authorisation check here — that's the caller's
+    // job (open_mission asserts the unforgeable L1 sender). Kept separate so the
+    // handler stays focused on auth.
     fn _do_open_mission(
         ref self: ContractState,
 
@@ -415,9 +377,8 @@ mod ConvoyProtocol {
         // step 4 to register each drone under encode_drone_key(mission_id, i+1).
         drone_addresses: Array<ContractAddress>,
     ) {
-        // 1. Idempotency — a mission_id can be opened ONCE. This guard is also
-        //    the ONLY abuse protection on the dev path (open_mission_local has
-        //    no sender check), so it must stay: re-deploy attempts revert here.
+        // 1. Idempotency — a mission_id can be opened ONCE. Re-deploy attempts
+        //    revert here.
         assert(
             !self.mission_exists.read(spec.mission_id),
             'mission already deployed',
@@ -473,16 +434,6 @@ mod ConvoyProtocol {
     // the ABI. (This embed is why there's no per-fn #[external_v0] attribute.)
     #[abi(embed_v0)]
     impl ConvoyProtocolImpl of super::IConvoyProtocol<ContractState> {
-
-        // The dev door: same body as #[l1_handler] open_mission but WITHOUT the
-        // L1-sender check. Callable as a normal L2 invoke (used by open-missions.sh).
-        fn open_mission_local(
-            ref self: ContractState,
-            spec:            MissionSpec,
-            drone_addresses: Array<ContractAddress>,
-        ) {
-            _do_open_mission(ref self, spec, drone_addresses);
-        }
 
         // THE core function. A drone submits its raw sweep; the contract checks
         // it, records SAFE/UNSAFE, and — on the final SAFE drone — messages L1.

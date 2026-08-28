@@ -4,8 +4,8 @@
 #
 # Composes the four bring-up phases that every demo / dev session needs:
 #
-#   [1/4] L1 chain          6 geth ships (Clique PoA) + wire-mesh
-#   [2/4] L1 contracts      StarknetCoreStub, Registry, Verifier, CommandLog
+#   [1/4] L1 chain          6 Hyperledger Besu ships (PoA) + wire-mesh
+#   [2/4] L1 contracts      Registry, Verifier, CommandLog
 #                           (deterministic anvil-style addresses on a fresh
 #                            chain — match deployments/local.env)
 #   [3/4] L2 stack          10 Madara nodes (1 sequencer + 4 --full followers
@@ -26,7 +26,6 @@
 #   ./scripts/deploy-l2.sh
 #   ./scripts/generate-drone-accounts.sh --swarm both
 #   ./scripts/register-missions.sh
-#   ./scripts/open-missions.sh
 # then submit telemetry per drone. See README for the full sequence.
 # =============================================================================
 
@@ -84,7 +83,7 @@ wait_besu
 
 echo
 echo "═══════════════════════════════════════════════════════════════"
-echo "  [2/4] L1 contracts — Stub, Registry, Verifier, CommandLog"
+echo "  [2/4] L1 contracts — Registry, Verifier, CommandLog"
 echo "═══════════════════════════════════════════════════════════════"
 
 # If contracts at the addresses expected by local.env already have code,
@@ -92,8 +91,40 @@ echo "════════════════════════�
 # fresh contracts at SHIFTED addresses (deployer nonce drift), and every
 # downstream script reading local.env would point at the wrong contracts.
 . deployments/local.env
+core_has_code() {
+    local a="${1:-}"; [ -z "$a" ] && return 1
+    local code
+    code=$(curl -s -X POST "${URL}" -H "Content-Type: application/json" \
+        --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getCode\",\"params\":[\"${a}\",\"latest\"],\"id\":1}" \
+        | grep -oE '"result":"0x[0-9a-fA-F]*"' | cut -d'"' -f4)
+    [ "${#code}" -gt 4 ]
+}
+CORE_ADDR=""
+bootstrap_core() {   # $1=swarm  $2=config file  $3=deployer key
+    local swarm="$1" cfg="$2" key="$3"
+    local out="${REPO_ROOT}/bootstrap/output/addresses-${swarm}.json"
+    CORE_ADDR=""
+    [ -f "${out}" ] && CORE_ADDR=$(grep -oE '"coreContract"[^"]*"0x[0-9a-fA-F]+"' "${out}" | head -1 | grep -oE '0x[0-9a-fA-F]+')
+    if core_has_code "${CORE_ADDR}"; then echo "  reusing ${swarm} core ${CORE_ADDR}"; return 0; fi
+    echo "  deploying ${swarm} Starknet core (bootstrapper-v2 setup-base)..."
+    mkdir -p "${REPO_ROOT}/bootstrap/output"; printf '{}' > "${out}"
+    MSYS_NO_PATHCONV=1 docker run --rm -w /app/build-artifacts \
+        -e BASE_LAYER_PRIVATE_KEY="${key}" \
+        -v "${REPO_ROOT}/bootstrap:/bootstrap" \
+        ghcr.io/madara-alliance/bootstrapper-v2:nightly-b185bb3 \
+        setup-base --config-path "/bootstrap/${cfg}" \
+        --addresses-output-path "/bootstrap/output/addresses-${swarm}.json" 2>&1 \
+        | grep -E "Deployed|config hash|saved" | tail -14
+    CORE_ADDR=$(grep -oE '"coreContract"[^"]*"0x[0-9a-fA-F]+"' "${out}" | head -1 | grep -oE '0x[0-9a-fA-F]+')
+}
+bootstrap_core alpha config.json       "${ALPHA_RELAY_PK}"; STARKNET_CORE_ADDR_ALPHA="${CORE_ADDR}"
+bootstrap_core bravo config-bravo.json "${BRAVO_RELAY_PK}"; STARKNET_CORE_ADDR_BRAVO="${CORE_ADDR}"
+[ -n "${STARKNET_CORE_ADDR_ALPHA}" ] && [ -n "${STARKNET_CORE_ADDR_BRAVO}" ] || { echo "[up] bootstrapper failed" >&2; exit 1; }
+export STARKNET_CORE_ADDR_ALPHA STARKNET_CORE_ADDR_BRAVO
+echo "  Alpha core: ${STARKNET_CORE_ADDR_ALPHA}"
+echo "  Bravo core: ${STARKNET_CORE_ADDR_BRAVO}"
 already_deployed=true
-for var in STARKNET_CORE_STUB_ADDR REGISTRY_ADDR CONVOY_VERIFIER_ADDR COMMAND_LOG_ADDR; do
+for var in REGISTRY_ADDR CONVOY_VERIFIER_ADDR COMMAND_LOG_ADDR; do
     addr="${!var}"
     code=$(curl -s -X POST "${URL}" -H "Content-Type: application/json" \
         --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getCode\",\"params\":[\"${addr}\",\"latest\"],\"id\":1}" \
@@ -106,7 +137,6 @@ done
 
 if ${already_deployed}; then
     echo "  L1 contracts already deployed at the local.env addresses — skipping."
-    echo "    StarknetCoreStub: ${STARKNET_CORE_STUB_ADDR}"
     echo "    Registry:         ${REGISTRY_ADDR}"
     echo "    Verifier:         ${CONVOY_VERIFIER_ADDR}"
     echo "    CommandLog:       ${COMMAND_LOG_ADDR}"
@@ -119,6 +149,24 @@ echo
 echo "═══════════════════════════════════════════════════════════════"
 echo "  [3/4] L2 stack — 10 Madara + 2 pathfinder leaders + prover APIs"
 echo "═══════════════════════════════════════════════════════════════"
+# ── [3a] Seed alpha's and bravo's genesis (--devnet) so the --sequencer runtime has the
+#         10 predeployed accounts.
+seed_sequencer() {   # $1 = alpha | bravo
+    local s="$1"
+    docker ps --format '{{.Names}}' | grep -q "^convoy-madara-${s}$" && return 0
+    echo "  seeding ${s} genesis (--devnet one-shot)..."
+    docker compose -f docker-compose.l1.yml -f docker-compose.l2.yml --profile seed up -d "madara-${s}-seed"
+    local tries=0
+    until docker logs "convoy-madara-${s}-seed" 2>&1 | grep -q "computed for #0"; do
+        tries=$((tries+1)); [ "$tries" -gt 60 ] && { echo "  ${s} seed TIMEOUT"; docker logs "convoy-madara-${s}-seed" 2>&1 | tail -5; break; }
+        sleep 1
+    done
+    sleep 4
+    docker compose -f docker-compose.l1.yml -f docker-compose.l2.yml --profile seed rm -sf "madara-${s}-seed"
+    echo "  ${s} genesis seeded ✓"
+}
+seed_sequencer alpha
+seed_sequencer bravo
 docker compose -f docker-compose.l1.yml -f docker-compose.l2.yml --profile l2 up -d 2>&1 | tail -3
 wait_healthy "convoy-madara-alpha"     "madara-alpha (sequencer)"
 wait_healthy "convoy-madara-bravo"     "madara-bravo (sequencer)"
@@ -141,7 +189,6 @@ echo "════════════════════════�
 echo "    ./scripts/deploy-l2.sh --swarm both"
 echo "    ./scripts/generate-drone-accounts.sh --swarm both"
 echo "    ./scripts/register-missions.sh --swarm both"
-echo "    ./scripts/open-missions.sh"
 echo "    python3 scripts/generate-mission.py --scenario both-safe --output-dir .tmp-l2/missions/"
 echo "    for swarm in alpha bravo; do"
 echo "        for did in 1 2 3 4 5; do"
@@ -153,13 +200,13 @@ echo "    ./scripts/relay-l2-messages.sh "
 echo "    
 
 docker run --rm --network convoy-l1 ghcr.io/foundry-rs/foundry:latest \
-  -c "cast call 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9 'advanceCount()(uint256)' --rpc-url http://ship-a:8545"   
+  -c "cast call 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0 'advanceCount()(uint256)' --rpc-url http://ship-a:8545"   
   
 "
 echo "    
 
 docker run --rm --network convoy-l1 ghcr.io/foundry-rs/foundry:latest -c "\
-  cast send 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9 \
+  cast send 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0 \
     'advance(uint256,uint256,uint256)' 1 2 100 \
     --rpc-url http://ship-a:8545 \
     --private-key 0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356 \

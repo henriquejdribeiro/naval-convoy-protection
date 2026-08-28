@@ -9,43 +9,52 @@ This project's architecture derives from the author's Master's thesis at Institu
 
 The repository is a standalone mission archetype, with its own contracts, container topology, and visualisation.
 
+## What this is
+
+A verifiable naval-drone mission-compliance system on a modular blockchain stack. Two 5-drone swarms (alpha, bravo) sweep an assigned zone; each drone proves it stayed inside its strip and met coverage/detection/time thresholds. The verdict is anchored on a settlement L1.
+
+- **L1 — Hyperledger Besu QBFT.** 6 validators (ships A–F), BFT finality. The settlement layer.
+- **Real StarkWare Starknet cores.** One genuine `Starknet.sol` messaging core **per swarm**, deployed on L1 at bring-up by the [madara-bootstrapper](https://github.com/madara-alliance/madara) (`bootstrapper-v2`). Not a stub — the real proxied core, initialized with a per-chain config hash.
+- **L2 — two Madara Starknet appchains** (`convoy_alpha`, `convoy_bravo`), v0.9.1. Each is a `--sequencer` with L1 sync enabled, watching **its own** core, plus 4 `--full` follower nodes (one per drone).
+- **`convoy_protocol` (Cairo).** Per-drone `submit_telemetry` + the `safe_area` compliance predicate. When a swarm's 5 drones all pass, it emits `MissionSafe`.
+- **The L1→L2 bridge (trustless, working).** A commander opens a mission on L1 via `Registry.deploy`, which sends a real `LogMessageToL2` through that swarm's core. Each Madara **auto-consumes** it and runs the `#[l1_handler] open_mission` on L2. No dev fallback — the mission only opens if the message really crossed the bridge, authorised by the L1 commander.
+
+`Registry` holds both cores and dispatches each mission to the right one (`_coreFor(mission_id)`), so alpha's sequencer only ever sees alpha's messages and bravo's only bravo's — clean, no cross-chain handlers.
+
 ## Project status
 
-This is an in-progress thesis project. The architecture diagram above shows the **target state**; not every box is wired end-to-end yet.
+In-progress thesis project. The L1→L2 direction is fully wired and trustless for both swarms; the L2→L1 verdict path is being moved onto the STARK-proof route.
 
 | Component | Status |
 |---|---|
-| L1 chain (6 ships, Clique PoA, mesh) | ✅ Working |
-| L1 contracts (StarknetCoreStub, Registry, Verifier, CommandLog) | ✅ Compile + deploy |
-| StarkWare verifier stack on L1 | ✅ Deploys (note: deploy-script address-prediction quirk under audit) |
-| L2 chains (Madara α + β, v0.9.1) | ✅ Both come up healthy |
-| `convoy_protocol` contract on each L2 | ✅ Declared + deployed |
-| 5 fresh OZ drone accounts per swarm | ✅ Deployed via UDC signed by account #1 |
-| Mission-open on L2 (`open_mission_local`) | ✅ Direct-invoke entry point + `scripts/open-missions.sh` wrapper |
-| Per-drone `submit_telemetry` invokes | ✅ `scripts/submit-telemetry.sh <swarm> <drone_id> <cells.json>` signs with the drone's keystore |
-| L1 `Verifier.sol` rewrite for L2 messages | ⏳ Pending |
-| `generate-mission.py` rewrite (full scenarios) | ⏳ Pending — hand-written cells.json works today (see `docs/examples/`) |
-| Off-chain prover pipeline (SNOS → Stone → L1) | ⏳ Phase 3.a shortcut deprecated; per-block L2 proof flow needs implementing |
-| Web visualizer | ✅ Static animation (not a live dashboard) |
+| L1 — Hyperledger Besu QBFT, 6 validators | ✅ Working |
+| Real StarkWare Starknet cores (1 per swarm, via madara-bootstrapper) | ✅ Deployed on L1 at bring-up |
+| L1 convoy contracts (Registry, Verifier, CommandLog) | ✅ Deploy + wired |
+| L2 — Madara α + β (v0.9.1), 1 sequencer + 4 followers each | ✅ Both healthy |
+| `convoy_protocol` on each L2 | ✅ Declared + deployed |
+| 5 drone accounts per swarm | ✅ Deployed + auto-funded |
+| **L1→L2 `open_mission` auto-consume (both swarms)** | ✅ **Trustless via the real cores** |
+| Per-drone `submit_telemetry` | ✅ Signed by each drone's own key |
+| L2→L1 `MissionSafe` verdict → L1 | ⏳ Moving to the STARK-proof path (`Verifier.registerSafeProof`) |
+| Off-chain prover pipeline (Stone → L1) | ⏳ Next |
+| Web visualizer | ✅ Static animation |
 
 ## Getting started
 
-End-to-end from a fresh clone to a finalised `MissionSafe` on L1, in one terminal session.
+End-to-end from a fresh clone to both missions live on L2 via the real bridge, in one terminal session.
 
-**Prerequisites** — Docker + Docker Compose v2, git, Python 3.10+, ~16 GB free RAM, and these host ports unused: `8888` (Dozzle), `18545` (L1 RPC), `18546` (L1 WS), `19944`–`19948` (Madara alpha + 4 followers), `29944`–`29948` (Madara bravo + 4 followers), `9545` (pathfinder alpha-1), `9645` (pathfinder bravo-1).
+**Prerequisites** — Docker + Docker Compose v2, git, Python 3.10+, ~16 GB free RAM, and internet on first run (the bootstrapper and Madara images pull from ghcr). Host ports that must be free: `8545`/`8546` (Besu L1 RPC/WS), `19944`–`19948` (Madara alpha + 4 followers), `29944`–`29948` (Madara bravo + 4 followers), `9545`/`9645` (leader pathfinders), `8888` (Dozzle).
 
 ### 1. Clone
 
 ```bash
-git clone https://github.com/henriquejdribeiro/naval-convoy-protection.git
+git clone --recurse-submodules https://github.com/henriquejdribeiro/naval-convoy-protection.git
 cd naval-convoy-protection
 ```
 
-No submodules. The StarkWare evm-verifier ([`contracts/lib/starkware-mainnet/`](contracts/lib/starkware-mainnet/), patched per [`PATCH.md`](contracts/lib/starkware-mainnet/PATCH.md)) and the zksecurity stark-evm-adapter ([`vendor/stark-evm-adapter/`](vendor/stark-evm-adapter/)) are vendored in-tree so the cryptographic stack stays bit-reproducible without third-party hosting.
-
 ### 2. Build the cairo-builder image (first time only)
 
-This image bundles scarb 2.11.4, starkli 0.4.1, a custom `starknet-sierra-compile` 2.12.3, and the `compute-casm-hash` helper. All Cairo/Starknet tooling runs inside it, so you don't install anything Cairo-related on the host.
+Bundles scarb, starkli, and the `starknet-sierra-compile` / `compute-casm-hash` helpers — all Cairo/Starknet tooling runs inside it, so nothing Cairo-related is installed on the host.
 
 ```bash
 docker build -t convoy-cairo-builder infrastructure/cairo-builder/
@@ -54,69 +63,81 @@ docker build -t convoy-cairo-builder infrastructure/cairo-builder/
 ### 3. Bring up the stack
 
 ```bash
-./scripts/up.sh
+./scripts/up.sh            # add --no-debugger to skip the Dozzle log viewer
 ```
 
-One command, idempotent. Brings up: 6 L1 geth ships → L1 contracts (skipped if already deployed) → 10 Madara nodes (5 per swarm: 1 sequencer + 4 `--full` follower drones) → 2 leader pathfinder archives → Dozzle log viewer at <http://localhost:8888>.
+One idempotent command. It:
 
-Healthcheck-gated. Pass `--no-debugger` to skip Dozzle.
+1. starts the **6-validator Besu QBFT** L1,
+2. runs the **madara-bootstrapper twice** — one real Starknet core per swarm (alpha via `ALPHA_RELAY`, bravo via `BRAVO_RELAY`; configs `bootstrap/config.json` + `bootstrap/config-bravo.json`),
+3. deploys the L1 convoy contracts (`Registry` bound to both cores, `Verifier`, `CommandLog`),
+4. **seeds** each sequencer's genesis (`--devnet` one-shot) then brings the L2 up as **`--sequencer` with L1 sync** — this two-phase boot is required, because `--devnet` creates the predeployed accounts but disables L1 sync, while `--sequencer` runs the L1→L2 messaging worker,
+5. starts the 4 `--full` follower drones per swarm + the leader pathfinders + Dozzle (<http://localhost:8888>).
 
 ### 4. Compile + deploy the L2 protocol
 
 ```bash
-docker run --rm -v "$(pwd)/cairo/convoy_protocol:/work" -w /work convoy-cairo-builder scarb build
-./scripts/deploy-l2.sh                              # declares + deploys convoy_protocol on both Madaras
-./scripts/generate-drone-accounts.sh --swarm both   # 10 OZ accounts + account.json + auto-fund STRK/ETH
-./scripts/register-missions.sh                      # anchors both missions on L1 + fires LogMessageToL2
-./scripts/open-missions.sh                          # opens both missions on L2 (dev fallback for the bridge)
+# recompile only if you've changed the Cairo source; artifacts are committed
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd)/cairo/convoy_protocol:/work" -w /work convoy-cairo-builder scarb build
+
+./scripts/deploy-l2.sh --swarm both                 # declare + deploy convoy_protocol on both Madaras
+./scripts/generate-drone-accounts.sh --swarm both   # 10 drone accounts, auto-funded STRK + ETH
+./scripts/register-missions.sh --swarm both          # commander opens both missions → real L1→L2 bridge
 ```
 
-`generate-drone-accounts.sh` handles three previously-manual steps in one pass: writes `account.json` next to each drone's `keystore.json`, funds STRK + ETH from the deployer, and uses explicit on-chain nonce polling so the funding txs never race.
+`register-missions.sh` is the whole point: `Registry.deploy(mission_id, …)` sends a real `LogMessageToL2` through that swarm's core, and each sequencer's L1 sync **auto-consumes** it (after a 10-block finality wait) and runs `open_mission` on L2. No `open-missions.sh` — the mission opens *only* because the L1 message crossed the bridge.
+
+Confirm it landed:
+
+```bash
+sleep 90   # 10-block finality + processing
+docker logs convoy-madara-alpha 2>&1 | grep -iE "Processing L1→L2|nonce=" | tail -3
+docker logs convoy-madara-bravo 2>&1 | grep -iE "Processing L1→L2|nonce=" | tail -3
+```
+
+Both should show `Processing L1→L2 message: … nonce=0`. To read the anchored spec on L2 (returns the 12-felt `MissionSpec`, reverts if not deployed):
+
+```bash
+CONV=$(grep CONVOY_PROTOCOL_ADDR_ALPHA .tmp-l2/convoy_l2.env | cut -d= -f2)
+MSYS_NO_PATHCONV=1 docker run --rm -i --network convoy-l1 \
+  convoy-cairo-builder:latest \
+  starkli call "$CONV" get_mission 1 --rpc http://convoy-madara-alpha:9944/rpc/v0.8.1
+```
 
 ### 5. Run a mission
 
-Pick a scenario, generate per-drone telemetry, fire all 10 submissions:
+Generate per-drone telemetry, then fire all 10 submissions:
 
 ```bash
 python3 scripts/generate-mission.py --scenario both-safe --output-dir .tmp-l2/missions/
-
 for swarm in alpha bravo; do
-    for did in 1 2 3 4 5; do
-        f=.tmp-l2/missions/both-safe/${swarm}_${did}.json
-        [ -f "$f" ] && ./scripts/submit-telemetry.sh "$swarm" "$did" "$f"
-    done
+  for did in 1 2 3 4 5; do
+    f=.tmp-l2/missions/both-safe/${swarm}_${did}.json
+    [ -f "$f" ] && ./scripts/submit-telemetry.sh "$swarm" "$did" "$f"
+  done
 done
 ```
 
-Available scenarios (see [`scripts/generate-mission.py`](scripts/generate-mission.py)): `both-safe`, `both-unsafe`, `mixed`, `alpha-dropout-vanish`, `alpha-dropout-midflight`, `dual-dropout`. Dropout scenarios intentionally OMIT the affected drone's cells.json — the loop above silently skips missing files so absent telemetry is just absent (modelling real loss-of-comms).
+Scenarios (see [`scripts/generate-mission.py`](scripts/generate-mission.py)): `both-safe`, `both-unsafe`, `mixed`, `alpha-dropout-vanish`, `alpha-dropout-midflight`, `dual-dropout`. Dropout scenarios omit the affected drone's file; the loop skips missing files, modelling real loss-of-comms.
 
-When the 5th SAFE submission lands in a swarm, the L2 contract emits `MissionSafe` and fires `send_message_to_l1_syscall` with payload `[mission_id, n_drones]`. The message is visible in the tx's `messages_sent` field. To deliver it to L1 (dev fallback for settlement):
+When the 5th SAFE submission lands in a swarm, `convoy_protocol` emits `MissionSafe` and fires `send_message_to_l1_syscall` with payload `[mission_id, n_drones]`.
 
-```bash
-./scripts/relay-l2-messages.sh
-```
-
-After that, on L1: `Registry.missionSafe(mission_id) == true` for each completed swarm.
+> ⏳ **L2→L1 verdict — work in progress.** The old `relay-l2-messages.sh` dev relay used a `injectL2Message` helper on the retired stub; with the real core that helper is gone. The verdict is being moved onto the trustless STARK-proof route (`Verifier.registerSafeProof`, gated on a verified `safe_area` proof). Until that lands, the `MissionSafe` message is observable in the tx's `messages_sent` but not yet settled on L1.
 
 ### 6. Teardown
 
 ```bash
 docker compose -f docker-compose.l1.yml -f docker-compose.l2.yml \
-    --profile l2 --profile proving --profile proving-direct --profile deploy \
+    --profile l2 --profile seed --profile proving --profile proving-direct --profile deploy \
     down -v --remove-orphans
 docker compose -f debugger/docker-compose.yml down -v --remove-orphans
-docker network rm convoy-l1 2>/dev/null || true
 ```
 
-> ℹ️ **L1→L2 bridge status** — `register-missions.sh` correctly emits the `LogMessageToL2` event on L1 (verified end-to-end: the message hash is queued in `StarknetCoreStub.l1ToL2Messages`, the payload is the canonical Cairo Serde for `open_mission(spec, drone_addresses)`). Madara v0.9.1 however does NOT consume that message in our setup — the L1-polling code path stays inactive against the barebones stub (0 RPC requests observed; 0 L1-related log lines). Until we identify the stub-compatibility tripwire (or replace the stub with real `Starknet.sol`), `open-missions.sh` is the runtime delivery path.
+## Drone telemetry — what `submit-telemetry.sh` does
 
-Each step writes outputs into `deployments/` (L1) or `.tmp-l2/` (L2). The deploy log files name every deployed address.
+Takes a swarm, a drone id (1..5), and a JSON file with the four per-cell arrays (`cells_x`, `cells_y`, `cells_p_contact`, `cells_ts`). It loads the matching drone keystore, serialises the arrays into starkli calldata, and fires `submit_telemetry` **signed by the drone's own key** — so `get_caller_address()` inside the contract resolves to the drone's registered account, satisfying the per-drone authentication check.
 
-### Drone telemetry — what `submit-telemetry.sh` does
-
-The script takes a swarm, a drone id (1..5), and a JSON file with the four per-cell arrays (`cells_x`, `cells_y`, `cells_p_contact`, `cells_ts`). It loads the matching drone keystore from `.tmp-l2/drones/<swarm>/<drone_id>/`, serialises the arrays into starkli calldata, and fires `submit_telemetry` **signed by the drone's own key** — so `get_caller_address()` inside the contract resolves to the drone's registered account, satisfying the per-drone authentication check.
-
-For hand-written UNSAFE scenarios beyond what `generate-mission.py` ships, copy [`docs/examples/alpha_drone_3_cells.json`](docs/examples/alpha_drone_3_cells.json) and modify the arrays:
+For hand-written UNSAFE scenarios, copy [`docs/examples/alpha_drone_3_cells.json`](docs/examples/alpha_drone_3_cells.json) and modify the arrays:
 
 - Drop coverage below 95% → `FAIL_COVERAGE`
 - Push one `p_contact` to ≥ 7000 → `FAIL_DETECTION`
@@ -127,6 +148,9 @@ For hand-written UNSAFE scenarios beyond what `generate-mission.py` ships, copy 
 
 | URL | What |
 |---|---|
+| <http://localhost:8545> | Besu L1 JSON-RPC (ship A) |
+| <http://localhost:19944> / <http://localhost:29944> | Madara alpha / bravo JSON-RPC |
+| <http://localhost:8888> | Dozzle log viewer (grouped by drone) |
 | <http://localhost:8000> | Web visualiser (`python -m http.server` in `webapp/`) |
 
 ## License

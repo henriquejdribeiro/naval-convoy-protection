@@ -16,7 +16,7 @@
 #     scenario      default: both-safe
 #     missions-dir  default: .tmp-l2/missions
 #
-# Prereqs: open-missions.sh has run (missions open on L2).
+# Prereqs: missions open on L2
 # =============================================================================
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
