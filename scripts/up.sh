@@ -196,7 +196,6 @@ echo "            f=.tmp-l2/missions/both-safe/\${swarm}_\${did}.json"
 echo "            [ -f \"\$f\" ] && ./scripts/submit-telemetry.sh \$swarm \$did \"\$f\""
 echo "        done"
 echo "    done"
-echo "    ./scripts/relay-l2-messages.sh "
 echo "    
 
 docker run --rm --network convoy-l1 ghcr.io/foundry-rs/foundry:latest \
