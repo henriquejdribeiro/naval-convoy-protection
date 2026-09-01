@@ -140,7 +140,7 @@ Build the submitter and run it against the bundled example proof:
 MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd):/work" -w /work/infrastructure/submitter \
   rust:latest cargo build --release
 
-set -a; source .tmp-l1/stark-verifier.env; source deployments/local.env; set +a
+set -a; source deployments/local.env; source .tmp-l1/stark-verifier.env; set +a
 MSYS_NO_PATHCONV=1 docker run --rm --network convoy-l1 -v "$(pwd):/work" -w /work \
   -e URL=http://ship-a:8545 \
   -e PRIVATE_KEY=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d \
