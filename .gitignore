@@ -78,3 +78,23 @@ infrastructure/submitter/target/
 
 # runtime output 
 bootstrap/output/
+# Scratch artifacts from the StarkWare 2023_9 verifier deploy + MSB proving (2026-09)
+/cfv_creation.hex
+/cfv_deploy.hex
+/cfv_in.json
+/cfv_out.json
+/cfv_target.txt
+/gps_creation.hex
+/gps_deploy.hex
+/gps_in.json
+/gps_out.json
+/gps_target.txt
+/copy_init.hex
+/oods_init.hex
+/evm_proof_c.json
+/evm_proof_msb.json
+/evm_proof_swk.json
+/ft_msb.json
+/ft_swk.json
+/safe_area_verify_msb.json
+/proofs-fresh/

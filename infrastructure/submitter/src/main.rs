@@ -45,8 +45,8 @@ use ethers::{
     core::k256::ecdsa::SigningKey,
     middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
-    signers::{LocalWallet, Signer},
-    types::{Address, Bytes, U256, U64},
+    signers::{LocalWallet, Signer as SignerTrait},
+    types::{Address, Bytes, H256, U256, U64},
 };
 use stark_evm_adapter::{
     annotated_proof::AnnotatedProof,
@@ -61,24 +61,41 @@ use std::{env, fs::read_to_string, str::FromStr, sync::Arc};
 abigen!(
     ConvoyVerifier,
     r#"[
-        struct SafeProofInputs {
-            bytes32 programHash;
-            bytes32 outputHash;
-            uint256 missionId;
-            uint256 droneId;
-            uint256 coveragePermille;
-            uint256 maxContactBp;
-            uint256 elapsedSeconds;
-            bytes32 commitment;
-            uint256 nSteps;
+        {
+            "type": "function",
+            "name": "registerSafeProof",
+            "stateMutability": "nonpayable",
+            "inputs": [
+                {
+                    "name": "inputs",
+                    "type": "tuple",
+                    "internalType": "struct SafeProofInputs",
+                    "components": [
+                        {"name": "programHash", "type": "bytes32"},
+                        {"name": "outputHash",  "type": "bytes32"},
+                        {"name": "missionId",   "type": "uint256"},
+                        {"name": "droneIndex",  "type": "uint8"},
+                        {"name": "stripXStart", "type": "uint32"},
+                        {"name": "stripXEnd",   "type": "uint32"},
+                        {"name": "stripYStart", "type": "uint32"},
+                        {"name": "stripYEnd",   "type": "uint32"},
+                        {"name": "verdictBool", "type": "uint8"},
+                        {"name": "commitment",  "type": "bytes32"},
+                        {"name": "nSteps",      "type": "uint256"}
+                    ]
+                }
+            ],
+            "outputs": [
+                {"name": "proofId",  "type": "uint256"},
+                {"name": "factHash", "type": "bytes32"}
+            ]
         }
-        function registerSafeProof(
-            SafeProofInputs inputs,
-            uint256[] proofParams,
-            uint256[] proof,
-            uint256[] taskMetadata,
-            uint256[] cairoAuxInput
-        )
+    ]"#
+);
+abigen!(
+    GpsStatementVerifier,
+    r#"[
+        function verifyProofAndRegister(uint256[] proofParams, uint256[] proof, uint256[] taskMetadata, uint256[] cairoAuxInput, uint256 cairoVerifierId)
     ]"#
 );
 
@@ -102,12 +119,13 @@ fn keccak256(data: &[u8]) -> [u8; 32] {
 /// Extract the six felts safe_area_verify.cairo writes via serialize_word.
 /// Returns them in declaration order: (mission_id, drone_id, coverage_permille,
 /// max_p_contact, elapsed_seconds, commitment).
-fn extract_public_outputs(annotated_proof: &AnnotatedProof) -> Result<[U256; 6]> {
+fn extract_public_outputs(annotated_proof: &AnnotatedProof) -> Result<([U256; 8], U256)> {
     // The annotated proof carries the public_input shape Stone emitted;
     // its memory_segments map names a region called "output" with begin
     // and stop addresses, and public_memory is a list of (address, value)
     // pairs covering the entire public memory.
-    let public_input = &annotated_proof.public_input;
+    let public_input = serde_json::to_value(&annotated_proof.public_input)
+        .context("serialize public_input to value")?;
     let segments = public_input
         .as_object()
         .and_then(|o| o.get("memory_segments"))
@@ -149,20 +167,26 @@ fn extract_public_outputs(annotated_proof: &AnnotatedProof) -> Result<[U256; 6]>
     }
     pairs.sort_by_key(|p| p.0);
 
-    if pairs.len() != 6 {
+    // Bootloader-wrapped output: [simpleBootloaderProgramHash,
+    // hashedSupportedCairoVerifiers, nTasks, taskOutputSize, cairoProgramHash,
+    // <8 safe_area outputs>]. We need the 8 outputs (last 8) and the Cairo
+    // program hash (word just before them) — the GPS registers its fact under
+    // that Cairo hash, not keccak-of-JSON.
+    if pairs.len() < 9 {
         bail!(
-            "expected 6 public outputs in output segment, got {}: {:?}",
+            "expected at least 9 output words (program hash + 8 outputs), got {}: {:?}",
             pairs.len(),
             pairs
         );
     }
-    let values: [U256; 6] = pairs
+    let cairo_program_hash = pairs[pairs.len() - 9].1;
+    let values: [U256; 8] = pairs[pairs.len() - 8..]
         .iter()
         .map(|p| p.1)
         .collect::<Vec<_>>()
         .try_into()
-        .map_err(|_| anyhow!("could not coerce to [U256; 6]"))?;
-    Ok(values)
+        .map_err(|_| anyhow!("could not coerce to [U256; 8]"))?;
+    Ok((values, cairo_program_hash))
 }
 
 /// Reconstruct the programHash by keccak-hashing the compact JSON encoding
@@ -180,9 +204,9 @@ fn compute_program_hash(safe_area_verify_json: &str) -> Result<[u8; 32]> {
     Ok(keccak256(data_compact.as_bytes()))
 }
 
-/// outputHash = keccak256(abi.encodePacked of the 6 output felts, each 32 bytes big-endian).
-fn compute_output_hash(outputs: &[U256; 6]) -> [u8; 32] {
-    let mut buf = Vec::with_capacity(32 * 6);
+/// outputHash = keccak256(abi.encodePacked of the 8 output felts, each 32 bytes big-endian).
+fn compute_output_hash(outputs: &[U256; 8]) -> [u8; 32] {
+    let mut buf = Vec::with_capacity(32 * 8);
     for v in outputs {
         let mut be = [0u8; 32];
         v.to_big_endian(&mut be);
@@ -282,30 +306,65 @@ async fn main() -> Result<()> {
         await_tx(call.send().await?, &format!("memory page {}", i)).await?;
     }
 
-    // ── Phase 4: our Verifier.registerSafeProof ────────────────────────
-    let convoy_verifier_addr = env_address("CONVOY_VERIFIER_ADDR")?;
-    println!(
-        "[submitter] Phase 4: Verifier.registerSafeProof → {:?}",
-        convoy_verifier_addr
-    );
-
-    // Extract the four arrays the StarkWare GPS verifier expects.
+    // ── Phase 4: register the STARK fact on the GPS, then gate the verdict ──
     let task_metadata = split_proofs
         .main_proof
         .generate_tasks_metadata(true, fact_topologies)
         .map_err(|e| anyhow!("generate_tasks_metadata failed: {:?}", e))?;
     let args = split_proofs.main_proof.contract_function_call(task_metadata);
 
-    // Build the SafeProofInputs tuple from the Cairo program's public outputs.
-    let outputs = extract_public_outputs(&annotated_proof)?;
-    let [mission_id, drone_id, coverage_permille, max_p, elapsed, commitment] = outputs;
+    // ── Phase 4a: register the fact on the StarkWare GPS (as verify_stone_proof.rs does) ──
+    let gps_addr = env_address("GPS_STATEMENT_VERIFIER_ADDR")?;
+    println!("[submitter] Phase 4a: GpsStatementVerifier.verifyProofAndRegister → {:?}", gps_addr);
+    let gps = GpsStatementVerifier::new(gps_addr, signer.clone());
+    let gps_call = gps.verify_proof_and_register(
+        args.proof_params.clone(),
+        args.proof.clone(),
+        args.task_metadata.clone(),
+        args.cairo_aux_input.clone(),
+        args.cairo_verifier_id,
+    ).gas(30_000_000u64);
+    let gps_pending = gps_call.send().await?;
+    let gps_tx_hash = gps_pending.tx_hash();
+    let gps_receipt = gps_pending
+        .await?
+        .ok_or_else(|| anyhow!("no receipt for verifyProofAndRegister"))?;
+    if gps_receipt.status != Some(U64::from(1)) {
+        bail!("verifyProofAndRegister reverted: tx {:?}", gps_tx_hash);
+    }
+    println!("[submitter]   ✓ verifyProofAndRegister: tx {:?}", gps_tx_hash);
 
-    let program_hash = compute_program_hash(&safe_area_verify_raw)?;
-    let output_hash = compute_output_hash(&outputs);
+    // GPS emits LogMemoryPagesHashes(bytes32 programOutputFact, bytes32[] pagesHashes)
+    // when it registers the fact; programOutputFact is the first 32 bytes of the data.
+    let lmph_topic = H256::from(keccak256(b"LogMemoryPagesHashes(bytes32,bytes32[])"));
+    let program_output_fact: [u8; 32] = gps_receipt
+        .logs
+        .iter()
+        .find(|log| log.topics.first() == Some(&lmph_topic))
+        .and_then(|log| log.data.get(0..32))
+        .map(|b| {
+            let mut o = [0u8; 32];
+            o.copy_from_slice(b);
+            o
+        })
+        .ok_or_else(|| anyhow!("LogMemoryPagesHashes event not found in GPS receipt"))?;
 
-    // n_steps is in the public input.
-    let n_steps: U256 = annotated_proof
-        .public_input
+    // ── Phase 4b: gate the verdict on the verified fact (our Verifier, 1-arg) ──
+    let convoy_verifier_addr = env_address("CONVOY_VERIFIER_ADDR")?;
+    println!("[submitter] Phase 4b: Verifier.registerSafeProof → {:?}", convoy_verifier_addr);
+
+    let (outputs, cairo_program_hash) = extract_public_outputs(&annotated_proof)?;
+    let [mission_id, drone_id, sx0, sx1, sy0, sy1, verdict, commitment] = outputs;
+
+    // Match the GPS fact = keccak256(abi.encode(cairoProgramHash, programOutputFact)):
+    // program hash is the Cairo hash felt, output hash is the node-stack fact from the event.
+    let mut program_hash = [0u8; 32];
+    cairo_program_hash.to_big_endian(&mut program_hash);
+    let output_hash = program_output_fact;
+
+    let pi_value = serde_json::to_value(&annotated_proof.public_input)
+        .context("serialize public_input")?;
+    let n_steps: U256 = pi_value
         .as_object()
         .and_then(|o| o.get("n_steps"))
         .and_then(|v| v.as_u64())
@@ -319,37 +378,23 @@ async fn main() -> Result<()> {
         program_hash,
         output_hash,
         mission_id,
-        drone_id,
-        coverage_permille,
-        max_contact_bp: max_p,
-        elapsed_seconds: elapsed,
+        drone_index: drone_id.as_u32() as u8,
+        strip_x_start: sx0.as_u32(),
+        strip_x_end: sx1.as_u32(),
+        strip_y_start: sy0.as_u32(),
+        strip_y_end: sy1.as_u32(),
+        verdict_bool: verdict.as_u32() as u8,
         commitment: commitment_bytes,
         n_steps,
     };
 
-    println!("[submitter]   programHash:   0x{}", hex::encode(program_hash));
-    println!("[submitter]   outputHash:    0x{}", hex::encode(output_hash));
-    println!("[submitter]   missionId:     {}", mission_id);
-    println!("[submitter]   droneId:       {}", drone_id);
-    println!("[submitter]   coverage‰:     {}", coverage_permille);
-    println!("[submitter]   maxContactBp:  {}", max_p);
-    println!("[submitter]   elapsedSec:    {}", elapsed);
-    println!("[submitter]   commitment:    0x{}", hex::encode(commitment_bytes));
-    println!("[submitter]   nSteps:        {}", n_steps);
-    println!("[submitter]   |proofParams|: {}", args.proof_params.len());
-    println!("[submitter]   |proof|:       {}", args.proof.len());
-    println!("[submitter]   |taskMetadata|:{}", args.task_metadata.len());
-    println!("[submitter]   |cairoAuxIn|:  {}", args.cairo_aux_input.len());
+    println!("[submitter]   programHash: 0x{}", hex::encode(program_hash));
+    println!("[submitter]   outputHash:  0x{}", hex::encode(output_hash));
+    println!("[submitter]   mission {} drone {} verdict {}", mission_id, drone_id, verdict);
+    println!("[submitter]   strip x[{},{}] y[{},{}]", sx0, sx1, sy0, sy1);
 
     let verifier = ConvoyVerifier::new(convoy_verifier_addr, signer.clone());
-    let call = verifier.register_safe_proof(
-        inputs,
-        args.proof_params,
-        args.proof,
-        args.task_metadata,
-        args.cairo_aux_input,
-    );
-    await_tx(call.send().await?, "registerSafeProof").await?;
+    await_tx(verifier.register_safe_proof(inputs).send().await?, "registerSafeProof").await?;
 
     println!("[submitter] DONE.");
     Ok(())
