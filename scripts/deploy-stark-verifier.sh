@@ -4,6 +4,7 @@
 # creation code vendored under contracts/starkware-verifier/.
 # Writes the resulting addresses to .tmp-l1/stark-verifier.env (no fork needed).
 set -euo pipefail
+cd "$(dirname "$0")/.." || exit 1   # always run from repo root
 
 BESU=${L1_RPC:-http://ship-a:8545}
 PK=${DEPLOYER_PK:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}

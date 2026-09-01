@@ -145,6 +145,24 @@ else
         | grep -E "deployed at|deploy-l1\]" | head -10
 fi
 
+# ── [2b] StarkWare 2023_9 GPS verifier suite + wire the convoy Verifier to it ──
+echo "  [2b] StarkWare 2023_9 GPS verifier suite (byte-identical mainnet bytecode)"
+STARK_ENV="${REPO_ROOT}/.tmp-l1/stark-verifier.env"
+GPS_ADDR=""
+[ -f "${STARK_ENV}" ] && GPS_ADDR=$(grep '^GPS_STATEMENT_VERIFIER_ADDR=' "${STARK_ENV}" | cut -d= -f2)
+if core_has_code "${GPS_ADDR}"; then
+    echo "  reusing STARK verifier suite (GPS ${GPS_ADDR})"
+else
+    "${REPO_ROOT}/scripts/deploy-stark-verifier.sh"
+    GPS_ADDR=$(grep '^GPS_STATEMENT_VERIFIER_ADDR=' "${STARK_ENV}" | cut -d= -f2)
+fi
+echo "  wiring convoy Verifier ${CONVOY_VERIFIER_ADDR} -> GPS ${GPS_ADDR}"
+MSYS_NO_PATHCONV=1 docker run --rm --network convoy-l1 --entrypoint cast ghcr.io/foundry-rs/foundry:latest \
+    send "${CONVOY_VERIFIER_ADDR}" "setStarkVerifier(address)" "${GPS_ADDR}" \
+    --rpc-url http://ship-a:8545 \
+    --private-key "${DEPLOYER_PK:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}" \
+    --legacy --gas-price 0 >/dev/null 2>&1 && echo "  ✓ starkVerifier wired"
+
 echo
 echo "═══════════════════════════════════════════════════════════════"
 echo "  [3/4] L2 stack — 10 Madara + 2 pathfinder leaders + prover APIs"

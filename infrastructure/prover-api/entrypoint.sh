@@ -138,13 +138,6 @@ EOCFG
     cat > "${OUTPUT_DIR}/params.json" << 'EOPRM'
 {
     "field": "PrimeField0",
-    "channel_hash": "keccak256",
-    "commitment_hash": "keccak256_masked160_lsb",
-    "pow_hash": "keccak256",
-    "page_hash": "pedersen",
-    "verifier_friendly_channel_updates": false,
-    "verifier_friendly_commitment_hash": "keccak256_masked160_lsb",
-    "n_verifier_friendly_commitment_layers": 0,
     "stark": {
         "fri": {
             "fri_step_list": [0, 2, 2, 2, 2, 2, 2, 2, 2],
