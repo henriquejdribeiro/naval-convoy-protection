@@ -23,7 +23,7 @@ A verifiable naval-drone mission-compliance system on a modular blockchain stack
 
 ## Project status
 
-In-progress thesis project. The L1→L2 direction is fully wired and trustless for both swarms; the L2→L1 verdict path is being moved onto the STARK-proof route.
+In-progress thesis project. The L1→L2 direction is fully wired and trustless for both swarms, and the L2→L1 verdict is settled trustlessly — each drone's `safe_area` compliance proof is verified on L1 by the **genuine StarkWare STARK verifier** before the convoy `Verifier` records the verdict.
 
 | Component | Status |
 |---|---|
@@ -35,8 +35,9 @@ In-progress thesis project. The L1→L2 direction is fully wired and trustless f
 | 5 drone accounts per swarm | ✅ Deployed + auto-funded |
 | **L1→L2 `open_mission` auto-consume (both swarms)** | ✅ **Trustless via the real cores** |
 | Per-drone `submit_telemetry` | ✅ Signed by each drone's own key |
-| L2→L1 `MissionSafe` verdict → L1 | ⏳ Moving to the STARK-proof path (`Verifier.registerSafeProof`) |
-| Off-chain prover pipeline (Stone → L1) | ⏳ Next |
+| Real StarkWare STARK verifier on L1 (`GpsStatementVerifier_2023_9`) | ✅ **Deployed on Besu, byte-identical to mainnet** |
+| Off-chain prover pipeline (Cairo → Stone → EVM proof) | ✅ Working |
+| **L2→L1 verdict — `safe_area` proof verified trustlessly on L1** | ✅ **`Verifier.registerSafeProof`, gated on `isValid(factHash)`** |
 | Web visualizer | ✅ Static animation |
 
 ## Getting started
@@ -122,9 +123,39 @@ Scenarios (see [`scripts/generate-mission.py`](scripts/generate-mission.py)): `b
 
 When the 5th SAFE submission lands in a swarm, `convoy_protocol` emits `MissionSafe` and fires `send_message_to_l1_syscall` with payload `[mission_id, n_drones]`.
 
-> ⏳ **L2→L1 verdict — work in progress.** The old `relay-l2-messages.sh` dev relay used a `injectL2Message` helper on the retired stub; with the real core that helper is gone. The verdict is being moved onto the trustless STARK-proof route (`Verifier.registerSafeProof`, gated on a verified `safe_area` proof). Until that lands, the `MissionSafe` message is observable in the tx's `messages_sent` but not yet settled on L1.
+> **L2→L1 verdict.** The verdict is settled on L1 by verifying a `safe_area` STARK proof on the real StarkWare verifier — see [§6, Verify a compliance proof on L1](#6-verify-a-compliance-proof-on-l1).
 
-### 6. Teardown
+### 6. Verify a compliance proof on L1
+
+`up.sh` deploys the **genuine StarkWare STARK verifier** on Besu — the real
+`GpsStatementVerifier_2023_9` (7-builtin `starknet`), byte-identical to Ethereum
+mainnet, from vendored bytecode under
+[`contracts/starkware-verifier/`](contracts/starkware-verifier/) — and points the
+convoy `Verifier` at it. A drone's `safe_area` proof is then verified trustlessly
+on L1, and the verdict recorded only if the STARK proof backs it.
+
+Build the submitter and run it against the bundled example proof:
+
+```bash
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd):/work" -w /work/infrastructure/submitter \
+  rust:latest cargo build --release
+
+set -a; source .tmp-l1/stark-verifier.env; source deployments/local.env; set +a
+MSYS_NO_PATHCONV=1 docker run --rm --network convoy-l1 -v "$(pwd):/work" -w /work \
+  -e URL=http://ship-a:8545 \
+  -e PRIVATE_KEY=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d \
+  -e ANNOTATED_PROOF=/work/docs/examples/proof/evm_proof.json \
+  -e FACT_TOPOLOGIES=/work/docs/examples/proof/fact_topologies.json \
+  -e SAFE_AREA_VERIFY_JSON=/work/docs/examples/proof/safe_area_verify.json \
+  -e GPS_STATEMENT_VERIFIER_ADDR=$GPS_STATEMENT_VERIFIER_ADDR \
+  -e CONVOY_VERIFIER_ADDR=$CONVOY_VERIFIER_ADDR \
+  -e MERKLE_STATEMENT_CONTRACT_ADDR=$MERKLE_STATEMENT_CONTRACT_ADDR \
+  -e FRI_STATEMENT_CONTRACT_ADDR=$FRI_STATEMENT_CONTRACT_ADDR \
+  -e MEMORY_PAGE_FACT_REGISTRY_ADDR=$MEMORY_PAGE_FACT_REGISTRY_ADDR \
+  rust:latest \
+  /work/infrastructure/submitter/target/release/convoy-submitter
+
+### 7. Teardown
 
 ```bash
 docker compose -f docker-compose.l1.yml -f docker-compose.l2.yml \
