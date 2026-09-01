@@ -154,6 +154,26 @@ MSYS_NO_PATHCONV=1 docker run --rm --network convoy-l1 -v "$(pwd):/work" -w /wor
   -e MEMORY_PAGE_FACT_REGISTRY_ADDR=$MEMORY_PAGE_FACT_REGISTRY_ADDR \
   rust:latest \
   /work/infrastructure/submitter/target/release/convoy-submitter
+```
+
+Expected output — the four StarkWare phases, then the convoy verdict:
+
+```
+Phase 1: trace Merkle commits    ✓ Trace 0/1/2
+Phase 2: FRI commits             ✓ FRI 0..7
+Phase 3: memory pages            ✓ memory page 0
+Phase 4a: verifyProofAndRegister ✓   ← STARK proof verified on L1 by the real StarkWare verifier
+Phase 4b: registerSafeProof      ✓   ← verdict recorded (mission 2, drone 3 → SAFE)
+```
+
+**Phase 4a** is the trustless verification: the real StarkWare `GpsStatementVerifier`
+re-checks every Merkle/FRI/OODS constraint and registers the proof's fact on-chain.
+**Phase 4b** gates the convoy verdict on that fact — a SAFE result is unforgeable, since
+no relay can register it without a STARK proof the verifier accepts. (The bravo relay key
+is used because the example proof is for mission 2; alpha proofs use the alpha relay.)
+
+To generate your own proof from live telemetry instead of the fixture, see the prover-api
+under [`infrastructure/prover-api/`](infrastructure/prover-api/).
 
 ### 7. Teardown
 
