@@ -199,8 +199,6 @@ For hand-written UNSAFE scenarios, copy [`docs/examples/alpha_drone_3_cells.json
 
 | URL | What |
 |---|---|
-| <http://localhost:8545> | Besu L1 JSON-RPC (ship A) |
-| <http://localhost:19944> / <http://localhost:29944> | Madara alpha / bravo JSON-RPC |
 | <http://localhost:8888> | Dozzle log viewer (grouped by drone) |
 | <http://localhost:8000> | Web visualiser (`python -m http.server` in `webapp/`) |
 
