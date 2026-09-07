@@ -200,7 +200,7 @@ For hand-written UNSAFE scenarios, copy [`docs/examples/alpha_drone_3_cells.json
 | URL | What |
 |---|---|
 | <http://localhost:8888> | Dozzle log viewer (grouped by drone) |
-| <http://localhost:8000> | Web visualiser (`python -m http.server` in `webapp/`) |
+| <http://localhost:8000> | Web visualiser (`python -m http.server` in `SIMULATOR/webapp/`) |
 
 ## License
 
