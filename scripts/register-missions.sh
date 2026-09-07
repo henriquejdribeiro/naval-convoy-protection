@@ -62,6 +62,12 @@ if [ -f "${REPO_ROOT}/deployments/local.env" ]; then
 fi
 [ -z "${REGISTRY_ADDR}" ] && { echo "[register] REGISTRY_ADDR missing"; exit 1; }
 
+CONVOY_VERIFIER_ADDR="${CONVOY_VERIFIER_ADDR:-}"
+if [ -f "${REPO_ROOT}/deployments/local.env" ]; then
+    [ -z "${CONVOY_VERIFIER_ADDR}" ] && CONVOY_VERIFIER_ADDR=$(grep -E "^export CONVOY_VERIFIER_ADDR=" "${REPO_ROOT}/deployments/local.env" | cut -d= -f2 | tr -d ' ')
+fi
+[ -z "${CONVOY_VERIFIER_ADDR}" ] && { echo "[register] CONVOY_VERIFIER_ADDR missing"; exit 1; }
+
 # ── Per-swarm mission geometry ──────────────────────────────────────────────
 # Defines the "area" each swarm must clear: a 2D grid of cells, sliced into
 # one vertical strip per drone. These values MUST stay identical to
@@ -210,6 +216,25 @@ register_swarm() {
         --private-key "${COMMANDER_PK}" \
         --legacy \
         2>&1 | tail -3
+
+    # ── Step 3: register each drone's STARK-curve pubkey on the convoy Verifier
+    #    so registerSafeProof binds the proof's drone_pubkey (9th output) to an
+    #    authorised identity. Pubkeys come from generate-drone-accounts.sh.
+    #    onlyOwner → DEPLOYER_PK (same authority as setConvoyProtocolL2).
+    echo "[register/${swarm}] step 3: registering drone pubkeys on Verifier ${CONVOY_VERIFIER_ADDR}"
+    for did in 1 2 3 4 5; do
+        local pub
+        pub=$(grep "^${up}_DRONE_${did}_PUBKEY=" "${drone_env}" | cut -d= -f2)
+        [ -z "${pub}" ] && { echo "[register/${swarm}] no pubkey for drone ${did}"; return 1; }
+        echo "[register/${swarm}]   drone ${did} → ${pub}"
+        CAST send "${CONVOY_VERIFIER_ADDR}" \
+            "setDronePubkey(uint256,uint8,uint256)" \
+            "${mid}" "${did}" "${pub}" \
+            --rpc-url "${L1_RPC}" \
+            --private-key "${DEPLOYER_PK}" \
+            --legacy \
+            2>&1 | tail -2
+    done
 
     echo "[register/${swarm}] OK"
 }

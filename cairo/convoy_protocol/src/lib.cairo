@@ -129,6 +129,12 @@ pub trait IConvoyProtocol<TContractState> {
         cells_y:          Array<u32>,
         cells_p_contact:  Array<u16>,
         cells_ts:         Array<u64>,
+        // ── Route-B identity binding (drone-computed off-device) ──────────
+        cells_nonce:      felt252,   // hiding nonce the drone picked
+        commitment_h:     felt252,   // H = Pedersen(cells, nonce), drone-computed
+        drone_pubkey:     felt252,   // drone's STARK-curve public key
+        sig_r:            felt252,   // signature (r) over H
+        sig_s:            felt252,   // signature (s) over H
     );
 
     // ── Read-only views ─────────────────────────────────────────────
@@ -158,6 +164,24 @@ pub trait IConvoyProtocol<TContractState> {
 
     /// Number of cells the drone reported (0 if no submission yet).
     fn get_n_cells(self: @TContractState, mission_id: felt252, drone_id: u8) -> u32;
+
+    /// One stored telemetry cell: (x, y, p_contact, ts). A never-written
+    /// index returns zeros — callers bound with get_n_cells.
+    fn get_cell(self: @TContractState, mission_id: felt252, drone_id: u8, index: u32)
+        -> (u32, u32, u16, u64);
+
+    /// The drone's published commitment H for (mission, drone) (0 if none).
+    fn get_commitment(self: @TContractState, mission_id: felt252, drone_id: u8) -> felt252;
+
+    /// The hiding nonce the drone used (0 if none).
+    fn get_nonce(self: @TContractState, mission_id: felt252, drone_id: u8) -> felt252;
+
+    /// The drone's STARK-curve public key (0 if none).
+    fn get_pubkey(self: @TContractState, mission_id: felt252, drone_id: u8) -> felt252;
+
+    /// The drone's signature (r, s) over H ((0,0) if none).
+    fn get_signature(self: @TContractState, mission_id: felt252, drone_id: u8)
+        -> (felt252, felt252);
 }
 
 // ── Contract module ────────────────────────────────────────────────────────
@@ -240,6 +264,23 @@ mod ConvoyProtocol {
         verdicts:      Map<felt252, u8>,                // → PENDING(0)/SAFE(1)/UNSAFE(2)  (0 = default = not yet submitted)
         fail_reasons:  Map<felt252, u8>,                // → which predicate rejected it (FAIL_* code)
         n_cells_map:   Map<felt252, u32>,               // → how many cells the drone reported
+
+        // ── Route-B identity binding: signed telemetry carried for the prover ──
+        //   Scalars keyed by encode_drone_key(mid,did); cell_* keyed by
+        //   encode_cell_key(mid,did,index). fetch_l2_cells.py reads these back
+        //   to build program_input; the STARK re-derives H from cells+nonce and
+        //   verifies (sig_r,sig_s) under drone_pubkey in-proof. We only STORE
+        //   here — the tx is already drone-signed (guard 3); on-chain ECDSA /
+        //   Pedersen re-check is deferred hardening.
+        commitment:    Map<felt252, felt252>,           // → H = Pedersen(cells, nonce)
+        cells_nonce:   Map<felt252, felt252>,           // → hiding nonce (drone-picked)
+        drone_pubkey:  Map<felt252, felt252>,           // → drone STARK-curve pubkey
+        sig_r:         Map<felt252, felt252>,           // → signature r over H
+        sig_s:         Map<felt252, felt252>,           // → signature s over H
+        cell_x:        Map<felt252, u32>,               // cell_key → x
+        cell_y:        Map<felt252, u32>,               // cell_key → y
+        cell_p:        Map<felt252, u16>,               // cell_key → p_contact
+        cell_ts:       Map<felt252, u64>,               // cell_key → ts
 
         // Per-mission aggregates
         safe_count: Map<felt252, u8>,                   // mission_id → # of SAFE drones so far. THE counter relay-l2-messages reads.
@@ -329,6 +370,7 @@ mod ConvoyProtocol {
     //   `from_address` auto-filled to the L1 sender (unforgeable), which the
     //   handler checks against l1_commander_addr for authorisation.
     //
+    //
     // Shared helper _do_open_mission contains the spec-sanity checks
     // and storage writes for the l1_handler.
     #[l1_handler]
@@ -362,7 +404,6 @@ mod ConvoyProtocol {
         _do_open_mission(ref self, spec, drone_addresses);
     }
 
-    // Shared deployment body. NO authorisation check here — that's the caller's
     // job (open_mission asserts the unforgeable L1 sender). Kept separate so the
     // handler stays focused on auth.
     fn _do_open_mission(
@@ -442,14 +483,15 @@ mod ConvoyProtocol {
             ref self: ContractState,
             mission_id:       felt252,
             drone_id:         u8,
-            // Four PARALLEL arrays: cell i = (x[i], y[i], p_contact[i], ts[i]).
-            // Split into separate arrays (not an array of structs) because that's
-            // how they arrive as calldata — and it's what the `-i` stdin bug
-            // truncated (empty calldata → these mismatch at step 5).
             cells_x:          Array<u32>,
             cells_y:          Array<u32>,
             cells_p_contact:  Array<u16>,
             cells_ts:         Array<u64>,
+            cells_nonce:      felt252,
+            commitment_h:     felt252,
+            drone_pubkey:     felt252,
+            sig_r:            felt252,
+            sig_s:            felt252,
         ) {
 
             // ── GUARDS (steps 1–5): reject bad input before doing real work ──
@@ -513,6 +555,27 @@ mod ConvoyProtocol {
             self.verdicts.write(dkey, new_verdict);
             self.fail_reasons.write(dkey, fail);
             self.n_cells_map.write(dkey, n_cells);
+
+            // ── Route-B: persist the signed telemetry so the prover can fetch
+            //    it from L2 and the STARK can re-derive H + verify the drone's
+            //    signature in-proof. (evaluate_predicates took @snapshots, so
+            //    the cell arrays are still owned here and safe to index.)
+            self.commitment.write(dkey, commitment_h);
+            self.cells_nonce.write(dkey, cells_nonce);
+            self.drone_pubkey.write(dkey, drone_pubkey);
+            self.sig_r.write(dkey, sig_r);
+            self.sig_s.write(dkey, sig_s);
+
+            let mut ci: u32 = 0;
+            loop {
+                if ci >= n_cells { break; }
+                let ckey = encode_cell_key(mission_id, drone_id, ci);
+                self.cell_x.write(ckey, *cells_x.at(ci));
+                self.cell_y.write(ckey, *cells_y.at(ci));
+                self.cell_p.write(ckey, *cells_p_contact.at(ci));
+                self.cell_ts.write(ckey, *cells_ts.at(ci));
+                ci += 1_u32;
+            };
 
             self.emit(TelemetrySubmitted {
                 mission_id, drone_id,
@@ -617,6 +680,37 @@ mod ConvoyProtocol {
         ) -> u32 {
             self.n_cells_map.read(encode_drone_key(mission_id, drone_id))
         }
+
+        fn get_cell(
+            self: @ContractState, mission_id: felt252, drone_id: u8, index: u32,
+        ) -> (u32, u32, u16, u64) {
+            let ckey = encode_cell_key(mission_id, drone_id, index);
+            (
+                self.cell_x.read(ckey),
+                self.cell_y.read(ckey),
+                self.cell_p.read(ckey),
+                self.cell_ts.read(ckey),
+            )
+        }
+
+        fn get_commitment(self: @ContractState, mission_id: felt252, drone_id: u8) -> felt252 {
+            self.commitment.read(encode_drone_key(mission_id, drone_id))
+        }
+
+        fn get_nonce(self: @ContractState, mission_id: felt252, drone_id: u8) -> felt252 {
+            self.cells_nonce.read(encode_drone_key(mission_id, drone_id))
+        }
+
+        fn get_pubkey(self: @ContractState, mission_id: felt252, drone_id: u8) -> felt252 {
+            self.drone_pubkey.read(encode_drone_key(mission_id, drone_id))
+        }
+
+        fn get_signature(
+            self: @ContractState, mission_id: felt252, drone_id: u8,
+        ) -> (felt252, felt252) {
+            let dkey = encode_drone_key(mission_id, drone_id);
+            (self.sig_r.read(dkey), self.sig_s.read(dkey))
+        }
     }
 
     // ── Pure helpers ───────────────────────────────────────────────────────
@@ -630,6 +724,16 @@ mod ConvoyProtocol {
     fn encode_drone_key(mission_id: felt252, drone_id: u8) -> felt252 {
         let drone_felt: felt252 = drone_id.into();     // u8 → felt252 (infallible widening)
         mission_id * 256 + drone_felt
+    }
+
+    /// Extend a drone key with a cell index so each (mission, drone, cell) gets
+    /// its own storage slot. drone_key = mission*256 + drone (drone in low 8
+    /// bits); shift left by 2^32 and add index (a u32 < 2^32) → every
+    /// (mission, drone, index) triple stays distinct in the 252-bit field.
+    fn encode_cell_key(mission_id: felt252, drone_id: u8, index: u32) -> felt252 {
+        let base = encode_drone_key(mission_id, drone_id);
+        let index_felt: felt252 = index.into();
+        base * 0x100000000 + index_felt
     }
 
     /// Turn the stored geometry into drone_id's actual rectangle. Pure (no storage)

@@ -81,6 +81,7 @@ abigen!(
                         {"name": "stripYEnd",   "type": "uint32"},
                         {"name": "verdictBool", "type": "uint8"},
                         {"name": "commitment",  "type": "bytes32"},
+                        {"name": "dronePubkey", "type": "uint256"},
                         {"name": "nSteps",      "type": "uint256"}
                     ]
                 }
@@ -118,8 +119,8 @@ fn keccak256(data: &[u8]) -> [u8; 32] {
 
 /// Extract the six felts safe_area_verify.cairo writes via serialize_word.
 /// Returns them in declaration order: (mission_id, drone_id, coverage_permille,
-/// max_p_contact, elapsed_seconds, commitment).
-fn extract_public_outputs(annotated_proof: &AnnotatedProof) -> Result<([U256; 8], U256)> {
+/// max_p_contact, elapsed_seconds, commitment, drone_pubkey).
+fn extract_public_outputs(annotated_proof: &AnnotatedProof) -> Result<([U256; 9], U256)> {
     // The annotated proof carries the public_input shape Stone emitted;
     // its memory_segments map names a region called "output" with begin
     // and stop addresses, and public_memory is a list of (address, value)
@@ -169,23 +170,23 @@ fn extract_public_outputs(annotated_proof: &AnnotatedProof) -> Result<([U256; 8]
 
     // Bootloader-wrapped output: [simpleBootloaderProgramHash,
     // hashedSupportedCairoVerifiers, nTasks, taskOutputSize, cairoProgramHash,
-    // <8 safe_area outputs>]. We need the 8 outputs (last 8) and the Cairo
+    // <9 safe_area outputs>]. We need the 9 outputs (last 9) and the Cairo
     // program hash (word just before them) — the GPS registers its fact under
     // that Cairo hash, not keccak-of-JSON.
-    if pairs.len() < 9 {
+    if pairs.len() < 10 {
         bail!(
-            "expected at least 9 output words (program hash + 8 outputs), got {}: {:?}",
+            "expected at least 10 output words (bootloader header + program hash + 9 outputs), got {}: {:?}",
             pairs.len(),
             pairs
         );
     }
-    let cairo_program_hash = pairs[pairs.len() - 9].1;
-    let values: [U256; 8] = pairs[pairs.len() - 8..]
+    let cairo_program_hash = pairs[pairs.len() - 10].1;
+    let values: [U256; 9] = pairs[pairs.len() - 9..]
         .iter()
         .map(|p| p.1)
         .collect::<Vec<_>>()
         .try_into()
-        .map_err(|_| anyhow!("could not coerce to [U256; 8]"))?;
+        .map_err(|_| anyhow!("could not coerce to [U256; 9]"))?;
     Ok((values, cairo_program_hash))
 }
 
@@ -354,7 +355,7 @@ async fn main() -> Result<()> {
     println!("[submitter] Phase 4b: Verifier.registerSafeProof → {:?}", convoy_verifier_addr);
 
     let (outputs, cairo_program_hash) = extract_public_outputs(&annotated_proof)?;
-    let [mission_id, drone_id, sx0, sx1, sy0, sy1, verdict, commitment] = outputs;
+    let [mission_id, drone_id, sx0, sx1, sy0, sy1, verdict, commitment, drone_pubkey] = outputs;
 
     // Match the GPS fact = keccak256(abi.encode(cairoProgramHash, programOutputFact)):
     // program hash is the Cairo hash felt, output hash is the node-stack fact from the event.
@@ -385,6 +386,7 @@ async fn main() -> Result<()> {
         strip_y_end: sy1.as_u32(),
         verdict_bool: verdict.as_u32() as u8,
         commitment: commitment_bytes,
+        drone_pubkey,
         n_steps,
     };
 

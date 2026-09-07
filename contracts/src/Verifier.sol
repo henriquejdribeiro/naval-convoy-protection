@@ -49,6 +49,15 @@ contract Verifier is Ownable {
         require(newStarkVerifier != address(0), "Verifier: starkVerifier = 0x0");
         starkVerifier = IStarkVerifier(newStarkVerifier);
     }
+    /// Register the STARK-curve public key authorised to sign telemetry for
+    /// (missionId, droneIndex). onlyOwner; registerSafeProof then requires the
+    /// proof's drone_pubkey to equal this.
+    function setDronePubkey(uint256 missionId, uint8 droneIndex, uint256 pubkey)
+        external onlyOwner
+    {
+        require(pubkey != 0, "Verifier: pubkey = 0");
+        registeredDronePubkey[missionId][droneIndex] = pubkey;
+    }
 
     struct ProofRecord {
         bytes32 programHash;
@@ -61,6 +70,7 @@ contract Verifier is Ownable {
         uint32  stripYEnd;
         uint8   verdictBool;
         bytes32 commitment;
+        uint256 dronePubkey;
         uint256 nSteps;
         uint256 timestamp;
         uint256 blockNumber;
@@ -69,6 +79,9 @@ contract Verifier is Ownable {
     ProofRecord[] public proofs;
     uint256       public proofCount;
     mapping(uint256 => mapping(uint8 => bytes32)) public droneCommitment;
+
+    // ── Route-B identity binding: authorised STARK-curve pubkey per drone ──
+    mapping(uint256 => mapping(uint8 => uint256)) public registeredDronePubkey;
 
     event FactRegistered(bytes32 indexed factHash);
     event DroneVerified(
@@ -93,6 +106,7 @@ contract Verifier is Ownable {
         uint32  stripYEnd;
         uint8   verdictBool;
         bytes32 commitment;
+        uint256 dronePubkey;   // STARK-curve pubkey (proof's 9th output)
         uint256 nSteps;
     }
 
@@ -143,6 +157,15 @@ contract Verifier is Ownable {
         require(inputs.stripYStart == spec.zoneY,     "Verifier: wrong stripYStart");
         require(inputs.stripYEnd   == spec.zoneY + spec.zoneH, "Verifier: wrong stripYEnd");
 
+        // 3b. Identity gate — the proof's drone pubkey must be the one
+        //     registered for (mission, drone). Binds the verdict to an
+        //     authorised swarm identity (the proof already verified the drone's
+        //     ECDSA signature over the commitment in-circuit).
+        require(inputs.dronePubkey ==
+                registeredDronePubkey[inputs.missionId][inputs.droneIndex],
+                "Verifier: unregistered drone pubkey");
+
+
         // 4. Cryptographic gate — reuse Stage A's verification on the GPS
         factHash = keccak256(abi.encodePacked(inputs.programHash, inputs.outputHash));
         require(starkVerifier.isValid(factHash),
@@ -157,8 +180,8 @@ contract Verifier is Ownable {
             stripXStart: inputs.stripXStart, stripXEnd:   inputs.stripXEnd,
             stripYStart: inputs.stripYStart, stripYEnd:   inputs.stripYEnd,
             verdictBool: inputs.verdictBool, commitment:  inputs.commitment,
-            nSteps:      inputs.nSteps,      timestamp:   block.timestamp,
-            blockNumber: block.number
+            dronePubkey: inputs.dronePubkey, nSteps:      inputs.nSteps,
+            timestamp:   block.timestamp, blockNumber: block.number
         }));
         proofCount = proofs.length;
         droneCommitment[inputs.missionId][inputs.droneIndex] = inputs.commitment;

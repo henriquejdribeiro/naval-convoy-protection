@@ -67,34 +67,24 @@ RUN cargo install --locked --git https://github.com/zksecurity/stone-cli --tag v
     mv /usr/local/cargo/bin/stone-cli /usr/local/bin/stone-cli && \
     stone-cli --help > /dev/null
 
-# ─── Stage 1b: build path-a-runner (Stage A of L1 verification) ──────────────
-# This is the four-phase StarkWare submitter. After it runs, the fact
-# `keccak256(programHash || outputHash)` lives in GpsStatementVerifier's
-# FactRegistry. Contract addresses are env-driven at runtime so the same
-# image works against re-deploys of the verifier stack.
-#
-# stark_evm_adapter is vendored under vendor/stark-evm-adapter/; the
-# path-a-runner Cargo manifest references it via a relative path
-# dependency, so we need both directories copied in.
-# path-a-runner uses ethers-rs + stark_evm_adapter; needs rustc >= 1.88
-# (darling 0.23 / time 0.3.47 / serde_with 3.20 all require 1.88+).
-# We don't share rustc with the bootloader-cli stage (which is pinned at
-# 1.86 because of the cairo-vm is_multiple_of issue) — separate stages,
-# separate toolchains.
-FROM rust:1.88-bookworm AS path-a-runner-builder
+# ─── Stage 1b: build convoy-submitter (phases 1-4a + registerSafeProof) ──────
+# Single Rust tool that runs the four StarkWare phases AND the identity-gated
+# Verifier.registerSafeProof (replaces the old path-a-runner + submit_proof_l1.py
+# split). Uses stark_evm_adapter (vendored). Addresses come from env at runtime.
+FROM rust:1.88-bookworm AS convoy-submitter-builder
 
 WORKDIR /build
 RUN apt-get update && apt-get install -y --no-install-recommends \
         pkg-config libssl-dev && \
     rm -rf /var/lib/apt/lists/*
 
-COPY vendor/stark-evm-adapter/     /build/vendor/stark-evm-adapter/
-COPY infrastructure/path-a-runner/ /build/infrastructure/path-a-runner/
+COPY vendor/stark-evm-adapter/  /build/vendor/stark-evm-adapter/
+COPY infrastructure/submitter/  /build/infrastructure/submitter/
 
-WORKDIR /build/infrastructure/path-a-runner
-RUN cargo build --release --locked
-RUN cp target/release/path-a-runner /usr/local/bin/path-a-runner
-RUN ls -la /usr/local/bin/path-a-runner
+WORKDIR /build/infrastructure/submitter
+RUN cargo build --release
+RUN cp target/release/convoy-submitter /usr/local/bin/convoy-submitter
+RUN ls -la /usr/local/bin/convoy-submitter
 
 # ─── Stage 2: the prover-api runtime image ───────────────────────────────────
 FROM vg-prover-api-patched:latest
@@ -118,17 +108,14 @@ RUN pip3 install --no-cache-dir eth-utils
 # the simple bootloader — exactly what GpsStatementVerifier expects.
 COPY --from=stone-cli-builder /usr/local/bin/stone-cli /usr/local/bin/stone-cli
 
-# Pull path-a-runner (Stage A — phases 1-4 against StarkWare contracts)
-# in from its build stage. Reads four contract addresses from env vars
-# at runtime so a re-deploy doesn't require a rebuild.
-COPY --from=path-a-runner-builder /usr/local/bin/path-a-runner /usr/local/bin/path-a-runner
+# Pull convoy-submitter (phases 1-4b in one tool) from its build stage.
+COPY --from=convoy-submitter-builder /usr/local/bin/convoy-submitter /usr/local/bin/convoy-submitter
 
 # Replace the verifiable_grid program/entrypoint with our naval-convoy ones
 WORKDIR /app
 COPY infrastructure/prover-api/safe_area_verify.cairo /app/safe_area_verify.cairo
 COPY infrastructure/prover-api/sample_input.json      /app/sample_input.json
 COPY infrastructure/prover-api/prove_pie.py           /app/prove_pie.py
-COPY infrastructure/prover-api/submit_proof_l1.py     /app/submit_proof_l1.py
 COPY infrastructure/prover-api/fetch_l2_cells.py      /app/fetch_l2_cells.py
 COPY infrastructure/prover-api/entrypoint.sh          /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

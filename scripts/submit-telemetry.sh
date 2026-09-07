@@ -99,7 +99,23 @@ print(" ".join(parts))
 EOF
 )
 
-CALL_ARGS="${MISSION_ID} ${DRONE_ID} ${CALLDATA}"
+# ── Route-B identity binding: sign H = Pedersen(cells, nonce) with THIS
+#    drone's key and append (nonce, H, pubkey, sig_r, sig_s) to the calldata,
+#    so the STARK can verify the drone's signature in-proof. Runs in the
+#    prover-api image (cairo-lang for Pedersen+sign, starkli to read the key).
+echo "[submit/${SWARM}/${DRONE_ID}] signing telemetry commitment..."
+SIG_TAIL=$(MSYS_NO_PATHCONV=1 docker run --rm \
+    -v "${REPO_ROOT}:/work" -w /work \
+    --entrypoint python3 \
+    convoy-prover-api:latest \
+    infrastructure/prover-api/sign_telemetry.py \
+        --cells "${CELLS_JSON}" \
+        --keystore "${DRONE_KS}" \
+        --password "${KEYSTORE_PWD}" \
+        --emit-calldata)
+[ -z "${SIG_TAIL}" ] && { echo "[submit/${SWARM}/${DRONE_ID}] signing failed"; exit 1; }
+
+CALL_ARGS="${MISSION_ID} ${DRONE_ID} ${CALLDATA} ${SIG_TAIL}"
 
 echo
 echo "[submit/${SWARM}/${DRONE_ID}] submitting telemetry"

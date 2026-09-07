@@ -54,7 +54,7 @@ echo "[*] Checking tools..."
 cpu_air_prover    --help > /dev/null 2>&1 && echo "    cpu_air_prover    : OK"
 cpu_air_verifier  --help > /dev/null 2>&1 && echo "    cpu_air_verifier  : OK"
 stone-cli --help          > /dev/null 2>&1 && echo "    stone-cli         : OK"
-path-a-runner --help      > /dev/null 2>&1 && echo "    path-a-runner     : OK" || true
+convoy-submitter --help   > /dev/null 2>&1 && echo "    convoy-submitter  : OK" || true
 cast --version            > /dev/null 2>&1 && echo "    cast              : OK"
 python3 -c "import starkware; print('    cairo-lang        : ' + __import__('importlib.metadata', fromlist=['version']).version('cairo-lang'))"
 echo ""
@@ -199,67 +199,48 @@ EOPRM
         || { echo "    Ethereum serialization FAILED"; cd /; return 1; }
     cd /
 
-    # 5b. STAGE A — path-a-runner submits the four StarkWare pre-registration
-    #     phases + the main GPS proof to the deployed StarkWare contracts
-    #     on our local Geth. On success, GpsStatementVerifier.isValid(factHash)
-    #     returns true, which the convoy Verifier reads in Stage B.
-    #
-    #     Contract addresses come from env vars (set by docker-compose from
-    #     the DeployStarkVerifier.s.sol deployment summary). Skipping is
-    #     opt-in via SKIP_STAGE_A=1 (useful only for legacy mock-mode tests;
-    #     production / thesis-defence runs must NEVER skip Stage A).
+    # ── 5b/6. STAGE A+B — convoy-submitter runs the four StarkWare phases
+    #    (trace Merkle, FRI, memory pages, GpsStatementVerifier) AND the
+    #    identity-gated Verifier.registerSafeProof in one tool. STARK-suite
+    #    addresses + CONVOY_VERIFIER_ADDR come from env (docker-compose).
     if [ "${SKIP_STAGE_A:-0}" = "1" ]; then
-        echo "[!] Step 5b/7: STAGE A SKIPPED (SKIP_STAGE_A=1). Verifier.sol will revert."
+        echo "[!] Step 5b/6: SUBMISSION SKIPPED (SKIP_STAGE_A=1)."
     else
-        echo "[*] Step 5b/7: STAGE A — path-a-runner against StarkWare contracts"
-        : "${URL:?URL env var required (L1 RPC, e.g. http://ship-a:8545)}"
-        : "${PRIVATE_KEY:?PRIVATE_KEY env var required (relay-ship key)}"
-        : "${MERKLE_STATEMENT_CONTRACT_ADDR:?MERKLE_STATEMENT_CONTRACT_ADDR env var required}"
-        : "${FRI_STATEMENT_CONTRACT_ADDR:?FRI_STATEMENT_CONTRACT_ADDR env var required}"
-        : "${MEMORY_PAGE_FACT_REGISTRY_ADDR:?MEMORY_PAGE_FACT_REGISTRY_ADDR env var required}"
-        : "${GPS_STATEMENT_VERIFIER_ADDR:?GPS_STATEMENT_VERIFIER_ADDR env var required}"
+        echo "[*] Step 5b/6: convoy-submitter — phases 1-4b (GPS verify + registerSafeProof)"
+        : "${URL:?URL env var required}"
+        : "${PRIVATE_KEY:?PRIVATE_KEY env var required}"
+        : "${GPS_STATEMENT_VERIFIER_ADDR:?GPS_STATEMENT_VERIFIER_ADDR required}"
+        : "${MERKLE_STATEMENT_CONTRACT_ADDR:?MERKLE_STATEMENT_CONTRACT_ADDR required}"
+        : "${FRI_STATEMENT_CONTRACT_ADDR:?FRI_STATEMENT_CONTRACT_ADDR required}"
+        : "${MEMORY_PAGE_FACT_REGISTRY_ADDR:?MEMORY_PAGE_FACT_REGISTRY_ADDR required}"
+        # convoy Verifier addr: prefer CONVOY_VERIFIER_ADDR, fall back to VERIFIER_ADDR.
+        SUBMIT_VERIFIER="${CONVOY_VERIFIER_ADDR:-${VERIFIER_ADDR:?VERIFIER_ADDR or CONVOY_VERIFIER_ADDR required}}"
 
         ANNOTATED_PROOF="${OUTPUT_DIR}/evm_proof.json" \
         FACT_TOPOLOGIES="${OUTPUT_DIR}/fact_topologies.json" \
-        URL="${URL}" \
-        PRIVATE_KEY="${PRIVATE_KEY}" \
-        MERKLE_STATEMENT_CONTRACT_ADDR="${MERKLE_STATEMENT_CONTRACT_ADDR}" \
-        FRI_STATEMENT_CONTRACT_ADDR="${FRI_STATEMENT_CONTRACT_ADDR}" \
-        MEMORY_PAGE_FACT_REGISTRY_ADDR="${MEMORY_PAGE_FACT_REGISTRY_ADDR}" \
-        GPS_STATEMENT_VERIFIER_ADDR="${GPS_STATEMENT_VERIFIER_ADDR}" \
-            path-a-runner 2>&1 | tee "${OUTPUT_DIR}/path_a_log.txt"
+        SAFE_AREA_VERIFY_JSON="${OUTPUT_DIR}/safe_area_verify.json" \
+        CONVOY_VERIFIER_ADDR="${SUBMIT_VERIFIER}" \
+            convoy-submitter 2>&1 | tee "${OUTPUT_DIR}/submit_log.txt"
 
-        if grep -q "DONE: proof verified on L1" "${OUTPUT_DIR}/path_a_log.txt"; then
-            echo "    STAGE A: fact registered on GpsStatementVerifier"
-        else
-            echo "    STAGE A FAILED — submit_proof_l1.py will revert on isValid check"
+        if ! grep -q "^\[submitter\] DONE\." "${OUTPUT_DIR}/submit_log.txt"; then
+            echo "    SUBMISSION FAILED — see ${OUTPUT_DIR}/submit_log.txt"
             return 1
         fi
+        echo "    ✓ phases 1-4b OK — proof verified + verdict recorded on L1"
     fi
 
-    # Summary metadata
+    # Summary metadata (n_steps now lives in evm_proof.json — no public_input.json).
     python3 -c "
-import json, os
-pub = json.load(open('${OUTPUT_DIR}/public_input.json'))
-meta = {
-    'proofSize':  os.path.getsize('${OUTPUT_DIR}/proof.json'),
-    'nSteps':     pub['n_steps'],
-    'tag':        '${TAG}',
-    'inputFile':  '${INPUT_PATH}',
-    'timestamp':  __import__('datetime').datetime.now().isoformat(),
-}
-json.dump(meta, open('${OUTPUT_DIR}/proof_meta.json', 'w'), indent=2)
-print('[+] proof_meta.json written')
-"
-
-    # 6. STAGE B — application-level bookkeeping on the convoy Verifier.
-    #    Tiny tx, no proof bytes. Sends only the 11-field SafeProofInputs.
-    #    Verifier.sol asserts starkVerifier.isValid(factHash) == true
-    #    (which is the case iff Stage A ran successfully above), then
-    #    runs the strip-bounds check + Registry update + aggregation.
-    echo "[*] Step 6/7: STAGE B — submit registerSafeProof to convoy Verifier"
-    python3 /app/submit_proof_l1.py "${OUTPUT_DIR}" "${INPUT_PATH}" \
-        2>&1 | tee "${OUTPUT_DIR}/submit_log.txt"
+    import json, os
+    meta = {
+        'proofSize': os.path.getsize('${OUTPUT_DIR}/proof.json'),
+        'tag':       '${TAG}',
+        'inputFile': '${INPUT_PATH}',
+        'timestamp': __import__('datetime').datetime.now().isoformat(),
+    }
+    json.dump(meta, open('${OUTPUT_DIR}/proof_meta.json', 'w'), indent=2)
+    print('[+] proof_meta.json written')
+    "
 
     echo ""
     echo "================================================"

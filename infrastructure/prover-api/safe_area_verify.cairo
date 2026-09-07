@@ -25,7 +25,7 @@
 //
 // Public outputs (in this exact order, written via serialize_word):
 //   [mission_id, drone_id, strip_x_start, strip_x_end,
-//    strip_y_start, strip_y_end, verdict_bool, commitment_H]
+//    strip_y_start, strip_y_end, verdict_bool, commitment_H, drone_pubkey]
 //
 // These eight felts are the EXACT public-input vector that
 // ConvoyProtocol.submit_commitment builds and passes to the Cairo Verifier.
@@ -34,13 +34,14 @@
 //
 // Layout:    starknet (Cairo VM layout 6)
 // Compiler:  cairo-lang 0.14.0.1
-// Builtins:  output, pedersen, range_check (3 of the 7 in layout 6)
+// Builtins:  output, pedersen, range_check, ecdsa (4 of the 7 in layout 6)
 // =============================================================================
 
-%builtins output pedersen range_check
+%builtins output pedersen range_check ecdsa
 
-from starkware.cairo.common.cairo_builtins import HashBuiltin
+from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
 from starkware.cairo.common.hash import hash2
+from starkware.cairo.common.signature import verify_ecdsa_signature
 from starkware.cairo.common.serialize import serialize_word
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.math_cmp import is_le
@@ -199,12 +200,12 @@ func compute_coverage{range_check_ptr}(
     let coverage_ok = is_le(coverage_min, coverage_permille);
 
     return (coverage_permille=coverage_permille, coverage_ok=coverage_ok);
-}
+    }
 
-// ─────────────────────────────────────────────────────────────────────────
-//  Main entry point
-// ─────────────────────────────────────────────────────────────────────────
-func main{output_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() {
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Main entry point
+    // ─────────────────────────────────────────────────────────────────────────
+func main{output_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr, ecdsa_ptr: SignatureBuiltin*}() {
     alloc_locals;
 
     // ── 1. Read public inputs from program_input ───────────────────────
@@ -245,14 +246,19 @@ func main{output_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() {
     read_array(cells_p,  n_cells, 0, 2);
     read_array(cells_ts, n_cells, 0, 3);
 
-    // ── 3. Hiding-commitment nonce — fresh 252-bit randomness per proof ─
+    // ── 3. Drone-provided nonce + signature over the commitment ─────────
+    //   The drone picks the hiding nonce, computes H itself, and signs H
+    //   with its STARK-curve key. The nonce is an INPUT (not proof-random)
+    //   so the signature is over the same H the proof re-derives.
     local cells_nonce: felt;
+    local drone_pubkey: felt;
+    local sig_r: felt;
+    local sig_s: felt;
     %{
-        import secrets
-        # Stark prime - 1 is the largest valid felt252; randbelow(p) gives
-        # us a uniformly-random element of the prime field.
-        STARK_PRIME = 2**251 + 17 * 2**192 + 1
-        ids.cells_nonce = secrets.randbelow(STARK_PRIME)
+        ids.cells_nonce  = program_input['cells_nonce']
+        ids.drone_pubkey = program_input['drone_pubkey']
+        ids.sig_r        = program_input['sig_r']
+        ids.sig_s        = program_input['sig_s']
     %}
 
     // ── 4. Per-predicate boolean computations ──────────────────────────
@@ -294,6 +300,17 @@ func main{output_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() {
         cells_x, cells_y, cells_p, cells_ts, n_cells, 0, 0, cells_nonce,
     );
 
+    // ── 6b. Identity binding: the drone signed this exact commitment ─────
+    //   Asserts (r,s) is a valid Stark-curve signature of commitment_H under
+    //   drone_pubkey. If the cells or nonce weren't signed by that key, the
+    //   proof aborts — so the verdict is bound to a named drone identity.
+    verify_ecdsa_signature{ecdsa_ptr=ecdsa_ptr}(
+        message=commitment_H,
+        public_key=drone_pubkey,
+        signature_r=sig_r,
+        signature_s=sig_s,
+    );
+
     // ── 7. Serialise public outputs in the EXACT order ConvoyProtocol's
     //      submit_commitment builds them as public_inputs to the verifier.
     //      Any divergence breaks proof acceptance on L2.
@@ -305,6 +322,7 @@ func main{output_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() {
     serialize_word(strip_y_end);
     serialize_word(verdict_bool);
     serialize_word(commitment_H);
+    serialize_word(drone_pubkey);   // ← 9th output: binds the proof to the drone identity
 
     return ();
 }

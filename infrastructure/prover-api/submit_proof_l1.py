@@ -97,7 +97,7 @@ ALPHA_MISSION_ID = 1
 BRAVO_MISSION_ID = 2
 
 # Number of felt252 outputs the Cairo program emits via serialize_word.
-N_PUBLIC_OUTPUTS = 8
+N_PUBLIC_OUTPUTS = 9
 
 
 def keccak256(data: bytes) -> str:
@@ -145,7 +145,7 @@ def cast_call(rpc: str, contract: str, sig: str, *args: str) -> str:
 
 def extract_public_outputs(public_input_path: Path, evm_proof_path: Path | None) -> list[int]:
     """
-    Pull the 8 felt252 public outputs serialized by safe_area_verify.cairo.
+    Pull the 9 felt252 public outputs serialized by safe_area_verify.cairo.
 
     Order (must match the Cairo program's serialize_word calls):
        [mission_id, drone_id, x_start, x_end, y_start, y_end, verdict_bool, H]
@@ -214,14 +214,9 @@ def main() -> int:
 
     outputs = extract_public_outputs(public_input_path, evm_proof_path)
     (
-        mission_id,
-        drone_id,
-        x_start,
-        x_end,
-        y_start,
-        y_end,
-        verdict_bool,
-        commitment,
+        mission_id, drone_id,
+        x_start, x_end, y_start, y_end,
+        verdict_bool, commitment, drone_pubkey,
     ) = outputs
 
     # outputHash = keccak256 over the 8 output felts, 32 bytes each, big-endian.
@@ -244,6 +239,7 @@ def main() -> int:
     print(f"  strip_y_end    {y_end}")
     print(f"  verdict_bool   {verdict_bool}")
     print(f"  commitment     0x{commitment:064x}")
+    print(f"  drone_pubkey   0x{drone_pubkey:064x}")
     print()
     print("[submit] ── fact components ───────────────────────────")
     print(f"  programHash  {program_hash}")
@@ -288,17 +284,18 @@ def main() -> int:
     # No proof bytes, no FRI params, no task metadata. path-a-runner
     # already pushed those into the StarkWare FactRegistry via Stage A.
     # The convoy Verifier just asserts starkVerifier.isValid(factHash).
-    commitment_hex = f"0x{commitment:064x}"
+    commitment_hex   = f"0x{commitment:064x}"
+    drone_pubkey_hex = f"0x{drone_pubkey:x}"
     tuple_args = (
         f"({program_hash},{output_hash},"
         f"{mission_id},{drone_id},"
         f"{x_start},{x_end},{y_start},{y_end},"
-        f"{verdict_bool},{commitment_hex},{n_steps})"
+        f"{verdict_bool},{commitment_hex},{drone_pubkey_hex},{n_steps})"
     )
 
     sig = (
         "registerSafeProof("
-        "(bytes32,bytes32,uint256,uint8,uint32,uint32,uint32,uint32,uint8,bytes32,uint256))"
+        "(bytes32,bytes32,uint256,uint8,uint32,uint32,uint32,uint32,uint8,bytes32,bytes32,uint256))"
     )
 
     print(f"\n[submit] Stage B: registerSafeProof from {lane} relay key")
