@@ -78,7 +78,7 @@ wait_besu() {
 
 echo "  [1/4] L1 chain — 6 Besu QBFT validators (ships A–F)"
 echo "═══════════════════════════════════════════════════════════════"
-docker compose -f docker-compose.l1.yml up -d 2>&1 | tail -3
+docker compose --project-directory . -f LAYER1/docker-compose.l1.yml up -d 2>&1 | tail -3
 wait_besu
 
 echo
@@ -141,7 +141,7 @@ if ${already_deployed}; then
     echo "    Verifier:         ${CONVOY_VERIFIER_ADDR}"
     echo "    CommandLog:       ${COMMAND_LOG_ADDR}"
 else
-    docker compose -f docker-compose.l1.yml --profile deploy run --rm deploy-l1 2>&1 \
+    docker compose --project-directory . -f LAYER1/docker-compose.l1.yml --profile deploy run --rm deploy-l1 2>&1 \
         | grep -E "deployed at|deploy-l1\]" | head -10
 fi
 
@@ -173,19 +173,19 @@ seed_sequencer() {   # $1 = alpha | bravo
     local s="$1"
     docker ps --format '{{.Names}}' | grep -q "^convoy-madara-${s}$" && return 0
     echo "  seeding ${s} genesis (--devnet one-shot)..."
-    docker compose -f docker-compose.l1.yml -f docker-compose.l2.yml --profile seed up -d "madara-${s}-seed"
+    docker compose --project-directory . -f LAYER1/docker-compose.l1.yml -f docker-compose.l2.yml --profile seed up -d "madara-${s}-seed"
     local tries=0
     until docker logs "convoy-madara-${s}-seed" 2>&1 | grep -q "computed for #0"; do
         tries=$((tries+1)); [ "$tries" -gt 60 ] && { echo "  ${s} seed TIMEOUT"; docker logs "convoy-madara-${s}-seed" 2>&1 | tail -5; break; }
         sleep 1
     done
     sleep 4
-    docker compose -f docker-compose.l1.yml -f docker-compose.l2.yml --profile seed rm -sf "madara-${s}-seed"
+    docker compose --project-directory . -f LAYER1/docker-compose.l1.yml -f docker-compose.l2.yml --profile seed rm -sf "madara-${s}-seed"
     echo "  ${s} genesis seeded ✓"
 }
 seed_sequencer alpha
 seed_sequencer bravo
-docker compose -f docker-compose.l1.yml -f docker-compose.l2.yml --profile l2 up -d 2>&1 | tail -3
+docker compose --project-directory . -f LAYER1/docker-compose.l1.yml -f docker-compose.l2.yml --profile l2 up -d 2>&1 | tail -3
 wait_healthy "convoy-madara-alpha"     "madara-alpha (sequencer)"
 wait_healthy "convoy-madara-bravo"     "madara-bravo (sequencer)"
 wait_healthy "convoy-pathfinder-alpha-1" "pathfinder-alpha-1 (leader archive)"
