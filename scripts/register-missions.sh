@@ -25,7 +25,7 @@
 #   - L1 chain up + L1 contracts deployed (docker compose ... deploy-l1)
 #   - L2 chains up + convoy_protocol deployed (scripts/deploy-l2.sh)
 #   - 5 OZ drone accounts per swarm (scripts/generate-drone-accounts.sh)
-#   - deployments/local.env populated with Registry address (or set
+#   - LAYER1/deployments/local.env populated with Registry address (or set
 #     REGISTRY_ADDR env var explicitly)
 # =============================================================================
 
@@ -55,16 +55,16 @@ COMMANDER_PK="${COMMANDER_PK:-0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f6
 TS_START=1700000000   # mission start timestamp (unix). MUST match generate-mission.py
                        # or the telemetry cells_ts will fall outside the time window and fail the time predicate.
 
-# Resolve contract addresses — env vars win, else deployments/local.env, else fail.
+# Resolve contract addresses — env vars win, else LAYER1/deployments/local.env, else fail.
 REGISTRY_ADDR="${REGISTRY_ADDR:-}"
-if [ -f "${REPO_ROOT}/deployments/local.env" ]; then
-    [ -z "${REGISTRY_ADDR}" ] && REGISTRY_ADDR=$(grep -E "^export REGISTRY_ADDR="        "${REPO_ROOT}/deployments/local.env" | cut -d= -f2 | tr -d ' ')
+if [ -f "${REPO_ROOT}/LAYER1/deployments/local.env" ]; then
+    [ -z "${REGISTRY_ADDR}" ] && REGISTRY_ADDR=$(grep -E "^export REGISTRY_ADDR="        ${REPO_ROOT}/LAYER1/deployments/local.env | cut -d= -f2 | tr -d ' ')
 fi
 [ -z "${REGISTRY_ADDR}" ] && { echo "[register] REGISTRY_ADDR missing"; exit 1; }
 
 CONVOY_VERIFIER_ADDR="${CONVOY_VERIFIER_ADDR:-}"
-if [ -f "${REPO_ROOT}/deployments/local.env" ]; then
-    [ -z "${CONVOY_VERIFIER_ADDR}" ] && CONVOY_VERIFIER_ADDR=$(grep -E "^export CONVOY_VERIFIER_ADDR=" "${REPO_ROOT}/deployments/local.env" | cut -d= -f2 | tr -d ' ')
+if [ -f "${REPO_ROOT}/LAYER1/deployments/local.env" ]; then
+    [ -z "${CONVOY_VERIFIER_ADDR}" ] && CONVOY_VERIFIER_ADDR=$(grep -E "^export CONVOY_VERIFIER_ADDR=" "${REPO_ROOT}/LAYER1/deployments/local.env" | cut -d= -f2 | tr -d ' ')
 fi
 [ -z "${CONVOY_VERIFIER_ADDR}" ] && { echo "[register] CONVOY_VERIFIER_ADDR missing"; exit 1; }
 

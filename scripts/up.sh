@@ -7,7 +7,7 @@
 #   [1/4] L1 chain          6 Hyperledger Besu ships (PoA) + wire-mesh
 #   [2/4] L1 contracts      Registry, Verifier, CommandLog
 #                           (deterministic anvil-style addresses on a fresh
-#                            chain — match deployments/local.env)
+#                            chain — match LAYER1/deployments/local.env)
 #   [3/4] L2 stack          10 Madara nodes (1 sequencer + 4 --full followers
 #                           per swarm) + 2 leader pathfinders + 2 prover APIs
 #   [4/4] Debugger          Dozzle log viewer at http://localhost:8888,
@@ -90,7 +90,7 @@ echo "════════════════════════�
 # skip the deploy. Otherwise a re-run with old chain state would deploy
 # fresh contracts at SHIFTED addresses (deployer nonce drift), and every
 # downstream script reading local.env would point at the wrong contracts.
-. deployments/local.env
+. LAYER1/deployments/local.env
 core_has_code() {
     local a="${1:-}"; [ -z "$a" ] && return 1
     local code

@@ -79,7 +79,7 @@ One idempotent command. It:
 
 ```bash
 # recompile only if you've changed the Cairo source; artifacts are committed
-MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd)/cairo/convoy_protocol:/work" -w /work convoy-cairo-builder scarb build
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd)/LAYER2/cairo/convoy_protocol:/work" -w /work convoy-cairo-builder scarb build
 
 ./scripts/deploy-l2.sh --swarm both                 # declare + deploy convoy_protocol on both Madaras
 ./scripts/generate-drone-accounts.sh --swarm both   # 10 drone accounts, auto-funded STRK + ETH
@@ -140,7 +140,7 @@ Build the submitter and run it against the bundled example proof:
 MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd):/work" -w /work/infrastructure/submitter \
   rust:latest cargo build --release
 
-set -a; source deployments/local.env; source .tmp-l1/stark-verifier.env; set +a
+set -a; source LAYER1/deployments/local.env; source .tmp-l1/stark-verifier.env; set +a
 MSYS_NO_PATHCONV=1 docker run --rm --network convoy-l1 -v "$(pwd):/work" -w /work \
   -e URL=http://ship-a:8545 \
   -e PRIVATE_KEY=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d \

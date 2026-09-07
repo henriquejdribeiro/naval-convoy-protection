@@ -44,8 +44,8 @@ ACCOUNT_CLASS="0xe2eb8f5672af4e6a4e8a8f1b44989685e668489b0a25437733756c5a34a1d6"
 # 0.8.0, so v0.8.1 is the closest match.
 RPC_VERSION="0.8.1"
 
-SIERRA="/work/cairo/convoy_protocol/target/dev/convoy_protocol_ConvoyProtocol.contract_class.json"
-CASM="/work/cairo/convoy_protocol/target/dev/convoy_protocol_ConvoyProtocol.compiled_contract_class.json"
+SIERRA="/work/LAYER2/cairo/convoy_protocol/target/dev/convoy_protocol_ConvoyProtocol.contract_class.json"
+CASM="/work/LAYER2/cairo/convoy_protocol/target/dev/convoy_protocol_ConvoyProtocol.compiled_contract_class.json"
 
 # Run starkli inside cairo-builder, mounted at /work so it can see artefacts.
 SCARB_RUN() {
@@ -147,17 +147,17 @@ deploy_to() {
     #    the consume call — the hash bind makes only that address able
     #    to claim the message.
     #
-    #    Both addresses are read from deployments/local.env (populated
+    #    Both addresses are read from LAYER1/deployments/local.env (populated
     #    by DeployL1.s.sol) so they line up with the actually-deployed
     #    L1 contracts on the current chain.
-    local local_env="${REPO_ROOT}/deployments/local.env"
+    local local_env="${REPO_ROOT}/LAYER1/deployments/local.env"
     local l1_commander l1_verifier
     if [ -f "${local_env}" ]; then
         l1_commander=$(grep -E "^export REGISTRY_ADDR="        "${local_env}" | cut -d= -f2 | tr -d ' ')
         l1_verifier=$(  grep -E "^export CONVOY_VERIFIER_ADDR=" "${local_env}" | cut -d= -f2 | tr -d ' ')
     fi
-    [ -z "${l1_commander}" ] && { echo "[deploy-l2/${swarm}] REGISTRY_ADDR not in deployments/local.env"; return 1; }
-    [ -z "${l1_verifier}"  ] && { echo "[deploy-l2/${swarm}] CONVOY_VERIFIER_ADDR not in deployments/local.env"; return 1; }
+    [ -z "${l1_commander}" ] && { echo "[deploy-l2/${swarm}] REGISTRY_ADDR not in LAYER1/deployments/local.env"; return 1; }
+    [ -z "${l1_verifier}"  ] && { echo "[deploy-l2/${swarm}] CONVOY_VERIFIER_ADDR not in LAYER1/deployments/local.env"; return 1; }
 
     echo "[deploy-l2/${swarm}] deploying contract..."
     echo "  constructor: l1_commander=${l1_commander}, l1_verifier=${l1_verifier}"
