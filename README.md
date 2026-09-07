@@ -181,7 +181,7 @@ under [`infrastructure/prover-api/`](infrastructure/prover-api/).
 docker compose -f docker-compose.l1.yml -f docker-compose.l2.yml \
     --profile l2 --profile seed --profile proving --profile proving-direct --profile deploy \
     down -v --remove-orphans
-docker compose -f debugger/docker-compose.yml down -v --remove-orphans
+docker compose -f SIMULATOR/debugger/docker-compose.yml down -v --remove-orphans
 ```
 
 ## Drone telemetry — what `submit-telemetry.sh` does

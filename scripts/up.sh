@@ -196,7 +196,7 @@ if ! ${NO_DEBUGGER}; then
     echo "═══════════════════════════════════════════════════════════════"
     echo "  [4/4] Dozzle log viewer"
     echo "═══════════════════════════════════════════════════════════════"
-    docker compose -f debugger/docker-compose.yml up -d 2>&1 | tail -3
+    docker compose -f SIMULATOR/debugger/docker-compose.yml up -d 2>&1 | tail -3
     echo "  → http://localhost:8888  (sidebar grouped by drone hardware)"
 fi
 

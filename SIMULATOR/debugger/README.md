@@ -1,7 +1,7 @@
 # debugger/ — browser log viewer for the 24 convoy nodes
 
 ```bash
-docker compose -f debugger/docker-compose.yml up -d
+docker compose -f SIMULATOR/debugger/docker-compose.yml up -d
 # open http://localhost:8888
 ```
 
@@ -27,7 +27,7 @@ Search across the whole stack from the search box at the top.
 Stop the viewer:
 
 ```bash
-docker compose -f debugger/docker-compose.yml down
+docker compose -f SIMULATOR/debugger/docker-compose.yml down
 ```
 
 Bring the convoy stack up first with the standard
