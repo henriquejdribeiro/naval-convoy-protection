@@ -38,7 +38,7 @@ WORKDIR /build
 # Bring in everything the bootloader-cli needs to compile. cairo-bootloader
 # is a path dependency under vendor/, and cairo-vm is fetched by Cargo from
 # git at build time (no network required at runtime).
-COPY vendor/cairo-bootloader/          /build/vendor/cairo-bootloader/
+COPY PROOF/vendor/cairo-bootloader/    /build/PROOF/vendor/cairo-bootloader/
 COPY infrastructure/bootloader-cli/    /build/infrastructure/bootloader-cli/
 
 WORKDIR /build/infrastructure/bootloader-cli
@@ -78,7 +78,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         pkg-config libssl-dev && \
     rm -rf /var/lib/apt/lists/*
 
-COPY vendor/stark-evm-adapter/  /build/vendor/stark-evm-adapter/
+COPY PROOF/vendor/stark-evm-adapter/  /build/PROOF/vendor/stark-evm-adapter/
 COPY infrastructure/submitter/  /build/infrastructure/submitter/
 
 WORKDIR /build/infrastructure/submitter

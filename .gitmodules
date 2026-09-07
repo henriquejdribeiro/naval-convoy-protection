@@ -10,8 +10,8 @@
 	# index — expected, and the line below tells the parent repo to ignore it.
 	ignore = dirty
 [submodule "vendor/stark-evm-adapter"]
-	path = vendor/stark-evm-adapter
+	path = PROOF/vendor/stark-evm-adapter
 	url = https://github.com/zksecurity/stark-evm-adapter.git
 [submodule "vendor/cairo-bootloader"]
-	path = vendor/cairo-bootloader
+	path = PROOF/vendor/cairo-bootloader
 	url = https://github.com/Moonsong-Labs/cairo-bootloader.git

@@ -34,7 +34,7 @@ path = "src/main.rs"
 # Pin to the same version vendored under /vendor/stark-evm-adapter as a
 # git submodule. The path-dependency form lets us track that submodule's
 # commit hash directly without a crates.io release roundtrip.
-stark_evm_adapter = { path = "../../vendor/stark-evm-adapter" }
+stark_evm_adapter = { path = "../../PROOF/vendor/stark-evm-adapter" }
 
 ethers       = { version = "2.0", features = ["abigen", "ethers-solc"] }
 tokio        = { version = "1", features = ["full"] }

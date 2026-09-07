@@ -26,7 +26,7 @@ name = "convoy-bootloader-cli"
 path = "src/main.rs"
 
 [dependencies]
-cairo-bootloader = { path = "../../vendor/cairo-bootloader" }
+cairo-bootloader = { path = "../../PROOF/vendor/cairo-bootloader" }
 
 # Match cairo-bootloader's cairo-vm pin exactly to avoid duplicate-crate
 # version conflicts and to ensure trace/memory serialisation is identical
