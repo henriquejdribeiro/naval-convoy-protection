@@ -18,8 +18,8 @@ services:
     container_name: convoy-ship-a
     hostname: ship-a
     volumes:
-      - ./infrastructure/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
-      - ./infrastructure/besu-l1/networkFiles/keys/0x1b8926a8193ec65c3d011304bd8240bbb30cfbe3/key.priv:/config/key.priv:ro
+      - ./LAYER1/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
+      - ./LAYER1/besu-l1/networkFiles/keys/0x1b8926a8193ec65c3d011304bd8240bbb30cfbe3/key.priv:/config/key.priv:ro
       - ship-a-data:/data
     command:
       - --genesis-file=/config/genesis.json
@@ -49,8 +49,8 @@ services:
     hostname: ship-b
     depends_on: [ship-a]
     volumes:
-      - ./infrastructure/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
-      - ./infrastructure/besu-l1/networkFiles/keys/0x2f7b6c28cd816229d02825e131fd1b7b5ed35a3d/key.priv:/config/key.priv:ro
+      - ./LAYER1/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
+      - ./LAYER1/besu-l1/networkFiles/keys/0x2f7b6c28cd816229d02825e131fd1b7b5ed35a3d/key.priv:/config/key.priv:ro
       - ship-b-data:/data
     command:
       - --genesis-file=/config/genesis.json
@@ -75,8 +75,8 @@ services:
     hostname: ship-c
     depends_on: [ship-a]
     volumes:
-      - ./infrastructure/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
-      - ./infrastructure/besu-l1/networkFiles/keys/0x9a26fd747265b0c4abd15e8d8ad9e493c15efcce/key.priv:/config/key.priv:ro
+      - ./LAYER1/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
+      - ./LAYER1/besu-l1/networkFiles/keys/0x9a26fd747265b0c4abd15e8d8ad9e493c15efcce/key.priv:/config/key.priv:ro
       - ship-c-data:/data
     command:
       - --genesis-file=/config/genesis.json
@@ -101,8 +101,8 @@ services:
     hostname: ship-d
     depends_on: [ship-a]
     volumes:
-      - ./infrastructure/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
-      - ./infrastructure/besu-l1/networkFiles/keys/0x9cbbfd6876318aff280535a395dad1b07eac352c/key.priv:/config/key.priv:ro
+      - ./LAYER1/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
+      - ./LAYER1/besu-l1/networkFiles/keys/0x9cbbfd6876318aff280535a395dad1b07eac352c/key.priv:/config/key.priv:ro
       - ship-d-data:/data
     command:
       - --genesis-file=/config/genesis.json
@@ -127,8 +127,8 @@ services:
     hostname: ship-e
     depends_on: [ship-a]
     volumes:
-      - ./infrastructure/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
-      - ./infrastructure/besu-l1/networkFiles/keys/0xc41fb2e0dde63b7ea181cc65fd37a129ad8ad93a/key.priv:/config/key.priv:ro
+      - ./LAYER1/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
+      - ./LAYER1/besu-l1/networkFiles/keys/0xc41fb2e0dde63b7ea181cc65fd37a129ad8ad93a/key.priv:/config/key.priv:ro
       - ship-e-data:/data
     command:
       - --genesis-file=/config/genesis.json
@@ -153,8 +153,8 @@ services:
     hostname: ship-f
     depends_on: [ship-a]
     volumes:
-      - ./infrastructure/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
-      - ./infrastructure/besu-l1/networkFiles/keys/0xd211edae231b5ec240035cf56e8cd302bd5d0879/key.priv:/config/key.priv:ro
+      - ./LAYER1/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
+      - ./LAYER1/besu-l1/networkFiles/keys/0xd211edae231b5ec240035cf56e8cd302bd5d0879/key.priv:/config/key.priv:ro
       - ship-f-data:/data
     command:
       - --genesis-file=/config/genesis.json
