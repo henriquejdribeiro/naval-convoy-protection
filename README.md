@@ -178,7 +178,7 @@ under [`infrastructure/prover-api/`](infrastructure/prover-api/).
 ### 7. Teardown
 
 ```bash
-docker compose --project-directory . -f LAYER1/docker-compose.l1.yml -f docker-compose.l2.yml \
+docker compose --project-directory . -f LAYER1/docker-compose.l1.yml -f LAYER2/docker-compose.l2.yml \
     --profile l2 --profile seed --profile proving --profile proving-direct --profile deploy \
     down -v --remove-orphans
 docker compose -f SIMULATOR/debugger/docker-compose.yml down -v --remove-orphans
