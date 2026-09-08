@@ -1,5 +1,5 @@
 [submodule "contracts/lib/starkex-contracts"]
-	path = contracts/lib/starkex-contracts
+	path = LAYER1/contracts/lib/starkex-contracts
 	url = https://github.com/starkware-libs/starkex-contracts.git
 	# The upstream repo uses cross-tree symlinks (e.g. evm-verifier/.../FactRegistry.sol
 	# -> scalable-dex/.../FactRegistry.sol). On Windows without Developer Mode,

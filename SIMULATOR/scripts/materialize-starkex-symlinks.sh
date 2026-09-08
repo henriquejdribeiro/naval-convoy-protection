@@ -27,7 +27,7 @@
 # =============================================================================
 set -euo pipefail
 
-SUBMODULE="contracts/lib/starkex-contracts"
+SUBMODULE="LAYER1/contracts/lib/starkex-contracts"
 
 if [[ ! -d "$SUBMODULE" ]]; then
     echo "error: $SUBMODULE not found — run from repo root, and ensure submodules are initialised" >&2

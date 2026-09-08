@@ -104,7 +104,7 @@ SHARED_TIME_WINDOW=360         # seconds; every cell's timestamp must be within 
 CAST() {
     MSYS_NO_PATHCONV=1 docker run --rm --network convoy-l1 \
         --entrypoint cast \
-        -v "${REPO_ROOT}/contracts:/workspace" -w /workspace \
+        -v "${REPO_ROOT}/LAYER1/contracts:/workspace" -w /workspace \
         ghcr.io/foundry-rs/foundry:latest \
         "$@"
 }

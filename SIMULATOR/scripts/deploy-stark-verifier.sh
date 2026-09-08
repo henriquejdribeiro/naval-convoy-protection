@@ -9,7 +9,7 @@ cd "$(dirname "$0")/../.." || exit 1   # always run from repo root
 BESU=${L1_RPC:-http://ship-a:8545}
 PK=${DEPLOYER_PK:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
 NET=${DOCKER_NET:-convoy-l1}
-DIR=contracts/starkware-verifier
+DIR=LAYER1/contracts/starkware-verifier
 OUT=.tmp-l1/stark-verifier.env
 FOUNDRY=ghcr.io/foundry-rs/foundry:latest
 INIT_PREFIX=0x600b5981380380925939f3   # minimal "return the trailing runtime" deployer

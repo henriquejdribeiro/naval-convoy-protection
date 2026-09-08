@@ -206,7 +206,7 @@ services:
           --broadcast | tee /workspace/deploy-l1.log
         echo "[deploy-l1] L1 contracts deployed; run ./scripts/register-missions.sh after L2 setup"
     volumes:
-      - ./contracts:/workspace
+      - ./LAYER1/contracts:/workspace
     networks:
       - convoy-l1
 
@@ -235,7 +235,7 @@ services:
           --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
           --broadcast | tee /workspace/deploy-stark.log
     volumes:
-      - ./contracts:/workspace
+      - ./LAYER1/contracts:/workspace
     networks:
       - convoy-l1
 
