@@ -137,7 +137,7 @@ on L1, and the verdict recorded only if the STARK proof backs it.
 Build the submitter and run it against the bundled example proof:
 
 ```bash
-MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd):/work" -w /work/infrastructure/submitter \
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd):/work" -w /work/PROOF/submitter \
   rust:latest cargo build --release
 
 set -a; source LAYER1/deployments/local.env; source .tmp-l1/stark-verifier.env; set +a
@@ -153,7 +153,7 @@ MSYS_NO_PATHCONV=1 docker run --rm --network convoy-l1 -v "$(pwd):/work" -w /wor
   -e FRI_STATEMENT_CONTRACT_ADDR=$FRI_STATEMENT_CONTRACT_ADDR \
   -e MEMORY_PAGE_FACT_REGISTRY_ADDR=$MEMORY_PAGE_FACT_REGISTRY_ADDR \
   rust:latest \
-  /work/infrastructure/submitter/target/release/convoy-submitter
+  /work/PROOF/submitter/target/release/convoy-submitter
 ```
 
 Expected output — the four StarkWare phases, then the convoy verdict:

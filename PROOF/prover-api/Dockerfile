@@ -79,9 +79,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rm -rf /var/lib/apt/lists/*
 
 COPY PROOF/vendor/stark-evm-adapter/  /build/PROOF/vendor/stark-evm-adapter/
-COPY infrastructure/submitter/  /build/infrastructure/submitter/
+COPY PROOF/submitter/  /build/PROOF/submitter/
 
-WORKDIR /build/infrastructure/submitter
+WORKDIR /build/PROOF/submitter
 RUN cargo build --release
 RUN cp target/release/convoy-submitter /usr/local/bin/convoy-submitter
 RUN ls -la /usr/local/bin/convoy-submitter
