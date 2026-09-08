@@ -32,7 +32,7 @@ set -euo pipefail
 
 
 # Absolute path to the repo root (one level up from this script).
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
 # Madara devnet account #1 — pre-funded, OZ-style. Same account exists on
 # BOTH madara instances because both ran `--devnet` (deterministic genesis).

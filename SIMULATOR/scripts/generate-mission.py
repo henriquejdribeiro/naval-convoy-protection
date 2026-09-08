@@ -4,7 +4,7 @@ generate-mission.py — canonical mission generator for the convoy
 proof-of-concept (5-drone-per-swarm rev, raw-telemetry-on-L2).
 
 Writes one cells.json per drone (10 total: alpha1..5 + bravo1..5)
-in the schema `scripts/submit-telemetry.sh` consumes:
+in the schema `SIMULATOR/scripts/submit-telemetry.sh` consumes:
 
     {
       "_comment":         <human-readable label>,
@@ -56,12 +56,12 @@ reverts with "CommandLog: dual-mission not SAFE", and the relay ships
 never receive an advance event over radio.
 
 Usage:
-  python3 scripts/generate-mission.py --scenario both-safe              --output-dir /tmp/sweeps/
-  python3 scripts/generate-mission.py --scenario both-unsafe            --output-dir /tmp/sweeps/
-  python3 scripts/generate-mission.py --scenario mixed                  --output-dir /tmp/sweeps/
-  python3 scripts/generate-mission.py --scenario alpha-dropout-vanish   --output-dir /tmp/sweeps/
-  python3 scripts/generate-mission.py --scenario alpha-dropout-midflight --output-dir /tmp/sweeps/
-  python3 scripts/generate-mission.py --scenario dual-dropout           --output-dir /tmp/sweeps/
+  python3 SIMULATOR/scripts/generate-mission.py --scenario both-safe              --output-dir /tmp/sweeps/
+  python3 SIMULATOR/scripts/generate-mission.py --scenario both-unsafe            --output-dir /tmp/sweeps/
+  python3 SIMULATOR/scripts/generate-mission.py --scenario mixed                  --output-dir /tmp/sweeps/
+  python3 SIMULATOR/scripts/generate-mission.py --scenario alpha-dropout-vanish   --output-dir /tmp/sweeps/
+  python3 SIMULATOR/scripts/generate-mission.py --scenario alpha-dropout-midflight --output-dir /tmp/sweeps/
+  python3 SIMULATOR/scripts/generate-mission.py --scenario dual-dropout           --output-dir /tmp/sweeps/
 
 Output layout (one subdirectory per scenario):
   <output-dir>/<scenario>/alpha_1.json .. alpha_5.json
@@ -75,11 +75,11 @@ introspection).
 
 Feeding generated files to submit-telemetry.sh:
 
-  python3 scripts/generate-mission.py --scenario both-safe --output-dir .tmp-l2/missions/
+  python3 SIMULATOR/scripts/generate-mission.py --scenario both-safe --output-dir .tmp-l2/missions/
   for swarm in alpha bravo; do
       for did in 1 2 3 4 5; do
           f=.tmp-l2/missions/both-safe/${swarm}_${did}.json
-          [ -f "$f" ] && ./scripts/submit-telemetry.sh $swarm $did "$f"
+          [ -f "$f" ] && ./SIMULATOR/scripts/submit-telemetry.sh $swarm $did "$f"
       done
   done
 """

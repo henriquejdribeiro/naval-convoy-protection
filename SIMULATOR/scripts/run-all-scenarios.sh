@@ -2,7 +2,7 @@
 # =============================================================================
 # run-all-scenarios.sh — run every scenario and emit a pass/fail summary.
 #
-# Calls scripts/run-scenario.sh for each scenario in turn. Continues on
+# Calls SIMULATOR/scripts/run-scenario.sh for each scenario in turn. Continues on
 # failure so you get a complete picture rather than stopping at the first
 # regression.
 #

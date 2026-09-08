@@ -3,7 +3,7 @@
 # submit-telemetry.sh — fire `convoy_protocol.submit_telemetry` as one drone.
 #
 # Usage:
-#   ./scripts/submit-telemetry.sh <swarm> <drone_id> <cells.json>
+#   ./SIMULATOR/scripts/submit-telemetry.sh <swarm> <drone_id> <cells.json>
 #
 # Args:
 #   swarm     alpha | bravo
@@ -19,13 +19,13 @@
 #   }
 #
 #   All four arrays MUST have the same length. Sample inputs live in
-#   .tmp-l2/missions/<scenario>/ (produced by scripts/generate-mission.py
+#   .tmp-l2/missions/<scenario>/ (produced by SIMULATOR/scripts/generate-mission.py
 #   when that's rewritten — for now hand-write them or use the example
 #   below).
 #
 # What happens:
 #   1. Loads the drone's keystore + account file (written by
-#      scripts/generate-drone-accounts.sh into .tmp-l2/drones/<swarm>/<i>/)
+#      SIMULATOR/scripts/generate-drone-accounts.sh into .tmp-l2/drones/<swarm>/<i>/)
 #   2. Reads convoy_protocol address for that swarm from
 #      .tmp-l2/convoy_l2_<swarm>.env
 #   3. Serialises the 4 arrays into starkli calldata
@@ -44,7 +44,7 @@
 
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 RPC_VERSION="0.8.1"
 KEYSTORE_PWD="convoy"
 

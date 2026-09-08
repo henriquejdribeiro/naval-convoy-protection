@@ -25,7 +25,7 @@
 #   alpha-dropout-midflight  — α[3] verdict=0, convoy MUST hold
 #   dual-dropout             — α[3] gone + β[4] partial, convoy MUST hold
 #
-# Required env (sourced from deployments/local.env or set by docker-compose):
+# Required env (sourced from LAYER1/deployments/local.env or set by docker-compose):
 #
 #   GETH_RPC_URL                   L1 RPC (default http://localhost:8545)
 #   REGISTRY_ADDR                  Registry.sol deployed address
@@ -74,7 +74,7 @@ esac
 ALPHA_MID=1
 BRAVO_MID=2
 
-REPO_ROOT="$(cd "$(dirname "${0}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${0}")/../.." && pwd)"
 PROOFS_DIR="${REPO_ROOT}/proofs"
 MISSIONS_DIR="${PROOFS_DIR}/missions/${SCENARIO}"
 
@@ -85,7 +85,7 @@ echo "==============================================================="
 
 # Step 1: generate the per-drone inputs (vanished drones get no JSON)
 echo "[1/3] Generating mission data for ${SCENARIO}"
-python3 "${REPO_ROOT}/scripts/generate-mission.py" \
+python3 "${REPO_ROOT}/SIMULATOR/scripts/generate-mission.py" \
     --scenario "${SCENARIO}" \
     --output-dir "${MISSIONS_DIR}"
 

@@ -64,7 +64,7 @@ docker build -t convoy-cairo-builder infrastructure/cairo-builder/
 ### 3. Bring up the stack
 
 ```bash
-./scripts/up.sh            # add --no-debugger to skip the Dozzle log viewer
+./SIMULATOR/scripts/up.sh            # add --no-debugger to skip the Dozzle log viewer
 ```
 
 One idempotent command. It:
@@ -81,9 +81,9 @@ One idempotent command. It:
 # recompile only if you've changed the Cairo source; artifacts are committed
 MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd)/LAYER2/cairo/convoy_protocol:/work" -w /work convoy-cairo-builder scarb build
 
-./scripts/deploy-l2.sh --swarm both                 # declare + deploy convoy_protocol on both Madaras
-./scripts/generate-drone-accounts.sh --swarm both   # 10 drone accounts, auto-funded STRK + ETH
-./scripts/register-missions.sh --swarm both          # commander opens both missions → real L1→L2 bridge
+./SIMULATOR/scripts/deploy-l2.sh --swarm both                 # declare + deploy convoy_protocol on both Madaras
+./SIMULATOR/scripts/generate-drone-accounts.sh --swarm both   # 10 drone accounts, auto-funded STRK + ETH
+./SIMULATOR/scripts/register-missions.sh --swarm both          # commander opens both missions → real L1→L2 bridge
 ```
 
 `register-missions.sh` is the whole point: `Registry.deploy(mission_id, …)` sends a real `LogMessageToL2` through that swarm's core, and each sequencer's L1 sync **auto-consumes** it (after a 10-block finality wait) and runs `open_mission` on L2. No `open-missions.sh` — the mission opens *only* because the L1 message crossed the bridge.
@@ -110,16 +110,16 @@ MSYS_NO_PATHCONV=1 docker run --rm -i --network convoy-l1 \
 Generate per-drone telemetry, then fire all 10 submissions:
 
 ```bash
-python3 scripts/generate-mission.py --scenario both-safe --output-dir .tmp-l2/missions/
+python3 SIMULATOR/scripts/generate-mission.py --scenario both-safe --output-dir .tmp-l2/missions/
 for swarm in alpha bravo; do
   for did in 1 2 3 4 5; do
     f=.tmp-l2/missions/both-safe/${swarm}_${did}.json
-    [ -f "$f" ] && ./scripts/submit-telemetry.sh "$swarm" "$did" "$f"
+    [ -f "$f" ] && ./SIMULATOR/scripts/submit-telemetry.sh "$swarm" "$did" "$f"
   done
 done
 ```
 
-Scenarios (see [`scripts/generate-mission.py`](scripts/generate-mission.py)): `both-safe`, `both-unsafe`, `mixed`, `alpha-dropout-vanish`, `alpha-dropout-midflight`, `dual-dropout`. Dropout scenarios omit the affected drone's file; the loop skips missing files, modelling real loss-of-comms.
+Scenarios (see [`SIMULATOR/scripts/generate-mission.py`](SIMULATOR/scripts/generate-mission.py)): `both-safe`, `both-unsafe`, `mixed`, `alpha-dropout-vanish`, `alpha-dropout-midflight`, `dual-dropout`. Dropout scenarios omit the affected drone's file; the loop skips missing files, modelling real loss-of-comms.
 
 When the 5th SAFE submission lands in a swarm, `convoy_protocol` emits `MissionSafe` and fires `send_message_to_l1_syscall` with payload `[mission_id, n_drones]`.
 

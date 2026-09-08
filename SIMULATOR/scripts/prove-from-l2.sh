@@ -28,7 +28,7 @@
 # =============================================================================
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 . "${REPO_ROOT}/.tmp-l2/convoy_l2.env"   # provides CONVOY_PROTOCOL_ADDR + ACCOUNT_ADDR
 
 CONTRACT="${CONVOY_PROTOCOL_ADDR}"

@@ -47,7 +47,7 @@
 set -euo pipefail
 
 # absolute path to the repo root (parent of this script)
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
 # Starknet RPC version to use for starkli calls. Madara's RPC is pinned to 0.8.1, so starkli must match.
 RPC_VERSION="0.8.1"

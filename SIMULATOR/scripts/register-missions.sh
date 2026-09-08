@@ -41,7 +41,7 @@ set -euo pipefail
 # Kept absolute — it's passed to `docker run -v "${REPO_ROOT}:/work"` (Docker
 # requires an absolute host path) and used to read the .tmp-l2/*.env files
 # written by deploy-l2.sh and generate-drone-accounts.sh.
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
 # ── Tunables ──────────────────────────────────────────────────────────────
 # Every value is ${VAR:-default}: set the env var to override, else use the
