@@ -58,7 +58,7 @@ cd naval-convoy-protection
 Bundles scarb, starkli, and the `starknet-sierra-compile` / `compute-casm-hash` helpers — all Cairo/Starknet tooling runs inside it, so nothing Cairo-related is installed on the host.
 
 ```bash
-docker build -t convoy-cairo-builder infrastructure/cairo-builder/
+docker build -t convoy-cairo-builder PROOF/cairo-builder/
 ```
 
 ### 3. Bring up the stack
