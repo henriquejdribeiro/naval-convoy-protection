@@ -108,7 +108,7 @@ SIG_TAIL=$(MSYS_NO_PATHCONV=1 docker run --rm \
     -v "${REPO_ROOT}:/work" -w /work \
     --entrypoint python3 \
     convoy-prover-api:latest \
-    infrastructure/prover-api/sign_telemetry.py \
+    PROOF/prover-api/sign_telemetry.py \
         --cells "${CELLS_JSON}" \
         --keystore "${DRONE_KS}" \
         --password "${KEYSTORE_PWD}" \

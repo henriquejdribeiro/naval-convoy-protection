@@ -154,7 +154,7 @@ services:
   prover-api-alpha:
     build:
       context: .
-      dockerfile: infrastructure/prover-api/Dockerfile
+      dockerfile: PROOF/prover-api/Dockerfile
     image: convoy-prover-api:latest
     container_name: convoy-prover-api-alpha
     labels: { dev.dozzle.group: "Alpha 1 (leader)" }

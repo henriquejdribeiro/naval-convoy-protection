@@ -113,11 +113,11 @@ COPY --from=convoy-submitter-builder /usr/local/bin/convoy-submitter /usr/local/
 
 # Replace the verifiable_grid program/entrypoint with our naval-convoy ones
 WORKDIR /app
-COPY infrastructure/prover-api/safe_area_verify.cairo /app/safe_area_verify.cairo
-COPY infrastructure/prover-api/sample_input.json      /app/sample_input.json
-COPY infrastructure/prover-api/prove_pie.py           /app/prove_pie.py
-COPY infrastructure/prover-api/fetch_l2_cells.py      /app/fetch_l2_cells.py
-COPY infrastructure/prover-api/entrypoint.sh          /app/entrypoint.sh
+COPY PROOF/prover-api/safe_area_verify.cairo /app/safe_area_verify.cairo
+COPY PROOF/prover-api/sample_input.json      /app/sample_input.json
+COPY PROOF/prover-api/prove_pie.py           /app/prove_pie.py
+COPY PROOF/prover-api/fetch_l2_cells.py      /app/fetch_l2_cells.py
+COPY PROOF/prover-api/entrypoint.sh          /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 # Starkli — used by fetch_l2_cells.py to query convoy_protocol via Pathfinder.
