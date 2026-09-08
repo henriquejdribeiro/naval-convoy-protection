@@ -77,7 +77,7 @@ infrastructure/bootloader-cli/target/
 infrastructure/submitter/target/
 
 # runtime output 
-bootstrap/output/
+LAYER1/bootstrap/output/
 # Scratch artifacts from the StarkWare 2023_9 verifier deploy + MSB proving (2026-09)
 /cfv_creation.hex
 /cfv_deploy.hex

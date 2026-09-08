@@ -102,15 +102,15 @@ core_has_code() {
 CORE_ADDR=""
 bootstrap_core() {   # $1=swarm  $2=config file  $3=deployer key
     local swarm="$1" cfg="$2" key="$3"
-    local out="${REPO_ROOT}/bootstrap/output/addresses-${swarm}.json"
+    local out="${REPO_ROOT}/LAYER1/bootstrap/output/addresses-${swarm}.json"
     CORE_ADDR=""
     [ -f "${out}" ] && CORE_ADDR=$(grep -oE '"coreContract"[^"]*"0x[0-9a-fA-F]+"' "${out}" | head -1 | grep -oE '0x[0-9a-fA-F]+')
     if core_has_code "${CORE_ADDR}"; then echo "  reusing ${swarm} core ${CORE_ADDR}"; return 0; fi
     echo "  deploying ${swarm} Starknet core (bootstrapper-v2 setup-base)..."
-    mkdir -p "${REPO_ROOT}/bootstrap/output"; printf '{}' > "${out}"
+    mkdir -p "${REPO_ROOT}/LAYER1/bootstrap/output"; printf '{}' > "${out}"
     MSYS_NO_PATHCONV=1 docker run --rm -w /app/build-artifacts \
         -e BASE_LAYER_PRIVATE_KEY="${key}" \
-        -v "${REPO_ROOT}/bootstrap:/bootstrap" \
+        -v "${REPO_ROOT}/LAYER1/bootstrap:/bootstrap" \
         ghcr.io/madara-alliance/bootstrapper-v2:nightly-b185bb3 \
         setup-base --config-path "/bootstrap/${cfg}" \
         --addresses-output-path "/bootstrap/output/addresses-${swarm}.json" 2>&1 \
