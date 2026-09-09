@@ -87,7 +87,7 @@ RUN cp target/release/convoy-submitter /usr/local/bin/convoy-submitter
 RUN ls -la /usr/local/bin/convoy-submitter
 
 # ─── Stage 2: the prover-api runtime image ───────────────────────────────────
-FROM vg-prover-api-patched:latest
+FROM ghcr.io/henriquejdribeiro/vg-prover-api-patched:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 
