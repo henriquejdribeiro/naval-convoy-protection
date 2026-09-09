@@ -73,7 +73,7 @@ out/
 _orch
 infrastructure/path-a-runner/target/
 infrastructure/path-a-runner/Cargo.lock
-infrastructure/bootloader-cli/target/
+PROOF/bootloader-cli/target/
 PROOF/submitter/target/
 
 # runtime output 

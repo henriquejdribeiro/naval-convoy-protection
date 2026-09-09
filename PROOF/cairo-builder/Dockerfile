@@ -32,7 +32,7 @@ RUN ln -s /root/.cargo/bin/starknet-sierra-compile /usr/local/bin/starknet-sierr
 # Build our own compute-casm-hash binary that uses cairo-lang-starknet-classes
 # 2.12.3 (Madara v0.10.0's exact version). starkli's bundled version is 2.11.4,
 # which hashes the same CASM bytes differently, so we override with --casm-hash
-# at declare time. Source: infrastructure/cairo-builder/compute-casm-hash/.
+# at declare time. Source: PROOF/cairo-builder/compute-casm-hash/.
 COPY compute-casm-hash /tmp/compute-casm-hash
 RUN cd /tmp/compute-casm-hash && cargo install --path . --locked
 RUN ln -s /root/.cargo/bin/compute-casm-hash /usr/local/bin/compute-casm-hash

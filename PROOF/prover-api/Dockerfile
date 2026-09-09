@@ -39,9 +39,9 @@ WORKDIR /build
 # is a path dependency under vendor/, and cairo-vm is fetched by Cargo from
 # git at build time (no network required at runtime).
 COPY PROOF/vendor/cairo-bootloader/    /build/PROOF/vendor/cairo-bootloader/
-COPY infrastructure/bootloader-cli/    /build/infrastructure/bootloader-cli/
+COPY PROOF/bootloader-cli/    /build/PROOF/bootloader-cli/
 
-WORKDIR /build/infrastructure/bootloader-cli
+WORKDIR /build/PROOF/bootloader-cli
 # First a `cargo generate-lockfile` (via `cargo update`) so we have a
 # Cargo.lock to constrain. Then force-downgrade the two problematic crates
 # whose latest versions require Rust >= 1.88. The pinned versions are

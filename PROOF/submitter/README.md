@@ -29,7 +29,7 @@ One-time, takes a few minutes on first build to fetch ethers and
 related dependencies:
 
 ```bash
-cd infrastructure/submitter
+cd PROOF/submitter
 cargo build --release
 # binary at target/release/convoy-submitter
 ```
