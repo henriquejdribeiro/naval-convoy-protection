@@ -107,73 +107,59 @@ MSYS_NO_PATHCONV=1 docker run --rm -i --network convoy-l1 \
 
 ### 5. Run a mission
 
-Generate per-drone telemetry, then fire all 10 submissions:
+Generate per-drone telemetry — the "world" producing ground-truth sweeps — then have a drone submit its sweep to L2. Each drone **signs and submits from inside its own signer machine** (`convoy-machine-<swarm>-<N>`): the STARK-curve key is born in the machine's Docker volume via `starkli signer keystore new` and never touches the host.
 
 ```bash
 python3 SIMULATOR/scripts/generate-mission.py --scenario both-safe --output-dir .tmp-l2/missions/
-for swarm in alpha bravo; do
-  for did in 1 2 3 4 5; do
-    f=.tmp-l2/missions/both-safe/${swarm}_${did}.json
-    [ -f "$f" ] && ./SIMULATOR/scripts/submit-telemetry.sh "$swarm" "$did" "$f"
-  done
-done
+
+# submit one drone's sweep — signs H = Pedersen(cells, nonce) in the machine, then invokes submit_telemetry
+./SIMULATOR/scripts/submit-telemetry.sh bravo 3 .tmp-l2/missions/both-safe/bravo_3.json
 ```
 
-Scenarios (see [`SIMULATOR/scripts/generate-mission.py`](SIMULATOR/scripts/generate-mission.py)): `both-safe`, `both-unsafe`, `mixed`, `alpha-dropout-vanish`, `alpha-dropout-midflight`, `dual-dropout`. Dropout scenarios omit the affected drone's file; the loop skips missing files, modelling real loss-of-comms.
+`submit-telemetry.sh` is a keyless orchestrator: it `docker exec`s into `convoy-machine-bravo-3` to (a) sign the telemetry commitment and (b) `starkli invoke submit_telemetry`. The contract's identity gate accepts the tx only because the machine's account is the one registered for `(mission 2, drone 3)` — see §4.
 
-When the 5th SAFE submission lands in a swarm, `convoy_protocol` emits `MissionSafe` and fires `send_message_to_l1_syscall` with payload `[mission_id, n_drones]`.
+Scenarios (see [`SIMULATOR/scripts/generate-mission.py`](SIMULATOR/scripts/generate-mission.py)): `both-safe`, `both-unsafe`, `mixed`, `alpha-dropout-vanish`, `alpha-dropout-midflight`, `dual-dropout`.
 
-> **L2→L1 verdict.** The verdict is settled on L1 by verifying a `safe_area` STARK proof on the real StarkWare verifier — see [§6, Verify a compliance proof on L1](#6-verify-a-compliance-proof-on-l1).
+> **Per-drone machines** are currently provisioned for the spike drone `bravo-3`; templating to all 10 is in progress. When all five drones in a swarm land SAFE, `convoy_protocol` emits `MissionSafe` and fires `send_message_to_l1_syscall` with `[mission_id, n_drones]`.
 
-### 6. Verify a compliance proof on L1
+### 6. Prove the telemetry and verify on L1
 
-`up.sh` deploys the **genuine StarkWare STARK verifier** on Besu — the real
-`GpsStatementVerifier_2023_9` (7-builtin `starknet`), byte-identical to Ethereum
-mainnet, from vendored bytecode under
-[`contracts/starkware-verifier/`](contracts/starkware-verifier/) — and points the
-convoy `Verifier` at it. A drone's `safe_area` proof is then verified trustlessly
-on L1, and the verdict recorded only if the STARK proof backs it.
-
-Build the submitter and run it against the bundled example proof:
+The proof is generated **from the telemetry the drone actually submitted to L2** — not a fixture. `fetch_l2_cells.py` reads the signed cells + nonce + public key + signature back out of `convoy_protocol`; the prover re-derives `H = Pedersen(cells, nonce)`, verifies the drone's ECDSA signature **in-circuit**, and produces a Stone STARK proof. `convoy-submitter` then verifies that proof on the **genuine StarkWare `GpsStatementVerifier`** (deployed on Besu by `up.sh`, byte-identical to Ethereum mainnet) and records the verdict via `registerSafeProof`.
 
 ```bash
-MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd):/work" -w /work/PROOF/submitter \
-  rust:latest cargo build --release
+CONV=$(grep CONVOY_PROTOCOL_ADDR_BRAVO .tmp-l2/convoy_l2.env | cut -d= -f2)
 
-set -a; source LAYER1/deployments/local.env; source .tmp-l1/stark-verifier.env; set +a
-MSYS_NO_PATHCONV=1 docker run --rm --network convoy-l1 -v "$(pwd):/work" -w /work \
-  -e URL=http://ship-a:8545 \
-  -e PRIVATE_KEY=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d \
-  -e ANNOTATED_PROOF=/work/docs/examples/proof/evm_proof.json \
-  -e FACT_TOPOLOGIES=/work/docs/examples/proof/fact_topologies.json \
-  -e SAFE_AREA_VERIFY_JSON=/work/docs/examples/proof/safe_area_verify.json \
-  -e GPS_STATEMENT_VERIFIER_ADDR=$GPS_STATEMENT_VERIFIER_ADDR \
-  -e CONVOY_VERIFIER_ADDR=$CONVOY_VERIFIER_ADDR \
-  -e MERKLE_STATEMENT_CONTRACT_ADDR=$MERKLE_STATEMENT_CONTRACT_ADDR \
-  -e FRI_STATEMENT_CONTRACT_ADDR=$FRI_STATEMENT_CONTRACT_ADDR \
-  -e MEMORY_PAGE_FACT_REGISTRY_ADDR=$MEMORY_PAGE_FACT_REGISTRY_ADDR \
-  rust:latest \
-  /work/PROOF/submitter/target/release/convoy-submitter
+# 1. fetch the drone's SIGNED telemetry from L2 into the prover's input
+MSYS_NO_PATHCONV=1 docker exec convoy-prover-api-bravo \
+  python3 /app/fetch_l2_cells.py \
+    --rpc http://convoy-madara-bravo:9944/rpc/v0.8.1 \
+    --contract "$CONV" --mission_id 2 --drone-id 3 \
+    --output /proofs/l2_input.json
+
+# 2. trigger the prover on that input
+MSYS_NO_PATHCONV=1 docker exec convoy-prover-api-bravo \
+  sh -c 'echo "input=/proofs/l2_input.json tag=bravo3" > /proofs/prove_trigger'
+
+# 3. watch the pipeline (the Stone prove takes a few minutes)
+docker logs -f convoy-prover-api-bravo
 ```
 
-Expected output — the four StarkWare phases, then the convoy verdict:
+Expected output — cairo execution, the Stone prove, and `convoy-submitter`'s four StarkWare phases, ending in the convoy verdict:
 
 ```
-Phase 1: trace Merkle commits    ✓ Trace 0/1/2
-Phase 2: FRI commits             ✓ FRI 0..7
-Phase 3: memory pages            ✓ memory page 0
-Phase 4a: verifyProofAndRegister ✓   ← STARK proof verified on L1 by the real StarkWare verifier
-Phase 4b: registerSafeProof      ✓   ← verdict recorded (mission 2, drone 3 → SAFE)
+Step 2b: stone-cli prove-bootloader   Created proof at proof.json   proof bytes: ~980K
+Step 4:  stone-cli verify             Verification successful! PASSED
+Phase 1: trace Merkle commits         ✓ Trace 0/1/2
+Phase 2: FRI commits                  ✓ FRI 0..7
+Phase 3: memory pages                 ✓ memory page 0
+Phase 4a: verifyProofAndRegister      ✓   ← STARK proof verified on L1 by the real StarkWare verifier
+Phase 4b: registerSafeProof           ✓   ← mission 2, drone 3 → verdict SAFE
+PIPELINE COMPLETE
 ```
 
-**Phase 4a** is the trustless verification: the real StarkWare `GpsStatementVerifier`
-re-checks every Merkle/FRI/OODS constraint and registers the proof's fact on-chain.
-**Phase 4b** gates the convoy verdict on that fact — a SAFE result is unforgeable, since
-no relay can register it without a STARK proof the verifier accepts. (The bravo relay key
-is used because the example proof is for mission 2; alpha proofs use the alpha relay.)
+**Phase 4a** is the trustless verification: the real StarkWare `GpsStatementVerifier` re-checks every Merkle/FRI/OODS constraint and registers the proof's fact on-chain. **Phase 4b** gates the convoy verdict on that fact **and** the drone's registered public key — a SAFE result is unforgeable, because no relay can register it without (a) a STARK proof the verifier accepts and (b) the in-proof ECDSA binding it to the drone whose key signed the telemetry on L2.
 
-To generate your own proof from live telemetry instead of the fixture, see the prover-api
-under [`infrastructure/prover-api/`](infrastructure/prover-api/).
+The proof, its Ethereum-serialized form, and metadata are written under the prover's `/proofs` volume (`proof.json`, `evm_proof.json`, `proof_meta.json`).
 
 ### 7. Teardown
 
