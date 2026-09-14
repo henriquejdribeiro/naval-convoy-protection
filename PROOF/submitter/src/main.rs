@@ -29,11 +29,11 @@
 //!     This binary parses those from the annotated proof's public memory
 //!     to populate the SafeProofInputs tuple, then derives programHash
 //!     and outputHash by keccak-hashing the appropriate inputs (matching
-//!     submit_proof_l1.py's logic so the on-chain fact hash agrees).
+//!     the verifier's expected hashing so the on-chain fact hash agrees).
 //!
 //! Build (one-time, ~3–5 min on first build to fetch ethers + dependencies):
 //!
-//!     cd infrastructure/submitter
+//!     cd PROOF/submitter
 //!     cargo build --release
 //!
 //! Then invoke from entrypoint.sh after gen-annotated-proof has produced
@@ -192,7 +192,7 @@ fn extract_public_outputs(annotated_proof: &AnnotatedProof) -> Result<([U256; 9]
 
 /// Reconstruct the programHash by keccak-hashing the compact JSON encoding
 /// of the `data` field in the compiled Cairo program. Matches
-/// submit_proof_l1.py's logic exactly.
+/// follows the verifier's fact-hashing exactly.
 fn compute_program_hash(safe_area_verify_json: &str) -> Result<[u8; 32]> {
     let parsed: serde_json::Value =
         serde_json::from_str(safe_area_verify_json).context("safe_area_verify.json not JSON")?;

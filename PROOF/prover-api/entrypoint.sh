@@ -10,9 +10,8 @@
 #   4. cpu_air_verifier                → off-chain verification (gate!)
 #   5. stone-cli serialize-proof       → Ethereum-shaped proof JSON
 #      (== stark_evm_adapter gen-annotated-proof, byte-identical)
-#   6. path-a-runner                   → 4-phase StarkWare submission
-#      (uses stark-evm-adapter Rust library for split_fri_merkle_statements)
-#   7. submit_proof_l1.py              → Verifier.registerSafeProof on L1
+#   6. convoy-submitter                → 4-phase StarkWare submission (uses the
+#      vendored stark-evm-adapter lib) + Verifier.registerSafeProof on L1
 #
 # Triggers:
 #   - On boot, runs the canonical SAFE input from sample_input.json
@@ -24,7 +23,7 @@
 #   public_input.json        StarkWare public inputs
 #   private_input.json       StarkWare private inputs
 #   proof.json               Stone STARK proof
-#   evm_proof.json           EVM-adapted proof (consumed by submit_proof_l1)
+#   evm_proof.json           EVM-adapted proof (consumed by convoy-submitter)
 #   proof_meta.json          summary (proofSize, nSteps, timestamps)
 #   submit_log.json          tx hash + factHash from L1 submission
 # =============================================================================

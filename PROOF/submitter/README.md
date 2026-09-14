@@ -103,7 +103,5 @@ of lines of complex field-element arithmetic and Merkle accounting).
 The thinnest wrapper around the existing library is a small Rust
 binary; that is what this crate is.
 
-`infrastructure/prover-api/submit_proof_l1.py` is now used **only**
-for Phase 4 alone, against the mock verifier — it cannot perform
-Phases 1–3. With the real `GpsStatementVerifier`, you must use this
-binary.
+With the real `GpsStatementVerifier`, all four phases run through this
+binary (`convoy-submitter`) — there is no separate Python submission step.

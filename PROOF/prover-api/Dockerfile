@@ -42,7 +42,7 @@ RUN cargo install --locked --git https://github.com/zksecurity/stone-cli --tag v
 
 # ─── Stage 1b: build convoy-submitter (phases 1-4a + registerSafeProof) ──────
 # Single Rust tool that runs the four StarkWare phases AND the identity-gated
-# Verifier.registerSafeProof (replaces the old path-a-runner + submit_proof_l1.py
+# Verifier.registerSafeProof (replaces the old path-a-runner + Python submission
 # split). Uses stark_evm_adapter (vendored). Addresses come from env at runtime.
 FROM rust:1.88-bookworm AS convoy-submitter-builder
 
@@ -88,9 +88,8 @@ RUN echo "=== ldd cpu_air_prover ===";   ldd /usr/local/bin/cpu_air_prover   || 
     echo "=== cpu_air_prover --help ==="; cpu_air_prover --help 2>&1 | head -5 || true; \
     echo "=== cpu_air_verifier --help ==="; cpu_air_verifier --help 2>&1 | head -5 || true
 
-# Foundry's `cast` — used by the legacy submit_proof_l1.py path against the
-# mock verifier. The real-verifier path goes through convoy-submitter (Rust)
-# and is built separately.
+# Foundry's `cast` — L1 convenience CLI. The proof-submission path goes through
+# convoy-submitter (Rust); cast is not on the critical path.
 RUN curl -L https://foundry.paradigm.xyz | bash || true
 ENV PATH="/root/.foundry/bin:${PATH}"
 RUN /root/.foundry/bin/foundryup -i stable && \
