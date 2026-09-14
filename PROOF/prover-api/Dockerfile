@@ -42,8 +42,8 @@ RUN cargo install --locked --git https://github.com/zksecurity/stone-cli --tag v
 
 # ─── Stage 1b: build convoy-submitter (phases 1-4a + registerSafeProof) ──────
 # Single Rust tool that runs the four StarkWare phases AND the identity-gated
-# Verifier.registerSafeProof (replaces the old path-a-runner + Python submission
-# split). Uses stark_evm_adapter (vendored). Addresses come from env at runtime.
+# Verifier.registerSafeProof (replaces the the earlier submitters.
+# Uses stark_evm_adapter (vendored). Addresses come from env at runtime.
 FROM rust:1.88-bookworm AS convoy-submitter-builder
 
 WORKDIR /build
@@ -107,7 +107,7 @@ COPY --from=stone-cli-builder /usr/local/bin/stone-cli /usr/local/bin/stone-cli
 # Pull convoy-submitter (phases 1-4b in one tool) from its build stage.
 COPY --from=convoy-submitter-builder /usr/local/bin/convoy-submitter /usr/local/bin/convoy-submitter
 
-# Replace the verifiable_grid program/entrypoint with our naval-convoy ones
+# Install the naval-convoy program + scripts + entrypoint
 WORKDIR /app
 COPY PROOF/prover-api/safe_area_verify.cairo /app/safe_area_verify.cairo
 COPY PROOF/prover-api/fetch_l2_cells.py      /app/fetch_l2_cells.py

@@ -44,7 +44,7 @@ mkdir -p "${OUTPUT_DIR}"
 echo "============================================"
 echo "  naval-convoy Phase 3 Stone prover"
 echo "  cairo-compile + cairo-run + stone-cli prove-bootloader"
-echo "  + stone-cli serialize-proof + path-a-runner L1 submission"
+echo "  + stone-cli serialize-proof + convoy-submitter L1 submission"
 echo "============================================"
 
 # ── Tool sanity ────────────────────────────────────────────────────────
@@ -177,9 +177,9 @@ EOPRM
     #    Ethereum" lives INSIDE stone-cli itself. Empirically byte-identical
     #    to stark_evm_adapter gen-annotated-proof (same SHA-256), so we use
     #    stone-cli's own serializer — one binary, one source of truth.
-    #    path-a-runner still consumes evm_proof.json downstream; the
+    #    convoy-submitter still consumes evm_proof.json downstream; the
     #    split-into-4-phases logic lives in the stark-evm-adapter Rust
-    #    library (linked into path-a-runner), not the CLI.
+    #    library (linked into convoy-submitter), not the CLI.
     echo "[*] Step 5/7: stone-cli serialize-proof --network ethereum"
     cd "${OUTPUT_DIR}" && stone-cli serialize-proof \
         --proof proof.json \

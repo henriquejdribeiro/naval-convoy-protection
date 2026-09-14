@@ -12,7 +12,7 @@ Runs inside the prover-api image (has cairo-lang for Pedersen+sign AND starkli
 to decrypt the keystore). Example:
 
     docker run --rm --entrypoint python3 -v "$(pwd):/work" -w /work \
-        convoy-prover-api:latest infrastructure/prover-api/sign_telemetry.py \
+        convoy-prover-api:latest PROOF/prover-api/sign_telemetry.py \
             --cells cells.json \
             --keystore .tmp-l2/drones/bravo/3/keystore.json \
             --password convoy --out /dev/stdout

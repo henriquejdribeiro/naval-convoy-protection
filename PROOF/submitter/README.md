@@ -48,7 +48,7 @@ Before invoking, you need:
 
 - A working Stone-prover output (`proof.json`, `evm_proof.json`,
   `fact_topologies.json`, plus the compiled `safe_area_verify.json`) —
-  produced by `infrastructure/prover-api/entrypoint.sh`.
+  produced by `PROOF/prover-api/entrypoint.sh`.
 - A live L1 deployment of `DeployStarkVerifier` and `DeployL1`. The
   four StarkWare contract addresses + our Verifier address are needed
   as env vars.
