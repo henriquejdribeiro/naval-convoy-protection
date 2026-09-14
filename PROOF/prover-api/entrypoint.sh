@@ -2,7 +2,6 @@
 # =============================================================================
 # entrypoint.sh — naval-convoy Phase 3 prover-api
 #
-# Adapted from verifiable_grid/infrastructure/prover-api/entrypoint.sh.
 # Pipeline:
 #   1. Compile safe_area_verify.cairo (proof_mode)         once at boot
 #   2. Run cairo-run with program_input → trace + memory + public_input
@@ -14,7 +13,7 @@
 #      vendored stark-evm-adapter lib) + Verifier.registerSafeProof on L1
 #
 # Triggers:
-#   - On boot, runs the canonical SAFE input from sample_input.json
+#   - Idles at boot (no self-prove); proves on demand from /proofs/prove_trigger
 #   - Watches /proofs/prove_trigger for re-runs (write a tag, touch the file)
 #
 # Output volume layout (/proofs):
@@ -70,12 +69,6 @@ print('    builtins:', p.get('builtins', []))
 print('    code size:', len(p.get('data', [])), 'felts')
 "
 echo ""
-
-# Default input — copy sample if no program_input.json yet
-if [ ! -f "${INPUT_FILE_DEFAULT}" ]; then
-    echo "[*] No program_input.json — using sample_input.json"
-    cp /app/sample_input.json "${INPUT_FILE_DEFAULT}"
-fi
 
 # ── prove() — generate + verify + adapt + submit a single proof ────────
 prove_one() {
@@ -251,9 +244,7 @@ print('[+] proof_meta.json written')
     echo "================================================"
 }
 
-# Boot run
-prove_one "${INPUT_FILE_DEFAULT}" "boot-bravo-safe" || \
-    echo "[!] boot prove failed — container stays alive for debugging"
+# No boot self-prove — compile is done; idle until a prove_trigger is written.
 
 echo ""
 echo "[*] Container alive. Re-prove with:"
