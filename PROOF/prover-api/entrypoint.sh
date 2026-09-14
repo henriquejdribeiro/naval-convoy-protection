@@ -231,16 +231,16 @@ EOPRM
 
     # Summary metadata (n_steps now lives in evm_proof.json — no public_input.json).
     python3 -c "
-    import json, os
-    meta = {
-        'proofSize': os.path.getsize('${OUTPUT_DIR}/proof.json'),
-        'tag':       '${TAG}',
-        'inputFile': '${INPUT_PATH}',
-        'timestamp': __import__('datetime').datetime.now().isoformat(),
-    }
-    json.dump(meta, open('${OUTPUT_DIR}/proof_meta.json', 'w'), indent=2)
-    print('[+] proof_meta.json written')
-    "
+import json, os
+meta = {
+    'proofSize': os.path.getsize('${OUTPUT_DIR}/proof.json'),
+    'tag':       '${TAG}',
+    'inputFile': '${INPUT_PATH}',
+    'timestamp': __import__('datetime').datetime.now().isoformat(),
+}
+json.dump(meta, open('${OUTPUT_DIR}/proof_meta.json', 'w'), indent=2)
+print('[+] proof_meta.json written')
+"
 
     echo ""
     echo "================================================"

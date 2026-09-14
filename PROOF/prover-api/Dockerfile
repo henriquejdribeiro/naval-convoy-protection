@@ -2,56 +2,29 @@
 # Phase 3 prover-api — bootloader-wrapped Stone STARK proof for
 # safe_area_verify.cairo, end-to-end through StarkWare's GpsStatementVerifier.
 #
-# Multi-stage build:
+# Self-contained build — NO external prebuilt base:
+#   Stage 0 (stone-builder): cpu_air_prover/verifier from starkware-libs/stone-prover (Bazel)
+#   stone-cli-builder:        zksecurity/stone-cli v0.2.0
+#   convoy-submitter-builder: this repo's submitter (+ vendored zksecurity/stark-evm-adapter)
+#   final (ubuntu:22.04):     cairo-lang 0.14.0.1 (pip) + the above binaries + convoy app/scripts
 #
-#   Stage 1 (rust-builder): compiles convoy-bootloader-cli, which wraps
-#       Moonsong-Labs/cairo-bootloader as a CLI that produces Stone-compatible
-#       trace + memory + public_input + private_input + fact_topologies for a
-#       given Cairo task. This replaces the raw `cairo-run` step in
-#       entrypoint.sh so the produced proof has the bootloader envelope
-#       GpsStatementVerifier expects.
-#
-#   Stage 2 (final): based on vg-prover-api-patched (which already has
-#       cpu_air_prover, cpu_air_verifier, stark_evm_adapter, cairo-lang
-#       0.14.0.1). Adds:
-#         - convoy-bootloader-cli  (from Stage 1)
-#         - foundry's `cast` (for legacy submit_proof_l1.py path)
-#         - the convoy program + scripts + entrypoint
-#
-# Build context MUST be the repo root so Stage 1 can reach
-# infrastructure/bootloader-cli/ and vendor/cairo-bootloader/. The compose
-# file (docker-compose.l2.yml) sets `context: .` accordingly.
+# Build context MUST be the repo root (COPY reads PROOF/…). Compose sets context: .
 # =============================================================================
 
-# ─── Stage 1: build the bootloader CLI ───────────────────────────────────────
-# Rust 1.86 is the sweet spot:
-#   - Has the `edition2024` Cargo feature (added in 1.85), required by
-#     base64ct via the starknet-crypto dependency chain.
-#   - Does NOT yet have the inherent `is_multiple_of` method (added in 1.87),
-#     whose signature conflict breaks cairo-vm @ rev 05352b1c at compile time.
-# The latest `time` and `base64ct` are too new for 1.86's MSRV, so we
-# force-downgrade them via `cargo update --precise` before `cargo build`.
-FROM rust:1.86-bookworm AS rust-builder
-
-WORKDIR /build
-
-# Bring in everything the bootloader-cli needs to compile. cairo-bootloader
-# is a path dependency under vendor/, and cairo-vm is fetched by Cargo from
-# git at build time (no network required at runtime).
-COPY PROOF/vendor/cairo-bootloader/    /build/PROOF/vendor/cairo-bootloader/
-COPY PROOF/bootloader-cli/    /build/PROOF/bootloader-cli/
-
-WORKDIR /build/PROOF/bootloader-cli
-# First a `cargo generate-lockfile` (via `cargo update`) so we have a
-# Cargo.lock to constrain. Then force-downgrade the two problematic crates
-# whose latest versions require Rust >= 1.88. The pinned versions are
-# known-compatible with Rust 1.86 and with the rest of the dependency tree.
-RUN cargo generate-lockfile && \
-    cargo update -p time      --precise 0.3.36 && \
-    cargo update -p base64ct  --precise 1.6.0
-RUN cargo build --release --locked && \
-    cp target/release/convoy-bootloader-cli /usr/local/bin/convoy-bootloader-cli && \
-    /usr/local/bin/convoy-bootloader-cli --help > /dev/null
+# ─── Stage 0: Stone prover binaries from StarkWare source (unmodified) ────────
+# cpu_air_prover / cpu_air_verifier, built from starkware-libs/stone-prover in
+# StarkWare's CI image. Only the compiled binaries are copied into the runtime —
+# this stage does not ship. Replaces the prebuilt vg-prover-api base so the whole
+# image builds from auditable upstream sources.
+FROM ciimage/python:3.9 AS stone-builder
+RUN apt-get update && apt-get install -y git wget && rm -rf /var/lib/apt/lists/*
+RUN wget -q https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64 \
+        -O /usr/local/bin/bazel && chmod +x /usr/local/bin/bazel
+ENV USE_BAZEL_VERSION=5.4.1
+WORKDIR /app
+RUN git clone https://github.com/starkware-libs/stone-prover.git .
+RUN bash install_deps.sh
+RUN bazel build //...
 
 # ─── Stage 1c: build zksecurity's stone-cli (canonical user-facing CLI) ─────
 # Replaces our custom convoy-bootloader-cli with zksecurity's official
@@ -86,10 +59,34 @@ RUN cargo build --release
 RUN cp target/release/convoy-submitter /usr/local/bin/convoy-submitter
 RUN ls -la /usr/local/bin/convoy-submitter
 
-# ─── Stage 2: the prover-api runtime image ───────────────────────────────────
-FROM ghcr.io/henriquejdribeiro/vg-prover-api-patched:latest
+# ─── Stage 2: the prover-api runtime image (self-built, no external base) ──────
+FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
+
+# Runtime deps + official cairo-lang 0.14.0.1: provides cairo-compile, cairo-run,
+# and the Python crypto (pedersen_hash, sign, private_to_stark_key) that
+# sign_telemetry.py and the Cairo verify stdlib rely on.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3 python3-pip python3-dev \
+        libgmp-dev libgmp10 libdw1 \
+        curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+RUN pip3 install --no-cache-dir cairo-lang==0.14.0.1 fastecdsa sympy
+
+# Stone binaries (unmodified C++) + the libs they link against.
+COPY --from=stone-builder /app/build/bazelbin/src/starkware/main/cpu/cpu_air_prover   /usr/local/bin/
+COPY --from=stone-builder /app/build/bazelbin/src/starkware/main/cpu/cpu_air_verifier /usr/local/bin/
+COPY --from=stone-builder /usr/lib/x86_64-linux-gnu/libdw*  /usr/lib/x86_64-linux-gnu/
+COPY --from=stone-builder /usr/lib/x86_64-linux-gnu/libelf* /usr/lib/x86_64-linux-gnu/
+COPY --from=stone-builder /usr/lib/x86_64-linux-gnu/libgmp* /usr/lib/x86_64-linux-gnu/
+# Non-fatal sanity check: confirm the binaries load and their shared libs
+# resolve. These StarkWare CLIs exit non-zero on --help (gflags), so we do NOT
+# gate the build on exit code — real verification is the proving pipeline.
+RUN echo "=== ldd cpu_air_prover ===";   ldd /usr/local/bin/cpu_air_prover   || true; \
+    echo "=== ldd cpu_air_verifier ==="; ldd /usr/local/bin/cpu_air_verifier || true; \
+    echo "=== cpu_air_prover --help ==="; cpu_air_prover --help 2>&1 | head -5 || true; \
+    echo "=== cpu_air_verifier --help ==="; cpu_air_verifier --help 2>&1 | head -5 || true
 
 # Foundry's `cast` — used by the legacy submit_proof_l1.py path against the
 # mock verifier. The real-verifier path goes through convoy-submitter (Rust)
