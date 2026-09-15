@@ -75,7 +75,7 @@ introspection).
 
 Feeding generated files to submit-telemetry.sh:
 
-  python3 SIMULATOR/scripts/generate-mission.py --scenario both-safe --output-dir .tmp-l2/missions/
+  python3 SIMULATOR/scripts/generate-mission.py --scenario both-safe
   for swarm in alpha bravo; do
       for did in 1 2 3 4 5; do
           f=.tmp-l2/missions/both-safe/${swarm}_${did}.json
@@ -397,8 +397,8 @@ def main() -> int:
     ap.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("."),
-        help="directory to write the 10 input JSONs (default: cwd)",
+        default=Path("SIMULATOR/scenarios"),
+        help="directory to write the per-drone input JSONs (default: SIMULATOR/scenarios)",
     )
     ap.add_argument(
         "--seed",

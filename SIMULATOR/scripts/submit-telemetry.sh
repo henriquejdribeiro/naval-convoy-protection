@@ -19,7 +19,8 @@
 #   }
 #
 #   All four arrays MUST have the same length. Sample inputs live in
-#   .tmp-l2/missions/<scenario>/ (produced by SIMULATOR/scripts/generate-mission.py
+#   SIMULATOR/scenarios/<scenario>/ (produced by SIMULATOR/scripts/generate-mission.py,
+#   or hand-authored — this is committed input data, not scratch)
 #   when that's rewritten — for now hand-write them or use the example
 #   below).
 #
