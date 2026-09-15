@@ -2,6 +2,9 @@
 .env
 .env.local
 
+.tmp-l1/
+SIMULATOR/runs/
+
 # Node / npm (in case docs tooling is added later)
 node_modules/
 package-lock.json
