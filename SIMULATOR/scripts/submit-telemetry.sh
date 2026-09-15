@@ -67,11 +67,10 @@ MISSION_ID=$( [ "${SWARM}" = "alpha" ] && echo 1 || echo 2 )
 MADARA_HOST="convoy-madara-${SWARM}"
 RPC_URL="http://${MADARA_HOST}:9944/rpc/v${RPC_VERSION}"
 CONV_ENV="${REPO_ROOT}/.tmp-l2/convoy_l2_${SWARM}.env"
-DRONE_KS=".tmp-l2/drones/${SWARM}/${DRONE_ID}/keystore.json"
-DRONE_ACC=".tmp-l2/drones/${SWARM}/${DRONE_ID}/account.json"
 
-[ -f "${REPO_ROOT}/${DRONE_KS}" ]  || { echo "missing keystore: ${DRONE_KS}"; exit 1; }
-[ -f "${REPO_ROOT}/${DRONE_ACC}" ] || { echo "missing account file: ${DRONE_ACC}"; exit 1; }
+MACHINE="convoy-machine-${SWARM}-${DRONE_ID}"
+docker ps --format '{{.Names}}' | grep -qx "${MACHINE}" \
+    || { echo "drone machine ${MACHINE} not running — run up.sh + generate-drone-accounts first"; exit 1; }
 [ -f "${CONV_ENV}" ]                || { echo "missing ${CONV_ENV}"; exit 1; }
 
 UP="${SWARM^^}"
@@ -99,23 +98,16 @@ print(" ".join(parts))
 EOF
 )
 
-# ── Route-B identity binding: sign H = Pedersen(cells, nonce) with THIS
-#    drone's key and append (nonce, H, pubkey, sig_r, sig_s) to the calldata,
-#    so the STARK can verify the drone's signature in-proof. Runs in the
-#    prover-api image (cairo-lang for Pedersen+sign, starkli to read the key).
-echo "[submit/${SWARM}/${DRONE_ID}] signing telemetry commitment..."
-SIG_TAIL=$(MSYS_NO_PATHCONV=1 docker run --rm \
-    -v "${REPO_ROOT}:/work" -w /work \
-    --entrypoint python3 \
-    convoy-prover-api:latest \
-    PROOF/prover-api/sign_telemetry.py \
-        --cells "${CELLS_JSON}" \
-        --keystore "${DRONE_KS}" \
+# ── Route-B identity binding: sign IN THE DRONE'S MACHINE (key never leaves) ──
+MACHINE="convoy-machine-${SWARM}-${DRONE_ID}"
+echo "[submit/${SWARM}/${DRONE_ID}] signing telemetry commitment in ${MACHINE}..."
+SIG_TAIL=$(MSYS_NO_PATHCONV=1 docker exec -i "${MACHINE}" \
+    python3 /app/sign_telemetry.py \
+        --cells /dev/stdin \
+        --keystore /key/keystore.json \
         --password "${KEYSTORE_PWD}" \
-        --emit-calldata)
-[ -z "${SIG_TAIL}" ] && { echo "[submit/${SWARM}/${DRONE_ID}] signing failed"; exit 1; }
-
-CALL_ARGS="${MISSION_ID} ${DRONE_ID} ${CALLDATA} ${SIG_TAIL}"
+        --emit-calldata < "${CELLS_JSON}")
+[ -z "${SIG_TAIL}" ] && { echo "[submit/${SWARM}/${DRONE_ID}] signing failed (is ${MACHINE} up?)"; exit 1; }
 
 echo
 echo "[submit/${SWARM}/${DRONE_ID}] submitting telemetry"
@@ -126,19 +118,8 @@ echo "  RPC:         ${RPC_URL}"
 echo "  cells_file:  ${CELLS_JSON}"
 echo
 
-MSYS_NO_PATHCONV=1 docker run --rm \
-    --network convoy-l1 \
-    -v "${REPO_ROOT}:/work" -w /work \
-    -e STARKNET_RPC="${RPC_URL}" \
-    -e STARKNET_ACCOUNT="/work/${DRONE_ACC}" \
-    -e STARKNET_KEYSTORE="/work/${DRONE_KS}" \
-    -e STARKNET_KEYSTORE_PASSWORD="${KEYSTORE_PWD}" \
-    convoy-cairo-builder \
-    starkli invoke "${CONV_ADDR}" submit_telemetry ${CALL_ARGS} \
+MSYS_NO_PATHCONV=1 docker exec "${MACHINE}" \
+    starkli invoke "${CONV_ADDR}" submit_telemetry ${MISSION_ID} ${DRONE_ID} ${CALLDATA} ${SIG_TAIL} \
         --rpc "${RPC_URL}" \
         --l1-gas 100000 \
         --watch 2>&1 | tail -10
-        # --l1-gas 100000 covers the send_message_to_l1_syscall that fires
-        # when this submission is the 5th SAFE one (mission complete). The
-        # syscall actually uses ~28k L1 gas; the 100k cap is generous so we
-        # never lack budget. For drones 1..4 the cap is unused → no cost.

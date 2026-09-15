@@ -44,8 +44,8 @@ ACCOUNT_CLASS="0xe2eb8f5672af4e6a4e8a8f1b44989685e668489b0a25437733756c5a34a1d6"
 # 0.8.0, so v0.8.1 is the closest match.
 RPC_VERSION="0.8.1"
 
-SIERRA="/work/LAYER2/cairo/convoy_protocol/target/dev/convoy_protocol_ConvoyProtocol.contract_class.json"
-CASM="/work/LAYER2/cairo/convoy_protocol/target/dev/convoy_protocol_ConvoyProtocol.compiled_contract_class.json"
+SIERRA="/work/LAYER2/contracts_cairo/convoy_protocol/target/dev/convoy_protocol_ConvoyProtocol.contract_class.json"
+CASM="/work/LAYER2/contracts_cairo/convoy_protocol/target/dev/convoy_protocol_ConvoyProtocol.compiled_contract_class.json"
 
 # Run starkli inside cairo-builder, mounted at /work so it can see artefacts.
 SCARB_RUN() {

@@ -79,7 +79,7 @@ One idempotent command. It:
 
 ```bash
 # recompile only if you've changed the Cairo source; artifacts are committed
-MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd)/LAYER2/cairo/convoy_protocol:/work" -w /work convoy-cairo-builder scarb build
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd)/LAYER2/contracts_cairo/convoy_protocol:/work" -w /work convoy-cairo-builder scarb build
 
 ./SIMULATOR/scripts/deploy-l2.sh --swarm both                 # declare + deploy convoy_protocol on both Madaras
 ./SIMULATOR/scripts/generate-drone-accounts.sh --swarm both   # 10 drone accounts, auto-funded STRK + ETH

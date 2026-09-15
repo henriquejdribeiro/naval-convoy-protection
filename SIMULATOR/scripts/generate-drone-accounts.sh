@@ -137,14 +137,25 @@ mint_drone_account() {
     mkdir -p "${out_dir}"
     local ks_rel="${d_rel}/keystore.json"
 
-    # 1. Generate a fresh encrypted keystore (random keypair). Create the drone's identity.
-    SK "" signer keystore new --password "${KEYSTORE_PWD}" --force "${ks_rel}" >/dev/null
+    # Does this drone have its own signer machine? If so, mint the key INSIDE
+    # it — born in the machine's volume, host never sees the private key.
+    # Otherwise fall back to the legacy host-side mint.
+    local MACHINE="convoy-machine-${swarm}-${did}"
+    local in_machine=0
+    docker ps --format '{{.Names}}' | grep -qx "${MACHINE}" && in_machine=1
 
-    # 2. Read the public key out of the keystore (must pass --password
-    #    explicitly; `starkli signer keystore inspect` does NOT read
-    #    STARKNET_KEYSTORE_PASSWORD even though most other subcommands do).
     local pubkey
-    pubkey=$(SK "" signer keystore inspect --raw --password "${KEYSTORE_PWD}" "${ks_rel}" 2>/dev/null | tail -n1 | tr -d '[:space:]')
+    if [ "${in_machine}" -eq 1 ]; then
+        echo "[mint/${swarm}/${did}] minting key INSIDE ${MACHINE} (host never sees it)" >&2
+        ks_rel="${MACHINE}:/key/keystore.json"   # key lives in the machine's volume, NOT on host
+        MSYS_NO_PATHCONV=1 docker exec "${MACHINE}" \
+            starkli signer keystore new --password "${KEYSTORE_PWD}" --force /key/keystore.json >/dev/null
+        pubkey=$(MSYS_NO_PATHCONV=1 docker exec "${MACHINE}" \
+            starkli signer keystore inspect --raw --password "${KEYSTORE_PWD}" /key/keystore.json 2>/dev/null | tail -n1 | tr -d '[:space:]')
+    else
+        SK "" signer keystore new --password "${KEYSTORE_PWD}" --force "${ks_rel}" >/dev/null
+        pubkey=$(SK "" signer keystore inspect --raw --password "${KEYSTORE_PWD}" "${ks_rel}" 2>/dev/null | tail -n1 | tr -d '[:space:]')
+    fi
     [ -z "${pubkey}" ] && { echo "[mint/${swarm}/${did}] could not derive pubkey" >&2; return 1; }
 
     # 3. Deploy the OZ account via UDC, signed by account #1. Use the
@@ -202,25 +213,25 @@ mint_drone_account() {
         return 1
     fi
 
-    # 5. Write account.json so `starkli invoke --account ...` works for this
-    #    drone. The script previously only wrote the keystore, forcing every
-    #    caller to hand-author this file.
-    cat > "${out_dir}/account.json" <<EOF
+    # 5. Write account.json where the drone can reach it (its own volume when
+    #    it has a machine; else the host dir as before).
+    if [ "${in_machine}" -eq 1 ]; then
+        MSYS_NO_PATHCONV=1 docker exec -i "${MACHINE}" sh -c 'cat > /key/account.json' <<EOF
 {
   "version": 1,
-  "variant": {
-    "type": "open_zeppelin",
-    "version": 1,
-    "public_key": "${pubkey}",
-    "legacy": false
-  },
-  "deployment": {
-    "status": "deployed",
-    "class_hash": "${OZ_ACCOUNT_CLASS_HASH}",
-    "address": "${addr}"
-  }
+  "variant": { "type": "open_zeppelin", "version": 1, "public_key": "${pubkey}", "legacy": false },
+  "deployment": { "status": "deployed", "class_hash": "${OZ_ACCOUNT_CLASS_HASH}", "address": "${addr}" }
 }
 EOF
+    else
+        cat > "${out_dir}/account.json" <<EOF
+{
+  "version": 1,
+  "variant": { "type": "open_zeppelin", "version": 1, "public_key": "${pubkey}", "legacy": false },
+  "deployment": { "status": "deployed", "class_hash": "${OZ_ACCOUNT_CLASS_HASH}", "address": "${addr}" }
+}
+EOF
+    fi
 
     # Funding happens in a separate pass (fund_all_drones) AFTER every drone
     # has been deployed. Doing it inline here causes deployer-nonce races
