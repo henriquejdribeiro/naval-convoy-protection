@@ -1,3 +1,9 @@
 [submodule "vendor/stark-evm-adapter"]
 	path = PROOF/vendor/stark-evm-adapter
 	url = https://github.com/zksecurity/stark-evm-adapter.git
+[submodule "LAYER1/contracts_solidity/lib/forge-std"]
+	path = LAYER1/contracts_solidity/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "LAYER1/contracts_solidity/lib/openzeppelin-contracts"]
+	path = LAYER1/contracts_solidity/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts

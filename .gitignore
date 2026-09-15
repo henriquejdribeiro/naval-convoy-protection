@@ -12,16 +12,16 @@
 SIMULATOR/runs/
 LAYER1/bootstrap/output/
 
-# ── Foundry (L1) build output + forge-installed deps ──────────────────
+# ── Foundry (L1) build output ─────────────────────────────────────────
+#   deps (forge-std, openzeppelin-contracts) are pinned git submodules
+#   under lib/ — tracked via .gitmodules, NOT ignored
 LAYER1/contracts_solidity/out/
 LAYER1/contracts_solidity/cache/
 LAYER1/contracts_solidity/broadcast/
-LAYER1/contracts_solidity/lib/openzeppelin-contracts/
-LAYER1/contracts_solidity/lib/forge-std/
 
 # ── Scarb (L2 Cairo) build output ─────────────────────────────────────
+#   Scarb.lock IS committed (pins resolved deps for reproducibility)
 LAYER2/contracts_cairo/**/target/
-LAYER2/contracts_cairo/**/Scarb.lock
 
 # ── Rust (PROOF/submitter) build output ───────────────────────────────
 PROOF/submitter/target/
@@ -33,9 +33,8 @@ __pycache__/
 .venv/
 venv/
 
-# ── Node (future SIMULATOR webapp) ────────────────────────────────────
+# ── Node (future SIMULATOR webapp; package-lock.json IS committed) ─────
 node_modules/
-package-lock.json
 
 # ── Build / cache (generic) ───────────────────────────────────────────
 dist/
