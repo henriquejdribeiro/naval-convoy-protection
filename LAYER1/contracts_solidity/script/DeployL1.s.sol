@@ -24,8 +24,8 @@ import "../src/CommandLog.sol";
  *   ALPHA_RELAY_ADDR      ship F's address (alpha lane relay)
  *   BRAVO_RELAY_ADDR      ship B's address (bravo lane relay)
  *
- *   STARK_VERIFIER_ADDR   GpsStatementVerifier address from a prior
- *                         DeployStarkVerifier run. **REQUIRED.** No
+ *   STARK_VERIFIER_ADDR   GpsStatementVerifier address from 
+ *                         deploy-stark-verifier.sh. **REQUIRED.** No
  *                         mock fallback — production / thesis-defence
  *                         posture is real STARK verification end-to-end.
  *                         Verifier.sol only calls isValid(factHash)

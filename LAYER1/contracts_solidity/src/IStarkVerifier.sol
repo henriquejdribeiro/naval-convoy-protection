@@ -17,10 +17,10 @@ pragma solidity ^0.8.20;
  * Two concrete implementations:
  *
  *   1. **GpsStatementVerifier** (production) — StarkWare mainnet source
- *      vendored under contracts/lib/starkware-mainnet/. Deployed via
- *      DeployStarkVerifier.s.sol. ALL non-test deployments wire this.
+ *      vendored under contracts_solidity/starkware-verifier/. Deployed via
+ *      deploy-stark-verifier.sh. ALL non-test deployments wire this.
  *
- *   2. **MockStarkVerifier** (contracts/test/ — UNIT TESTS ONLY) —
+ *   2. **MockStarkVerifier** (contracts_solidity/test/ — UNIT TESTS ONLY) —
  *      lets tests pre-flag facts via setFactValid(factHash, true) so
  *      the convoy Verifier's isValid() assertion succeeds without a
  *      real proof. NEVER deployed to a real chain.
