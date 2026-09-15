@@ -261,8 +261,8 @@ echo ""
 #     trigger per drone.
 #   - the literal "ALL" or one of the scenario shortcuts below — each
 #     iterates the matching scenario directory under /proofs/missions/.
-#     Directory names mirror generate-mission.py's --scenario verbatim
-#     so you can `python3 scripts/generate-mission.py --scenario foo
+#     Directory names mirror script5_generate-mission.py's --scenario verbatim
+#     so you can `python3 scripts/script5_generate-mission.py --scenario foo
 #     --output-dir /proofs/missions/foo/` and then trigger ALL_FOO.
 #
 #       ALL or ALL_SAFE        →  missions/both-safe/          (10/10 SAFE)
@@ -282,7 +282,7 @@ echo ""
 #                                   stay in pending state
 #
 # A vanish_manifest.json in the scenario directory (emitted by
-# generate-mission.py) is announced at the top of the run so the
+# script5_generate-mission.py) is announced at the top of the run so the
 # operator sees the sector blackouts before any proving starts.
 while true; do
     if [ -f "${OUTPUT_DIR}/prove_trigger" ]; then

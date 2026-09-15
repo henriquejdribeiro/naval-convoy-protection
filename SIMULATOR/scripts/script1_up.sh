@@ -19,13 +19,13 @@
 # idempotent and the healthchecks short-circuit if everything's already up.
 #
 # Usage:
-#   ./SIMULATOR/scripts/up.sh                  # bring up everything including Dozzle
-#   ./SIMULATOR/scripts/up.sh --no-debugger    # skip Dozzle (saves a container)
+#   ./SIMULATOR/scripts/script1_up.sh                  # bring up everything including Dozzle
+#   ./SIMULATOR/scripts/script1_up.sh --no-debugger    # skip Dozzle (saves a container)
 #
 # After this exits the next step is:
-#   ./SIMULATOR/scripts/deploy-l2.sh
-#   ./SIMULATOR/scripts/generate-drone-accounts.sh --swarm both
-#   ./SIMULATOR/scripts/register-missions.sh
+#   ./SIMULATOR/scripts/script2_deploy-l2.sh
+#   ./SIMULATOR/scripts/script3_generate-drone-accounts.sh --swarm both
+#   ./SIMULATOR/scripts/script4_register-missions.sh
 # then submit telemetry per drone. See README for the full sequence.
 # =============================================================================
 
@@ -204,14 +204,14 @@ echo
 echo "═══════════════════════════════════════════════════════════════"
 echo "  Stack is up. Suggested next steps:"
 echo "═══════════════════════════════════════════════════════════════"
-echo "    ./SIMULATOR/scripts/deploy-l2.sh --swarm both"
-echo "    ./SIMULATOR/scripts/generate-drone-accounts.sh --swarm both"
-echo "    ./SIMULATOR/scripts/register-missions.sh --swarm both"
-echo "    python3 SIMULATOR/scripts/generate-mission.py --scenario both-safe"
+echo "    ./SIMULATOR/scripts/script2_deploy-l2.sh --swarm both"
+echo "    ./SIMULATOR/scripts/script3_generate-drone-accounts.sh --swarm both"
+echo "    ./SIMULATOR/scripts/script4_register-missions.sh --swarm both"
+echo "    python3 SIMULATOR/scripts/script5_generate-mission.py --scenario both-safe"
 echo "    for swarm in alpha bravo; do"
 echo "        for did in 1 2 3 4 5; do"
 echo "            f=SIMULATOR/scenarios/both-safe/\${swarm}_\${did}.json"
-echo "            [ -f \"\$f\" ] && ./SIMULATOR/scripts/submit-telemetry.sh \$swarm \$did \"\$f\""
+echo "            [ -f \"\$f\" ] && ./SIMULATOR/scripts/script6_submit-telemetry.sh \$swarm \$did \"\$f\""
 echo "        done"
 echo "    done"
 echo "    

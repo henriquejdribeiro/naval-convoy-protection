@@ -188,7 +188,7 @@ services:
   # ── Drone signing machine (SPIKE: bravo-3) ────────────────────────────────
   #   Holds ONLY bravo-3's key; signs the commitment AND submits the L2 tx
   #   in-container, so no host or sibling ever sees the key. Idle by default;
-  #   submit-telemetry.sh `docker exec`s in to sign + invoke.
+  #   script6_submit-telemetry.sh `docker exec`s in to sign + invoke.
   machine-bravo-3:
     image: convoy-prover-api:latest          # cairo-lang (sign) + starkli (invoke)
     container_name: convoy-machine-bravo-3
@@ -267,10 +267,10 @@ services:
   # Runtime delivery of mission deployment falls back to
   # `scripts/open-missions.sh` which invokes open_mission_local on L2
   # directly. The L1 audit-trail (Registry storage + LogMessageToL2
-  # event) remains intact via `scripts/register-missions.sh`.
+  # event) remains intact via `scripts/script4_register-missions.sh`.
 
   # ─── Alpha sequencer ───────────────────────────────────────────────
-  # Seeds alpha's genesis + 10 devnet accounts, then exits. up.sh runs this
+  # Seeds alpha's genesis + 10 devnet accounts, then exits. script1_up.sh runs this
   # BEFORE madara-alpha, because --sequencer runs L1 sync but does NOT create
   # the devnet genesis; --devnet does. Shares madara-alpha-data.
   madara-alpha-seed:

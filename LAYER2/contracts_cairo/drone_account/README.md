@@ -16,7 +16,7 @@ This package reproduces it exactly.
       starkli class-hash LAYER2/contracts_cairo/drone_account/target/dev/drone_account_AccountUpgradeable.contract_class.json
     # → 0x00e2eb8f...cade9  (== the class hash above)
 
-`generate-drone-accounts.sh` deploys one instance per drone; address =
+`script3_generate-drone-accounts.sh` deploys one instance per drone; address =
 hash(class_hash, [public_key], salt, deployer) — what open_mission registers and
 submit_telemetry's get_caller_address() enforces.
 

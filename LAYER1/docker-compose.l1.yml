@@ -204,7 +204,7 @@ services:
           --rpc-url http://ship-a:8545 \
           --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
           --broadcast | tee /workspace/deploy-l1.log
-        echo "[deploy-l1] L1 contracts deployed; run ./scripts/register-missions.sh after L2 setup"
+        echo "[deploy-l1] L1 contracts deployed; run ./scripts/script4_register-missions.sh after L2 setup"
     volumes:
       - ./LAYER1/contracts_solidity:/workspace
     networks:

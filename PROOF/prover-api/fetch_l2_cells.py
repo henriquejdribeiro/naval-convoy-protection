@@ -74,7 +74,7 @@ def main() -> int:
     sig_r, sig_s = starkli_call(RPC, C, "get_signature", [str(mid), str(did)])[:2]
     if drone_pubkey == 0 or (sig_r == 0 and sig_s == 0):
         raise SystemExit("[fetch] no signature on L2 — did the drone submit via the "
-                         "signed submit-telemetry.sh? (get_pubkey/get_signature are 0)")
+                         "signed script6_submit-telemetry.sh? (get_pubkey/get_signature are 0)")
     print(f"[fetch] drone_pubkey = 0x{drone_pubkey:064x}")
 
     out = {
