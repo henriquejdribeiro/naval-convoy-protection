@@ -114,5 +114,3 @@ honesty of the underlying sensor readings — that is the explicit trust boundar
 
 **Vendored StarkWare** (Apache-2.0, byte-verified)
 - `LAYER1/contracts_solidity/starkware-verifier/src/**` (+ `SOURCE.md`, `CALLFLOW` reference above)
-MD
-echo "written."
