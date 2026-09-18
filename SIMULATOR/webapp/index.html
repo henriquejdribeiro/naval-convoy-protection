@@ -3,81 +3,74 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Naval Convoy Protection — Interactive Mission Simulation</title>
-<link rel="stylesheet" href="css/style.css">
+<title>Naval Convoy — 3D Sea Grid</title>
+<style>
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: #060a12;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: #cbd5e1;
+  }
+  #world { position: fixed; inset: 0; }
+  #hud {
+    position: fixed; top: 14px; left: 16px; z-index: 10;
+    font-size: 12.5px; line-height: 1.55;
+    background: rgba(6, 12, 22, 0.55);
+    border: 1px solid #1e3a5f; border-radius: 8px;
+    padding: 10px 14px; backdrop-filter: blur(4px);
+    pointer-events: none; user-select: none;
+  }
+  #hud h1 {
+    margin: 0 0 5px; font-size: 12.5px; letter-spacing: 0.6px;
+    color: #7dd3fc; text-transform: uppercase;
+  }
+  #hud .dim { color: #64748b; }
+  #hud .legend { margin-top: 6px; }
+  #hud .legend b { font-weight: 400; }
+  #tip {
+    position: fixed; z-index: 20; pointer-events: none; user-select: none;
+    font-size: 12px; line-height: 1.3; white-space: nowrap;
+    background: rgba(6, 12, 22, 0.92);
+    border: 1px solid #3b6ea5; border-radius: 6px;
+    padding: 5px 9px; color: #e2e8f0;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  }
+  #tip b { color: #7dd3fc; font-weight: 600; }
+  #sel {
+    position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 12;
+    font-size: 12.5px; line-height: 1.5; white-space: nowrap;
+    background: rgba(6, 12, 22, 0.62);
+    border: 1px solid #1e3a5f; border-radius: 8px;
+    padding: 8px 14px; backdrop-filter: blur(4px); user-select: none;
+  }
+  #sel .dim { color: #64748b; }
+</style>
 </head>
 <body>
-
-<main>
-
-<!-- ════════════════════════════════════════════════════════════
-     INTERACTIVE END-TO-END MISSION SIMULATION
-     ════════════════════════════════════════════════════════════ -->
-<section class="container container-wide" id="simulation">
-  <h2>Interactive end-to-end mission simulation</h2>
-  <p class="subtitle">Click <strong>▶ Play Demonstration</strong> to watch the phases of the convoy mission play out, from L1 mission deployment to convoy advance. Use Prev / Next to scrub at your own pace. The glossary on the right explains every label and message you'll see.</p>
-
-  <div class="sim-layout">
-
-    <!-- LEFT: the live simulation -->
-    <div class="sim-main">
-      <div class="convoy-sim">
-        <div style="padding:14px;color:#94a3b8;font-size:.8rem;font-style:italic;background:#0a0e17;border:1px solid #1e293b;border-radius:8px">Loading convoy simulation&hellip;</div>
-      </div>
-    </div>
-
-    <!-- RIGHT: scrollable, sticky glossary -->
-    <aside class="sim-glossary">
-      <div class="glossary-header">
-        <h3>Variables &amp; glossary</h3>
-        <p>Reference for the labels, nodes, and messages drawn on the canvas. Three groups: <em>what you see</em>, <em>what moves</em>, <em>what is decided</em>.</p>
-      </div>
-
-      <!-- ── NODES ── -->
-      <div class="card glossary-card">
-        <h4>Nodes — what you see</h4>
-        <ul class="spec">
-          <li><strong><code>A · B · C · E · F</code></strong> — five convoy ships acting as L1 Clique-PoA validators and proof relays. Position determines which L2 they have best signal to.</li>
-          <li><strong><code>D</code></strong> — commander ship (yellow ring). Only ship authorised to issue the convoy advance command.</li>
-          <li><strong><code>HVU</code></strong> — <em>High-Value Unit</em>. The three protected ships in the centre of the convoy. Their survival is the reason the mission runs.</li>
-          <li><strong><code>L2-Alpha box (green)</code></strong> — one Alpha drone running its own Madara α sequencer. Sweeps the left frontal area.</li>
-          <li><strong><code>L2-Bravo box (purple)</code></strong> — one Bravo drone running its own Madara β sequencer. Sweeps the right frontal corridor.</li>
-          <li><strong><code>L1 PoA Verifier</code></strong> — Geth Clique chain (6 validators) hosting the Solidity contracts for STARK proof verification, mission registry, and commander logging.</li>
-          <li><strong><code>EX-010 · EX-011</code></strong> — mission IDs. EX-010 = left area (Alpha). EX-011 = right corridor (Bravo).</li>
-        </ul>
-      </div>
-
-      <!-- ── MESSAGES ── -->
-      <div class="card glossary-card">
-        <h4>Messages — what moves</h4>
-        <ul class="spec">
-          <li><strong><code>deploy(EX-0xx)</code></strong> — L1 tx by ship D registering a mission spec (area, thresholds, window) on the Solidity registry contract. <em>Phase 1.</em></li>
-          <li><strong><code>submitTelemetry(cell, x, y, t)</code></strong> — L2 tx from a drone after sweeping a cell. Sequenced into L2 blocks by Madara. <em>Phase 2.</em></li>
-          <li><strong><code>H_α · H_β</code></strong> — Poseidon hash chain over all per-cell telemetry felts. Public commitment to the swarm's full sweep. <em>Phase 3.</em></li>
-          <li><strong><code>π_α · π_β</code></strong> — STARK proofs produced by Stone over a Cairo verification program (one per L2). Attest the SAFE conditions held without revealing telemetry. <em>Phase 4.</em></li>
-          <li><strong><code>relay(π, public_inputs)</code></strong> — best-signal ship picks up the proof from L2 and submits it as an L1 tx. Ship signs envelope only; the proof's truth is checked on-chain. <em>Phase 5.</em></li>
-          <li><strong><code>verifyProof(π)</code></strong> — the Solidity verifier contract re-runs FRI queries on L1. On success: sets <code>safe_outcome = true</code> and emits a mission-verified event. <em>Phase 6.</em></li>
-          <li><strong><code>advance(MAX_SPEED)</code></strong> — L1 tx by ship D, gated by both <code>EX-010 SAFE</code> and <code>EX-011 SAFE</code>. Emits a convoy-advance event. <em>Phase 7.</em></li>
-        </ul>
-      </div>
-
-      <!-- ── OUTCOMES ── -->
-      <div class="card glossary-card">
-        <h4>Outcomes — what is decided</h4>
-        <ul class="spec">
-          <li><strong><code>SAFE</code></strong> — verdict for one mission. True iff <em>coverage ≥ 95 %</em> AND <em>time ≤ 360 s</em> AND <em>no contact ≥ 0.7</em>. Enforced inside the Cairo program, re-checked by the Solidity verifier on L1.</li>
-          <li><strong>Mission-verified event</strong> — L1 event emitted when proof verification succeeds. Records mission id, which ship relayed, and at what block.</li>
-          <li><strong>Convoy-advance event</strong> — L1 event broadcast to all six ships, authorising the formation to move. Only ship D, only when both missions SAFE.</li>
-          <li><strong><code>ADVANCE</code> (canvas state)</strong> — terminal state. Both proofs anchored on L1, command issued, convoy moves through verified-safe waters. <em>Phase 8.</em></li>
-        </ul>
-      </div>
-    </aside>
-
+<div id="world"></div>
+<div id="tip" hidden></div>
+<div id="sel"></div>
+<div id="hud">
+  <h1>Naval Convoy · 3D Sea Grid</h1>
+  <div>World · <span class="dim">35–40°N, 10–20°W — open Atlantic (Portugal EEZ)</span></div>
+  <div>Grid · <span class="dim">zoom-adaptive 1° → 0.0001° · coords to 0.0001°</span></div>
+  <div><span class="dim">drag</span> orbit &nbsp;·&nbsp; <span class="dim">right-drag</span> pan &nbsp;·&nbsp; <span class="dim">scroll</span> zoom &nbsp;·&nbsp; <span class="dim">hover</span> coords</div>
+  <div><span class="dim">click</span> select &nbsp;·&nbsp; <span class="dim">arrows</span> fly &nbsp;·&nbsp; <span class="dim">Enter</span> save &nbsp;·&nbsp; <span class="dim">C</span> clear track</div>
+  <div class="legend">
+    <b><span style="color:#60a5fa">●</span> ships</b> &nbsp;
+    <b><span style="color:#facc15">●</span> commander</b> &nbsp;
+    <b><span style="color:#a855f7">●</span> HVU</b> &nbsp;
+    <b><span style="color:#f59e0b">●</span> drones</b>
   </div>
-</section>
+  <div class="legend">
+    <b><span style="color:#22c55e">■</span> alpha zone (EX-010)</b> &nbsp;
+    <b><span style="color:#a855f7">■</span> bravo zone (EX-011)</b>
+  </div>
+</div>
 
-</main>
-
-<script type="module" src="js/convoy-sim.js"></script>
+<script src="js/vendor/three.min.js"></script>
+<script src="js/vendor/Water.js"></script>
+<script src="js/vendor/Sky.js"></script>
+<script src="js/vendor/GLTFLoader.js"></script>
+<script src="js/world3d.js"></script>
 </body>
 </html>
