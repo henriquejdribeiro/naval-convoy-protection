@@ -24,7 +24,7 @@ import sys
 
 WEBAPP_DIR = os.path.dirname(os.path.abspath(__file__))      # SIMULATOR/webapp
 SIM_DIR = os.path.dirname(WEBAPP_DIR)                         # SIMULATOR
-TELEMETRY_DIR = os.path.join(SIM_DIR, "telemetry")
+TELEMETRY_DIR = os.path.join(SIM_DIR, "game", "telemetry")
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
 DRONE_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 

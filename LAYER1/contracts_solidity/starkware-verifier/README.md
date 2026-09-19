@@ -7,7 +7,7 @@ constructor contracts, so the local Besu chain can host the *real* StarkWare
 STARK verifier with no mainnet fork.
 
 `scripts/deploy-stark-verifier.sh` deploys the suite and writes the resulting
-addresses to `.tmp-l1/stark-verifier.env`.
+addresses to `SIMULATOR/demo/.tmp-l1/stark-verifier.env`.
 
 ## Provenance (Ethereum mainnet)
 

@@ -137,6 +137,33 @@ x-pathfinder-bravo-template: &pathfinder-bravo-template
     retries: 60
     start_period: 120s
 
+# ─── Drone signing machines (per-drone key custody) ─────────────────────────
+# One idle "machine" per drone: holds ONLY that drone's key in its own named
+# volume (born in-container via script3 — the host never sees the private key),
+# then signs the telemetry commitment AND submits the L2 tx in-container.
+# script6 `docker exec`s in to sign + invoke. The two templates differ only by
+# the swarm's Madara RPC; each instance sets its container_name + key volume.
+x-drone-machine-alpha-template: &drone-machine-alpha-template
+  image: convoy-prover-api:latest            # cairo-lang (sign) + starkli (invoke)
+  entrypoint: ["sleep", "infinity"]          # idle holder; override the prover entrypoint
+  environment:
+    STARKNET_RPC:               http://convoy-madara-alpha:9944/rpc/v0.8.1
+    STARKNET_ACCOUNT:           /key/account.json
+    STARKNET_KEYSTORE:          /key/keystore.json
+    STARKNET_KEYSTORE_PASSWORD: convoy
+  networks:
+    - convoy-l1
+
+x-drone-machine-bravo-template: &drone-machine-bravo-template
+  image: convoy-prover-api:latest
+  entrypoint: ["sleep", "infinity"]
+  environment:
+    STARKNET_RPC:               http://convoy-madara-bravo:9944/rpc/v0.8.1
+    STARKNET_ACCOUNT:           /key/account.json
+    STARKNET_KEYSTORE:          /key/keystore.json
+    STARKNET_KEYSTORE_PASSWORD: convoy
+  networks:
+    - convoy-l1
 
 services:
 
@@ -158,8 +185,13 @@ services:
     image: convoy-prover-api:latest
     container_name: convoy-prover-api-alpha
     labels: { dev.dozzle.group: "Alpha 1 (leader)" }
+    entrypoint:
+      - /bin/sh
+      - -c
+      - 'export PRIVATE_KEY="$$(cat /key/pk)"; exec /app/entrypoint.sh'
     volumes:
       - prover-alpha-output:/proofs
+      - relay-alpha-key:/key
     environment:
       STONE_OUTPUT_DIR:  /proofs
       SWARM:             alpha
@@ -167,11 +199,8 @@ services:
       GETH_RPC_URL:      http://ship-a:8545
       VERIFIER_ADDR:     "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"   # gated convoy Verifier
       REGISTRY_ADDR:     "0x5FbDB2315678afecb367f032d93F642f64180aa3"   # convoy Registry
-      ALPHA_RELAY_PK:    "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
-      BRAVO_RELAY_PK:    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
       # ── Stage A (path-a-runner → StarkWare suite) — BESU addresses ──
       URL:                              http://ship-a:8545
-      PRIVATE_KEY:                      "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
       MERKLE_STATEMENT_CONTRACT_ADDR:   "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
       FRI_STATEMENT_CONTRACT_ADDR:      "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
       MEMORY_PAGE_FACT_REGISTRY_ADDR:   "0x0165878A594ca255338adfa4d48449f69242Eb8F"
@@ -185,25 +214,81 @@ services:
         reservations:
           memory: 6G
 
-  # ── Drone signing machine (SPIKE: bravo-3) ────────────────────────────────
-  #   Holds ONLY bravo-3's key; signs the commitment AND submits the L2 tx
-  #   in-container, so no host or sibling ever sees the key. Idle by default;
-  #   script6_submit-telemetry.sh `docker exec`s in to sign + invoke.
+  # ── Drone signing machines (one per drone) ────────────────────────────────
+  #   Each holds ONLY its drone's key (born in-container via script3), signs
+  #   the commitment AND submits the L2 tx in-container — no host or sibling
+  #   ever sees the private key. Idle holders; script6 `docker exec`s in.
+  #   Bodies come from x-drone-machine-{alpha,bravo}-template above.
+  machine-alpha-1:
+    <<: *drone-machine-alpha-template
+    container_name: convoy-machine-alpha-1
+    labels: { dev.dozzle.group: "Alpha 1 (drone)" }
+    volumes:
+      - drone-alpha-1-key:/key
+      - ./PROOF/prover-api/sign_telemetry.py:/app/sign_telemetry.py:ro
+  machine-alpha-2:
+    <<: *drone-machine-alpha-template
+    container_name: convoy-machine-alpha-2
+    labels: { dev.dozzle.group: "Alpha 2 (drone)" }
+    volumes:
+      - drone-alpha-2-key:/key
+      - ./PROOF/prover-api/sign_telemetry.py:/app/sign_telemetry.py:ro
+  machine-alpha-3:
+    <<: *drone-machine-alpha-template
+    container_name: convoy-machine-alpha-3
+    labels: { dev.dozzle.group: "Alpha 3 (drone)" }
+    volumes:
+      - drone-alpha-3-key:/key
+      - ./PROOF/prover-api/sign_telemetry.py:/app/sign_telemetry.py:ro
+  machine-alpha-4:
+    <<: *drone-machine-alpha-template
+    container_name: convoy-machine-alpha-4
+    labels: { dev.dozzle.group: "Alpha 4 (drone)" }
+    volumes:
+      - drone-alpha-4-key:/key
+      - ./PROOF/prover-api/sign_telemetry.py:/app/sign_telemetry.py:ro
+  machine-alpha-5:
+    <<: *drone-machine-alpha-template
+    container_name: convoy-machine-alpha-5
+    labels: { dev.dozzle.group: "Alpha 5 (drone)" }
+    volumes:
+      - drone-alpha-5-key:/key
+      - ./PROOF/prover-api/sign_telemetry.py:/app/sign_telemetry.py:ro
+  machine-bravo-1:
+    <<: *drone-machine-bravo-template
+    container_name: convoy-machine-bravo-1
+    labels: { dev.dozzle.group: "Bravo 1 (drone)" }
+    volumes:
+      - drone-bravo-1-key:/key
+      - ./PROOF/prover-api/sign_telemetry.py:/app/sign_telemetry.py:ro
+  machine-bravo-2:
+    <<: *drone-machine-bravo-template
+    container_name: convoy-machine-bravo-2
+    labels: { dev.dozzle.group: "Bravo 2 (drone)" }
+    volumes:
+      - drone-bravo-2-key:/key
+      - ./PROOF/prover-api/sign_telemetry.py:/app/sign_telemetry.py:ro
   machine-bravo-3:
-    image: convoy-prover-api:latest          # cairo-lang (sign) + starkli (invoke)
+    <<: *drone-machine-bravo-template
     container_name: convoy-machine-bravo-3
-    entrypoint: ["sleep", "infinity"]        # idle holder; override the prover entrypoint
     labels: { dev.dozzle.group: "Bravo 3 (drone)" }
     volumes:
-      - drone-bravo-3-key:/key   # key BORN here in-container; host never sees it (read-WRITE)
-      - ./PROOF/prover-api/sign_telemetry.py:/app/sign_telemetry.py:ro   # signer (not baked in image yet)
-    environment:
-      STARKNET_RPC:               http://convoy-madara-bravo:9944/rpc/v0.8.1
-      STARKNET_ACCOUNT:           /key/account.json
-      STARKNET_KEYSTORE:          /key/keystore.json
-      STARKNET_KEYSTORE_PASSWORD: convoy
-    networks:
-      - convoy-l1
+      - drone-bravo-3-key:/key
+      - ./PROOF/prover-api/sign_telemetry.py:/app/sign_telemetry.py:ro
+  machine-bravo-4:
+    <<: *drone-machine-bravo-template
+    container_name: convoy-machine-bravo-4
+    labels: { dev.dozzle.group: "Bravo 4 (drone)" }
+    volumes:
+      - drone-bravo-4-key:/key
+      - ./PROOF/prover-api/sign_telemetry.py:/app/sign_telemetry.py:ro
+  machine-bravo-5:
+    <<: *drone-machine-bravo-template
+    container_name: convoy-machine-bravo-5
+    labels: { dev.dozzle.group: "Bravo 5 (drone)" }
+    volumes:
+      - drone-bravo-5-key:/key
+      - ./PROOF/prover-api/sign_telemetry.py:/app/sign_telemetry.py:ro
 
   prover-api-bravo:
     image: convoy-prover-api:latest        # built once via prover-api-alpha
@@ -214,19 +299,21 @@ services:
         condition: service_healthy
       prover-api-alpha:                    # ensure image build completes first
         condition: service_started
+    entrypoint:
+      - /bin/sh
+      - -c
+      - 'export PRIVATE_KEY="$$(cat /key/pk)"; exec /app/entrypoint.sh'
     volumes:
       - prover-bravo-output:/proofs
+      - relay-bravo-key:/key
     environment:
       STONE_OUTPUT_DIR:  /proofs
       SWARM:             bravo
       GETH_RPC_URL:      http://ship-a:8545
       VERIFIER_ADDR:     "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
       REGISTRY_ADDR:     "0x5FbDB2315678afecb367f032d93F642f64180aa3"
-      ALPHA_RELAY_PK:    "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
-      BRAVO_RELAY_PK:    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
       # ── Stage A — Bravo lane signs with BRAVO_RELAY (ship B / anvil[1]) ──
       URL:                              http://ship-a:8545
-      PRIVATE_KEY:                      "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
       MERKLE_STATEMENT_CONTRACT_ADDR:   "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
       FRI_STATEMENT_CONTRACT_ADDR:      "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
       MEMORY_PAGE_FACT_REGISTRY_ADDR:   "0x0165878A594ca255338adfa4d48449f69242Eb8F"
@@ -639,6 +726,10 @@ volumes:
     driver: local
   prover-bravo-output:
     driver: local
+  relay-alpha-key:
+    name: convoy-relay-alpha-key
+  relay-bravo-key:
+    name: convoy-relay-bravo-key
   madara-alpha-data:
     driver: local
   madara-bravo-data:
@@ -661,11 +752,29 @@ volumes:
     driver: local
   madara-bravo-3-data:
     driver: local
-  drone-bravo-3-key:
-    driver: local
   madara-bravo-4-data:
     driver: local
   madara-bravo-5-data:
+    driver: local
+  drone-alpha-1-key:
+    driver: local
+  drone-alpha-2-key:
+    driver: local
+  drone-alpha-3-key:
+    driver: local
+  drone-alpha-4-key:
+    driver: local
+  drone-alpha-5-key:
+    driver: local
+  drone-bravo-1-key:
+    driver: local
+  drone-bravo-2-key:
+    driver: local
+  drone-bravo-3-key:
+    driver: local
+  drone-bravo-4-key:
+    driver: local
+  drone-bravo-5-key:
     driver: local
 
 # convoy-l1 network is created by docker-compose.l1.yml.

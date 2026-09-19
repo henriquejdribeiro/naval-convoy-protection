@@ -64,7 +64,7 @@ docker build -t convoy-cairo-builder LAYER2/cairo-builder/
 ### 3. Bring up the stack
 
 ```bash
-./SIMULATOR/scripts/script1_up.sh            # add --no-debugger to skip the Dozzle log viewer
+./SIMULATOR/demo/scripts/script1_up.sh            # add --no-debugger to skip the Dozzle log viewer
 ```
 
 One idempotent command. It:
@@ -81,9 +81,9 @@ One idempotent command. It:
 # recompile only if you've changed the Cairo source; artifacts are committed
 MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd)/LAYER2/contracts_cairo/convoy_protocol:/work" -w /work convoy-cairo-builder scarb build
 
-./SIMULATOR/scripts/script2_deploy-l2.sh --swarm both                 # declare + deploy convoy_protocol on both Madaras
-./SIMULATOR/scripts/script3_generate-drone-accounts.sh --swarm both   # 10 drone accounts, auto-funded STRK + ETH
-./SIMULATOR/scripts/script4_register-missions.sh --swarm both          # commander opens both missions → real L1→L2 bridge
+./SIMULATOR/demo/scripts/script2_deploy-l2.sh --swarm both                 # declare + deploy convoy_protocol on both Madaras
+./SIMULATOR/demo/scripts/script3_generate-drone-accounts.sh --swarm both   # 10 drone accounts, auto-funded STRK + ETH
+./SIMULATOR/demo/scripts/script4_register-missions.sh --swarm both          # commander opens both missions → real L1→L2 bridge
 ```
 
 `script4_register-missions.sh` is the whole point: `Registry.deploy(mission_id, …)` sends a real `LogMessageToL2` through that swarm's core, and each sequencer's L1 sync **auto-consumes** it (after a 10-block finality wait) and runs `open_mission` on L2. No `open-missions.sh` — the mission opens *only* because the L1 message crossed the bridge.
@@ -99,7 +99,7 @@ docker logs convoy-madara-bravo 2>&1 | grep -iE "Processing L1→L2|nonce=" | ta
 Both should show `Processing L1→L2 message: … nonce=0`. To read the anchored spec on L2 (returns the 12-felt `MissionSpec`, reverts if not deployed):
 
 ```bash
-CONV=$(grep CONVOY_PROTOCOL_ADDR_ALPHA .tmp-l2/convoy_l2.env | cut -d= -f2)
+CONV=$(grep CONVOY_PROTOCOL_ADDR_ALPHA SIMULATOR/demo/.tmp-l2/convoy_l2.env | cut -d= -f2)
 MSYS_NO_PATHCONV=1 docker run --rm -i --network convoy-l1 \
   convoy-cairo-builder:latest \
   starkli call "$CONV" get_mission 1 --rpc http://convoy-madara-alpha:9944/rpc/v0.8.1
@@ -110,15 +110,15 @@ MSYS_NO_PATHCONV=1 docker run --rm -i --network convoy-l1 \
 Generate per-drone telemetry — the "world" producing ground-truth sweeps — then have a drone submit its sweep to L2. Each drone **signs and submits from inside its own signer machine** (`convoy-machine-<swarm>-<N>`): the STARK-curve key is born in the machine's Docker volume via `starkli signer keystore new` and never touches the host.
 
 ```bash
-python3 SIMULATOR/scripts/script5_generate-mission.py --scenario both-safe --output-dir .tmp-l2/missions/
+python3 SIMULATOR/demo/scripts/script5_generate-mission.py --scenario both-safe --output-dir SIMULATOR/demo/.tmp-l2/missions/
 
 # submit one drone's sweep — signs H = Pedersen(cells, nonce) in the machine, then invokes submit_telemetry
-./SIMULATOR/scripts/script6_submit-telemetry.sh bravo 3 .tmp-l2/missions/both-safe/bravo_3.json
+./SIMULATOR/demo/scripts/script6_submit-telemetry.sh bravo 3 SIMULATOR/demo/.tmp-l2/missions/both-safe/bravo_3.json
 ```
 
 `script6_submit-telemetry.sh` is a keyless orchestrator: it `docker exec`s into `convoy-machine-bravo-3` to (a) sign the telemetry commitment and (b) `starkli invoke submit_telemetry`. The contract's identity gate accepts the tx only because the machine's account is the one registered for `(mission 2, drone 3)` — see §4.
 
-Scenarios (see [`SIMULATOR/scripts/script5_generate-mission.py`](SIMULATOR/scripts/script5_generate-mission.py)): `both-safe`, `both-unsafe`, `mixed`, `alpha-dropout-vanish`, `alpha-dropout-midflight`, `dual-dropout`.
+Scenarios (see [`SIMULATOR/demo/scripts/script5_generate-mission.py`](SIMULATOR/demo/scripts/script5_generate-mission.py)): `both-safe`, `both-unsafe`, `mixed`, `alpha-dropout-vanish`, `alpha-dropout-midflight`, `dual-dropout`.
 
 > **Per-drone machines** are currently provisioned for the spike drone `bravo-3`; templating to all 10 is in progress. When all five drones in a swarm land SAFE, `convoy_protocol` emits `MissionSafe` and fires `send_message_to_l1_syscall` with `[mission_id, n_drones]`.
 
@@ -127,7 +127,7 @@ Scenarios (see [`SIMULATOR/scripts/script5_generate-mission.py`](SIMULATOR/scrip
 The proof is generated **from the telemetry the drone actually submitted to L2** — not a fixture. `fetch_l2_cells.py` reads the signed cells + nonce + public key + signature back out of `convoy_protocol`; the prover re-derives `H = Pedersen(cells, nonce)`, verifies the drone's ECDSA signature **in-circuit**, and produces a Stone STARK proof. `convoy-submitter` then verifies that proof on the **genuine StarkWare `GpsStatementVerifier`** (deployed on Besu by `script1_up.sh`, byte-identical to Ethereum mainnet) and records the verdict via `registerSafeProof`.
 
 ```bash
-CONV=$(grep CONVOY_PROTOCOL_ADDR_BRAVO .tmp-l2/convoy_l2.env | cut -d= -f2)
+CONV=$(grep CONVOY_PROTOCOL_ADDR_BRAVO SIMULATOR/demo/.tmp-l2/convoy_l2.env | cut -d= -f2)
 
 # 1. fetch the drone's SIGNED telemetry from L2 into the prover's input
 MSYS_NO_PATHCONV=1 docker exec convoy-prover-api-bravo \

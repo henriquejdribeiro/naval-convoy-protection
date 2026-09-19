@@ -19,11 +19,12 @@ services:
     hostname: ship-a
     volumes:
       - ./LAYER1/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
-      - ./LAYER1/besu-l1/networkFiles/keys/0x1b8926a8193ec65c3d011304bd8240bbb30cfbe3/key.priv:/config/key.priv:ro
+      - ship-a-node:/nodekey
       - ship-a-data:/data
+      - ship-a-key:/key          # owner (anvil[0]) key — deploys/owns the L1 contracts
     command:
       - --genesis-file=/config/genesis.json
-      - --node-private-key-file=/config/key.priv
+      - --node-private-key-file=/nodekey/key.priv
       - --data-path=/data
       - --nat-method=NONE
       - --p2p-host=172.28.0.11
@@ -50,11 +51,12 @@ services:
     depends_on: [ship-a]
     volumes:
       - ./LAYER1/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
-      - ./LAYER1/besu-l1/networkFiles/keys/0x2f7b6c28cd816229d02825e131fd1b7b5ed35a3d/key.priv:/config/key.priv:ro
+      - ship-b-node:/nodekey
       - ship-b-data:/data
+      - ship-b-key:/key          # bravo relay — holds the swarm's deployer key
     command:
       - --genesis-file=/config/genesis.json
-      - --node-private-key-file=/config/key.priv
+      - --node-private-key-file=/nodekey/key.priv
       - --data-path=/data
       - --nat-method=NONE
       - --p2p-host=172.28.0.12
@@ -76,11 +78,11 @@ services:
     depends_on: [ship-a]
     volumes:
       - ./LAYER1/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
-      - ./LAYER1/besu-l1/networkFiles/keys/0x9a26fd747265b0c4abd15e8d8ad9e493c15efcce/key.priv:/config/key.priv:ro
+      - ship-c-node:/nodekey
       - ship-c-data:/data
     command:
       - --genesis-file=/config/genesis.json
-      - --node-private-key-file=/config/key.priv
+      - --node-private-key-file=/nodekey/key.priv
       - --data-path=/data
       - --nat-method=NONE
       - --p2p-host=172.28.0.13
@@ -102,11 +104,12 @@ services:
     depends_on: [ship-a]
     volumes:
       - ./LAYER1/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
-      - ./LAYER1/besu-l1/networkFiles/keys/0x9cbbfd6876318aff280535a395dad1b07eac352c/key.priv:/config/key.priv:ro
+      - ship-d-node:/nodekey
       - ship-d-data:/data
+      - ship-d-key:/key          # commander (anvil[7]) key — signs Registry.deploy
     command:
       - --genesis-file=/config/genesis.json
-      - --node-private-key-file=/config/key.priv
+      - --node-private-key-file=/nodekey/key.priv
       - --data-path=/data
       - --nat-method=NONE
       - --p2p-host=172.28.0.14
@@ -128,11 +131,11 @@ services:
     depends_on: [ship-a]
     volumes:
       - ./LAYER1/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
-      - ./LAYER1/besu-l1/networkFiles/keys/0xc41fb2e0dde63b7ea181cc65fd37a129ad8ad93a/key.priv:/config/key.priv:ro
+      - ship-e-node:/nodekey
       - ship-e-data:/data
     command:
       - --genesis-file=/config/genesis.json
-      - --node-private-key-file=/config/key.priv
+      - --node-private-key-file=/nodekey/key.priv
       - --data-path=/data
       - --nat-method=NONE
       - --p2p-host=172.28.0.15
@@ -154,11 +157,12 @@ services:
     depends_on: [ship-a]
     volumes:
       - ./LAYER1/besu-l1/networkFiles/genesis.json:/config/genesis.json:ro
-      - ./LAYER1/besu-l1/networkFiles/keys/0xd211edae231b5ec240035cf56e8cd302bd5d0879/key.priv:/config/key.priv:ro
+      - ship-f-node:/nodekey
       - ship-f-data:/data
+      - ship-f-key:/key          # alpha relay — holds the swarm's deployer key
     command:
       - --genesis-file=/config/genesis.json
-      - --node-private-key-file=/config/key.priv
+      - --node-private-key-file=/nodekey/key.priv
       - --data-path=/data
       - --nat-method=NONE
       - --p2p-host=172.28.0.16
@@ -202,11 +206,12 @@ services:
         echo "[deploy-l1] deploying convoy contracts"
         forge script script/DeployL1.s.sol \
           --rpc-url http://ship-a:8545 \
-          --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+          --private-key "$(cat /key/pk)" \
           --broadcast | tee /workspace/deploy-l1.log
         echo "[deploy-l1] L1 contracts deployed; run ./scripts/script4_register-missions.sh after L2 setup"
     volumes:
       - ./LAYER1/contracts_solidity:/workspace
+      - ship-a-key:/key
     networks:
       - convoy-l1
 
@@ -217,6 +222,26 @@ volumes:
   ship-d-data:
   ship-e-data:
   ship-f-data:
+  ship-a-key:
+    name: convoy-ship-a-key
+  ship-b-key:
+    name: convoy-ship-b-key
+  ship-d-key:
+    name: convoy-ship-d-key
+  ship-f-key:
+    name: convoy-ship-f-key
+  ship-a-node:
+    name: convoy-ship-a-node
+  ship-b-node:
+    name: convoy-ship-b-node
+  ship-c-node:
+    name: convoy-ship-c-node
+  ship-d-node:
+    name: convoy-ship-d-node
+  ship-e-node:
+    name: convoy-ship-e-node
+  ship-f-node:
+    name: convoy-ship-f-node
 
 networks:
   convoy-l1:

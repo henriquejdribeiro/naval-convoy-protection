@@ -3,7 +3,7 @@
 # submit-telemetry.sh — fire `convoy_protocol.submit_telemetry` as one drone.
 #
 # Usage:
-#   ./SIMULATOR/scripts/script6_submit-telemetry.sh <swarm> <drone_id> <cells.json>
+#   ./SIMULATOR/demo/scripts/script6_submit-telemetry.sh <swarm> <drone_id> <cells.json>
 #
 # Args:
 #   swarm     alpha | bravo
@@ -19,16 +19,16 @@
 #   }
 #
 #   All four arrays MUST have the same length. Sample inputs live in
-#   SIMULATOR/scenarios/<scenario>/ (produced by SIMULATOR/scripts/script5_generate-mission.py,
+#   SIMULATOR/demo/scenarios/<scenario>/ (produced by SIMULATOR/demo/scripts/script5_generate-mission.py,
 #   or hand-authored — this is committed input data, not scratch)
 #   when that's rewritten — for now hand-write them or use the example
 #   below).
 #
 # What happens:
 #   1. Loads the drone's keystore + account file (written by
-#      SIMULATOR/scripts/script3_generate-drone-accounts.sh into .tmp-l2/drones/<swarm>/<i>/)
+#      SIMULATOR/demo/scripts/script3_generate-drone-accounts.sh into SIMULATOR/demo/.tmp-l2/drones/<swarm>/<i>/)
 #   2. Reads convoy_protocol address for that swarm from
-#      .tmp-l2/convoy_l2_<swarm>.env
+#      SIMULATOR/demo/.tmp-l2/convoy_l2_<swarm>.env
 #   3. Serialises the 4 arrays into starkli calldata
 #   4. Fires `starkli invoke <conv_addr> submit_telemetry mission_id drone_id
 #      <cells_x array> <cells_y array> <cells_p_contact array> <cells_ts array>`
@@ -45,7 +45,7 @@
 
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 RPC_VERSION="0.8.1"
 KEYSTORE_PWD="convoy"
 
@@ -67,7 +67,7 @@ fi
 MISSION_ID=$( [ "${SWARM}" = "alpha" ] && echo 1 || echo 2 )
 MADARA_HOST="convoy-madara-${SWARM}"
 RPC_URL="http://${MADARA_HOST}:9944/rpc/v${RPC_VERSION}"
-CONV_ENV="${REPO_ROOT}/.tmp-l2/convoy_l2_${SWARM}.env"
+CONV_ENV="${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/convoy_l2_${SWARM}.env"
 
 MACHINE="convoy-machine-${SWARM}-${DRONE_ID}"
 docker ps --format '{{.Names}}' | grep -qx "${MACHINE}" \

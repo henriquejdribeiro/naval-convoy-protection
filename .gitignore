@@ -7,9 +7,8 @@
 #   .tmp-l2           L2 deployer keystore, contract addresses, pulled proofs
 #   SIMULATOR/runs    run logs
 #   bootstrap/output  madara-bootstrapper Starknet-core addresses
-.tmp-l1/
-.tmp-l2/
-SIMULATOR/runs/
+SIMULATOR/demo/.tmp-l1/
+SIMULATOR/demo/.tmp-l2/
 LAYER1/bootstrap/output/
 
 # ── Foundry (L1) build output ─────────────────────────────────────────

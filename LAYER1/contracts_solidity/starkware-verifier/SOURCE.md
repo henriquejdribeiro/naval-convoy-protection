@@ -25,7 +25,7 @@ verified-source bundles of the deployed Ethereum-mainnet contracts.
 | `extract-sources.py` | regenerates `src/` from `LAYER1/tmp-etherscan/sources/*.json` (address-driven) |
 | `verify-bytecode.py` | recompiles each `src/<name>/` with solc 0.6.12 and diffs vs the deployed bytecode |
 
-`SIMULATOR/scripts/deploy-stark-verifier.sh` deploys the 15 stateless contracts,
+`SIMULATOR/demo/scripts/deploy-stark-verifier.sh` deploys the 15 stateless contracts,
 then CFV, then GPS with `cairoVerifierContracts[6] = CFV`.
 
 ## Reproduce & verify

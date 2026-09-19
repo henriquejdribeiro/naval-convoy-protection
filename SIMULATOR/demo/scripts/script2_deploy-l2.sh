@@ -32,7 +32,7 @@ set -euo pipefail
 
 
 # Absolute path to the repo root (one level up from this script).
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 
 # Madara devnet account #1 — pre-funded, OZ-style. Same account exists on
 # BOTH madara instances because both ran `--devnet` (deterministic genesis).
@@ -50,16 +50,53 @@ CASM="/work/LAYER2/contracts_cairo/convoy_protocol/target/dev/convoy_protocol_Co
 # Run starkli inside cairo-builder, mounted at /work so it can see artefacts.
 SCARB_RUN() {
     local rpc_url="$1"; shift
+    # Signer key lives in the swarm's RELAY-SHIP volume (${KEYVOL}), never on
+    # the host. /work is still mounted for the Sierra/CASM artefacts.
     MSYS_NO_PATHCONV=1 docker run --rm -i \
         --network convoy-l1 \
         -v "${REPO_ROOT}:/work" \
+        -v "${KEYVOL}:/key" \
         -e STARKNET_RPC="${rpc_url}" \
-        -e STARKNET_ACCOUNT="/work/.tmp-l2/account.json" \
-        -e STARKNET_KEYSTORE="/work/.tmp-l2/keystore.json" \
+        -e STARKNET_ACCOUNT="/key/account.json" \
+        -e STARKNET_KEYSTORE="/key/keystore.json" \
         -e STARKNET_KEYSTORE_PASSWORD="convoy" \
         -w /work \
         convoy-cairo-builder:latest \
         "$@"
+}
+
+# ── Relay-ship deployer custody ─────────────────────────────────────────────
+# Ship F relays alpha, ship B relays bravo. Ships stay with the convoy (never
+# forward-deployed like drones), so the high-authority deployer key lives here,
+# never on a capturable drone and never on the host.
+relay_key_vol() {
+    case "$1" in
+        alpha) echo "convoy-ship-f-key" ;;    # ship F = alpha relay
+        bravo) echo "convoy-ship-b-key" ;;    # ship B = bravo relay
+        *) echo "convoy-provisioner-key" ;;
+    esac
+}
+
+# Import account #1 into the relay ship's volume if absent. PK is piped via stdin
+# (never a host file); keystore lands only inside the volume. Idempotent.
+ensure_relay_deployer() {
+    local keyvol="$1"
+    if MSYS_NO_PATHCONV=1 docker run --rm -v "${keyvol}:/key" \
+            convoy-cairo-builder:latest test -f /key/keystore.json 2>/dev/null; then
+        return 0
+    fi
+    echo "[deploy-l2] importing deployer key into relay-ship volume ${keyvol} (host never keeps it)"
+    printf "%s" "${ACCOUNT_PK}" | MSYS_NO_PATHCONV=1 docker run --rm -i \
+        -v "${keyvol}:/key" convoy-cairo-builder:latest \
+        bash -c 'starkli signer keystore from-key /key/keystore.json --private-key-stdin --password convoy --force >/dev/null'
+    MSYS_NO_PATHCONV=1 docker run --rm -i -v "${keyvol}:/key" \
+        convoy-cairo-builder:latest sh -c 'cat > /key/account.json' <<EOF
+{
+  "version": 1,
+  "variant": { "type": "open_zeppelin", "version": 1, "public_key": "0x0", "legacy": false },
+  "deployment": { "status": "deployed", "class_hash": "${ACCOUNT_CLASS}", "address": "${ACCOUNT_ADDR}" }
+}
+EOF
 }
 
 # ── Per-swarm deployment routine ────────────────────────────────────────────
@@ -67,7 +104,10 @@ deploy_to() {
     local swarm="$1"           # "alpha" or "bravo"
     local madara_host="convoy-madara-${swarm}"
     local rpc_url="http://${madara_host}:9944/rpc/v${RPC_VERSION}"
-    local env_file="${REPO_ROOT}/.tmp-l2/convoy_l2_${swarm}.env"
+    local env_file="${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/convoy_l2_${swarm}.env"
+
+    local KEYVOL; KEYVOL=$(relay_key_vol "${swarm}")   # SCARB_RUN reads this
+    ensure_relay_deployer "${KEYVOL}"
 
     echo
     echo "======================================================================"
@@ -189,7 +229,7 @@ CONVOY_PROTOCOL_CLASS_HASH_${swarm^^}=${class_hash}
 CONVOY_PROTOCOL_ADDR_${swarm^^}=${contract_addr}
 ACCOUNT_ADDR=${ACCOUNT_ADDR}
 EOF
-    echo "[deploy-l2/${swarm}] wrote .tmp-l2/convoy_l2_${swarm}.env"
+    echo "[deploy-l2/${swarm}] wrote SIMULATOR/demo/.tmp-l2/convoy_l2_${swarm}.env"
 
     # 6. Smoke test — safe_count for a non-existent mission returns 0
     #    (Cairo 1 Map default). Confirms the contract responds to calls.
@@ -214,60 +254,12 @@ EOF
     return 0
 }
 
-# ── Shared one-time setup (account file + keystore) ─────────────────────────
-
-mkdir -p "${REPO_ROOT}/.tmp-l2"
-
-# Account file
-# Who is signing the declare/deploy txs? This is a pre-funded Madara devnet account #1
-cat > "${REPO_ROOT}/.tmp-l2/account.json" <<EOF
-{
-  "version": 1,
-  "variant": {
-    "type": "open_zeppelin",
-    "version": 1,
-    "public_key": "0x0",
-    "legacy": false
-  },
-  "deployment": {
-    "status": "deployed",
-    "class_hash": "${ACCOUNT_CLASS}",
-    "address": "${ACCOUNT_ADDR}"
-  }
-}
-EOF
-
-# Encrypted keystore from raw key.
-printf "%s" "${ACCOUNT_PK}" > "${REPO_ROOT}/.tmp-l2/_pk.txt"
-MSYS_NO_PATHCONV=1 docker run --rm \
-    --network convoy-l1 \
-    -v "${REPO_ROOT}:/work" \
-    -w /work \
-    convoy-cairo-builder:latest \
-    bash -c 'starkli signer keystore from-key /work/.tmp-l2/keystore.json --private-key-stdin --password convoy --force < /work/.tmp-l2/_pk.txt >/dev/null'
-rm -f "${REPO_ROOT}/.tmp-l2/_pk.txt"
-
-# Derive public key and inject into account file.
-PUBLIC_KEY=$(MSYS_NO_PATHCONV=1 docker run --rm \
-    -v "${REPO_ROOT}:/work" \
-    -e STARKNET_KEYSTORE_PASSWORD=convoy \
-    convoy-cairo-builder:latest \
-    starkli signer keystore inspect /work/.tmp-l2/keystore.json --raw --password convoy 2>/dev/null | tail -n1)
-if [ -n "${PUBLIC_KEY}" ]; then
-    MSYS_NO_PATHCONV=1 docker run --rm \
-        -v "${REPO_ROOT}:/work" \
-        -e PUBLIC_KEY="${PUBLIC_KEY}" \
-        convoy-cairo-builder:latest \
-        python3 -c "
-import json, os
-p = '/work/.tmp-l2/account.json'
-d = json.load(open(p))
-d['variant']['public_key'] = os.environ['PUBLIC_KEY']
-json.dump(d, open(p, 'w'), indent=2)
-"
-fi
-
-echo "[deploy-l2] account: ${ACCOUNT_ADDR}"
+# ── Shared one-time setup ───────────────────────────────────────────────────
+# SIMULATOR/demo/.tmp-l2 now holds ONLY the public manifest (convoy_l2*.env). The signer key is
+# imported per-swarm into its relay-ship volume by ensure_relay_deployer (above),
+# so no key material is written to the host.
+mkdir -p "${REPO_ROOT}/SIMULATOR/demo/.tmp-l2"
+echo "[deploy-l2] deployer account: ${ACCOUNT_ADDR} (held in relay-ship volumes, not on host)"
 
 # ── Arg parsing ─────────────────────────────────────────────────────────────
 SWARM_FILTER="both"
@@ -287,13 +279,13 @@ case "${SWARM_FILTER}" in
         deploy_to bravo
         # Combined env file with both addresses for downstream tooling.
         {
-            grep -h '^CONVOY_PROTOCOL_' "${REPO_ROOT}/.tmp-l2/convoy_l2_alpha.env"
-            grep -h '^CONVOY_PROTOCOL_' "${REPO_ROOT}/.tmp-l2/convoy_l2_bravo.env"
+            grep -h '^CONVOY_PROTOCOL_' "${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/convoy_l2_alpha.env"
+            grep -h '^CONVOY_PROTOCOL_' "${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/convoy_l2_bravo.env"
             echo "ACCOUNT_ADDR=${ACCOUNT_ADDR}"
-        } > "${REPO_ROOT}/.tmp-l2/convoy_l2.env"
+        } > "${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/convoy_l2.env"
         echo
-        echo "[deploy-l2] combined .tmp-l2/convoy_l2.env:"
-        cat "${REPO_ROOT}/.tmp-l2/convoy_l2.env"
+        echo "[deploy-l2] combined SIMULATOR/demo/.tmp-l2/convoy_l2.env:"
+        cat "${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/convoy_l2.env"
         ;;
     *) echo "[deploy-l2] --swarm must be alpha | bravo | both"; exit 2 ;;
 esac

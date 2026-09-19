@@ -4,8 +4,8 @@
 #                        open_mission message via StarknetCore.
 #
 # For each swarm:
-#   1. Reads convoy_protocol L2 address from .tmp-l2/convoy_l2_<swarm>.env
-#   2. Reads 5 drone L2 addresses from .tmp-l2/drones-<swarm>.env
+#   1. Reads convoy_protocol L2 address from SIMULATOR/demo/.tmp-l2/convoy_l2_<swarm>.env
+#   2. Reads 5 drone L2 addresses from SIMULATOR/demo/.tmp-l2/drones-<swarm>.env
 #   3. cast send Registry.setConvoyProtocolL2(missionId, l2Addr)
 #         signed with the deployer (owner) key
 #   4. cast send Registry.deploy(missionId, spec, droneAddresses, tsStart)
@@ -39,9 +39,9 @@ set -euo pipefail
 
 # Absolute path to the repo root (one level up from this script in scripts/).
 # Kept absolute — it's passed to `docker run -v "${REPO_ROOT}:/work"` (Docker
-# requires an absolute host path) and used to read the .tmp-l2/*.env files
+# requires an absolute host path) and used to read the SIMULATOR/demo/.tmp-l2/*.env files
 # written by deploy-l2.sh and generate-drone-accounts.sh.
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 
 # ── Tunables ──────────────────────────────────────────────────────────────
 # Every value is ${VAR:-default}: set the env var to override, else use the
@@ -49,9 +49,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 # in production without editing it.
 L1_RPC="${L1_RPC:-http://ship-a:8545}" # L1 node RPC — Docker DNS in dev, real URL in prod
 
-# Two distinct roles, two keys (override via env in prod with managed secrets):
-DEPLOYER_PK="${DEPLOYER_PK:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}" # anvil[0] — contract OWNER; signs the onlyOwner setConvoyProtocolL2 bindings
-COMMANDER_PK="${COMMANDER_PK:-0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356}" # anvil[7] — COMMANDER; signs Registry.deploy (the mission order itself)
+
 TS_START=1700000000   # mission start timestamp (unix). MUST match generate-mission.py
                        # or the telemetry cells_ts will fall outside the time window and fail the time predicate.
 
@@ -109,6 +107,41 @@ CAST() {
         "$@"
 }
 
+
+# ── Ship-held signer custody (L1) ───────────────────────────────────────────
+# The commander key lives in ship D's volume (D = the convoy commander). Ships
+# stay with the convoy, so this authority never rides a forward drone and is
+# never passed as --private-key on the host command line.
+
+# Import a raw L1 signing key into a ship's volume if absent. Piped via stdin
+# (never a host file, never in `ps`); lands only inside the volume. Idempotent.
+#   $1 = key volume (e.g. convoy-ship-d-key)   $2 = raw private key (0x…)
+ensure_ship_key() {
+    local keyvol="$1" pk="$2"
+    if MSYS_NO_PATHCONV=1 docker run --rm -v "${keyvol}:/key" \
+            --entrypoint sh ghcr.io/foundry-rs/foundry:latest -c 'test -s /key/pk' 2>/dev/null; then
+        return 0
+    fi
+    echo "[register] importing signer key into ship volume ${keyvol} (host never keeps it)"
+    printf "%s" "${pk}" | MSYS_NO_PATHCONV=1 docker run --rm -i -v "${keyvol}:/key" \
+        --entrypoint sh ghcr.io/foundry-rs/foundry:latest -c 'cat > /key/pk'
+}
+
+# Like CAST(), but signs with a key held IN A SHIP'S VOLUME. Reads the raw key
+# from /key/pk INSIDE the container and appends --private-key, so the key never
+# appears on the host CLI. Args are passed positionally, so the MissionSpec
+# tuple's parens survive (no single-string sh parsing).
+#   $1 = key volume   $2… = cast args (WITHOUT --private-key)
+CAST_SHIP() {
+    local keyvol="$1"; shift
+    MSYS_NO_PATHCONV=1 docker run --rm --network convoy-l1 \
+        -v "${REPO_ROOT}/LAYER1/contracts_solidity:/workspace" -w /workspace \
+        -v "${keyvol}:/key" \
+        --entrypoint sh \
+        ghcr.io/foundry-rs/foundry:latest \
+        -c '[ -s /key/pk ] || { echo "ship key volume empty — run script1_up.sh first" >&2; exit 1; }; PK=$(cat /key/pk); exec cast "$@" --private-key "$PK"' sh "$@"
+}
+
 register_swarm() {
     
     # Per-swarm registration. swarm = "alpha" | "bravo".
@@ -118,8 +151,8 @@ register_swarm() {
     # Inputs come from earlier pipeline steps:
     #   convoy_l2_<swarm>.env  ← written by deploy-l2.sh            (the L2 contract address)
     #   drones-<swarm>.env     ← written by generate-drone-accounts (the 5 drone addresses)
-    local conv_env="${REPO_ROOT}/.tmp-l2/convoy_l2_${swarm}.env"
-    local drone_env="${REPO_ROOT}/.tmp-l2/drones-${swarm}.env"
+    local conv_env="${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/convoy_l2_${swarm}.env"
+    local drone_env="${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/drones-${swarm}.env"
 
     # Pipeline-order guard: bail if either prior step hasn't run for this swarm.
     [ -f "${conv_env}" ]  || { echo "[register/${swarm}] missing ${conv_env}";  return 1; }
@@ -162,11 +195,10 @@ register_swarm() {
     # a legacy type-0 tx. 2>&1 | tail -3: keep just the last lines of cast's
     # receipt output.
     echo "[register/${swarm}] step 1a: Registry.setConvoyProtocolL2(${mid}, ${conv_addr})"
-    CAST send "${REGISTRY_ADDR}" \
+    CAST_SHIP "convoy-ship-a-key" send "${REGISTRY_ADDR}" \
         "setConvoyProtocolL2(uint256,uint256)" \
         "${mid}" "${conv_addr}" \
         --rpc-url "${L1_RPC}" \
-        --private-key "${DEPLOYER_PK}" \
         --legacy \
         2>&1 | tail -3
 
@@ -208,12 +240,11 @@ register_swarm() {
     #   chain from its own core.
     echo "[register/${swarm}] step 2: Registry.deploy(${mid}, spec, drones, ${TS_START})"
     echo "[register/${swarm}]   → also fires the real Starknet core sendMessageToL2(...) → L1→L2 open_mission"
-    CAST send "${REGISTRY_ADDR}" \
+    CAST_SHIP "convoy-ship-d-key" send "${REGISTRY_ADDR}" \
         "deploy(uint256,(bytes32,uint32,uint32,uint32,uint32,uint8,uint32,uint16,uint16,uint64),uint256[5],uint256)" \
         "${mid}" "${spec}" "${drones}" "${TS_START}" \
         --value 0.01ether \
         --rpc-url "${L1_RPC}" \
-        --private-key "${COMMANDER_PK}" \
         --legacy \
         2>&1 | tail -3
 
@@ -227,11 +258,10 @@ register_swarm() {
         pub=$(grep "^${up}_DRONE_${did}_PUBKEY=" "${drone_env}" | cut -d= -f2)
         [ -z "${pub}" ] && { echo "[register/${swarm}] no pubkey for drone ${did}"; return 1; }
         echo "[register/${swarm}]   drone ${did} → ${pub}"
-        CAST send "${CONVOY_VERIFIER_ADDR}" \
+        CAST_SHIP "convoy-ship-a-key" send "${CONVOY_VERIFIER_ADDR}" \
             "setDronePubkey(uint256,uint8,uint256)" \
             "${mid}" "${did}" "${pub}" \
             --rpc-url "${L1_RPC}" \
-            --private-key "${DEPLOYER_PK}" \
             --legacy \
             2>&1 | tail -2
     done

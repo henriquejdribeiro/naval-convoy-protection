@@ -6,15 +6,15 @@
 #                              transactions immediately afterwards.
 #
 # Output per drone:
-#   .tmp-l2/drones/{swarm}/{i}/keystore.json — encrypted keystore
-#   .tmp-l2/drones/{swarm}/{i}/account.json  — starkli account descriptor
+#   SIMULATOR/demo/.tmp-l2/drones/{swarm}/{i}/keystore.json — encrypted keystore
+#   SIMULATOR/demo/.tmp-l2/drones/{swarm}/{i}/account.json  — starkli account descriptor
 #                                              (required by `starkli invoke`)
 #   on-chain balance: FUND_AMOUNT_WEI of both ETH and STRK on Madara devnet
 #                     (Madara charges tx fees in STRK; without it a tx sits
 #                      in RECEIVED forever)
 #
 # Output per swarm:
-#   .tmp-l2/drones-{swarm}.env — ALPHA_DRONE_{1..5}_{ADDR,PUBKEY,KEYSTORE}
+#   SIMULATOR/demo/.tmp-l2/drones-{swarm}.env — ALPHA_DRONE_{1..5}_{ADDR,PUBKEY,KEYSTORE}
 #
 # How (and why this differs from DEPLOY_ACCOUNT):
 #   We use account #1 (pre-funded by Madara devnet's genesis) to call the
@@ -47,7 +47,7 @@
 set -euo pipefail
 
 # absolute path to the repo root (parent of this script)
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 
 # Starknet RPC version to use for starkli calls. Madara's RPC is pinned to 0.8.1, so starkli must match.
 RPC_VERSION="0.8.1"
@@ -94,45 +94,45 @@ SK() {
         convoy-cairo-builder starkli "$@"
 }
 
-# Set up a starkli account file + keystore for the deployer (account #1).
-# Idempotent: only writes the files once per swarm directory.
-prep_deployer_account() {
-    local swarm="$1"
-    local dep_dir="${REPO_ROOT}/.tmp-l2/drones/${swarm}/_deployer"
-    mkdir -p "${dep_dir}"
+# The deployer account (#1) is held in the swarm's RELAY SHIP volume — ship F
+# relays alpha, ship B relays bravo. Ships stay with the convoy (never
+# forward-deployed like drones), so this key never rides a capturable asset and
+# never touches the host filesystem.
+relay_key_vol() {
+    case "$1" in
+        alpha) echo "convoy-ship-f-key" ;;    # ship F = alpha relay
+        bravo) echo "convoy-ship-b-key" ;;    # ship B = bravo relay
+        *) echo "convoy-provisioner-key" ;;
+    esac
+}
 
-    if [ ! -f "${dep_dir}/keystore.json" ]; then
-        printf "%s" "${DEPLOYER_PK}" > "${dep_dir}/_pk.txt"
-        MSYS_NO_PATHCONV=1 docker run --rm \
-            -v "${REPO_ROOT}:/work" -w /work \
-            convoy-cairo-builder \
-            bash -c "starkli signer keystore from-key /work/.tmp-l2/drones/${swarm}/_deployer/keystore.json --private-key-stdin --password ${KEYSTORE_PWD} --force < /work/.tmp-l2/drones/${swarm}/_deployer/_pk.txt >/dev/null"
-        rm -f "${dep_dir}/_pk.txt"
-
-        cat > "${dep_dir}/account.json" <<EOF
+# Import account #1 into the relay ship's volume if absent. PK is piped via stdin
+# (never a host file); keystore lands only inside the volume. Idempotent.
+ensure_relay_deployer() {
+    local keyvol="$1"
+    if MSYS_NO_PATHCONV=1 docker run --rm -v "${keyvol}:/key" \
+            convoy-cairo-builder test -f /key/keystore.json 2>/dev/null; then
+        return 0
+    fi
+    echo "[mint] importing deployer key into relay-ship volume ${keyvol} (host never keeps it)" >&2
+    printf "%s" "${DEPLOYER_PK}" | MSYS_NO_PATHCONV=1 docker run --rm -i \
+        -v "${keyvol}:/key" convoy-cairo-builder \
+        bash -c "starkli signer keystore from-key /key/keystore.json --private-key-stdin --password ${KEYSTORE_PWD} --force >/dev/null"
+    MSYS_NO_PATHCONV=1 docker run --rm -i -v "${keyvol}:/key" \
+        convoy-cairo-builder sh -c 'cat > /key/account.json' <<EOF
 {
   "version": 1,
-  "variant": {
-    "type": "open_zeppelin",
-    "version": 1,
-    "public_key": "0x0",
-    "legacy": false
-  },
-  "deployment": {
-    "status": "deployed",
-    "class_hash": "${DEPLOYER_CLASS}",
-    "address": "${DEPLOYER_ADDR}"
-  }
+  "variant": { "type": "open_zeppelin", "version": 1, "public_key": "0x0", "legacy": false },
+  "deployment": { "status": "deployed", "class_hash": "${DEPLOYER_CLASS}", "address": "${DEPLOYER_ADDR}" }
 }
 EOF
-    fi
 }
 
 mint_drone_account() {
     local swarm="$1"
     local did="$2"
     local rpc_url="http://convoy-madara-${swarm}:9944/rpc/v${RPC_VERSION}"
-    local d_rel=".tmp-l2/drones/${swarm}/${did}"
+    local d_rel="SIMULATOR/demo/.tmp-l2/drones/${swarm}/${did}"
     local out_dir="${REPO_ROOT}/${d_rel}"
     mkdir -p "${out_dir}"
     local ks_rel="${d_rel}/keystore.json"
@@ -165,10 +165,10 @@ mint_drone_account() {
     local deploy_out
     deploy_out=$(MSYS_NO_PATHCONV=1 docker run --rm \
         --network convoy-l1 \
-        -v "${REPO_ROOT}:/work" -w /work \
+        -v "${KEYVOL}:/key" \
         -e STARKNET_RPC="${rpc_url}" \
-        -e STARKNET_ACCOUNT="/work/.tmp-l2/drones/${swarm}/_deployer/account.json" \
-        -e STARKNET_KEYSTORE="/work/.tmp-l2/drones/${swarm}/_deployer/keystore.json" \
+        -e STARKNET_ACCOUNT="/key/account.json" \
+        -e STARKNET_KEYSTORE="/key/keystore.json" \
         -e STARKNET_KEYSTORE_PASSWORD="${KEYSTORE_PWD}" \
         convoy-cairo-builder \
         starkli deploy \
@@ -279,10 +279,10 @@ fund_drone() {
 
         out=$(MSYS_NO_PATHCONV=1 docker run --rm \
             --network convoy-l1 \
-            -v "${REPO_ROOT}:/work" -w /work \
+            -v "${KEYVOL}:/key" \
             -e STARKNET_RPC="${rpc_url}" \
-            -e STARKNET_ACCOUNT="/work/.tmp-l2/drones/${swarm}/_deployer/account.json" \
-            -e STARKNET_KEYSTORE="/work/.tmp-l2/drones/${swarm}/_deployer/keystore.json" \
+            -e STARKNET_ACCOUNT="/key/account.json" \
+            -e STARKNET_KEYSTORE="/key/keystore.json" \
             -e STARKNET_KEYSTORE_PASSWORD="${KEYSTORE_PWD}" \
             convoy-cairo-builder \
             starkli invoke "${token}" transfer "${drone_addr}" "${FUND_AMOUNT_WEI}" 0 \
@@ -313,7 +313,8 @@ deployer_nonce_hex() {
 
 generate_for_swarm() {
     local swarm="$1"
-    local env_file="${REPO_ROOT}/.tmp-l2/drones-${swarm}.env"
+    local env_file="${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/drones-${swarm}.env"
+    local KEYVOL; KEYVOL=$(relay_key_vol "${swarm}")   # deploy/fund read this
 
     echo
     echo "======================================================================"
@@ -321,7 +322,7 @@ generate_for_swarm() {
     echo "  (deployer: account #1 at ${DEPLOYER_ADDR})"
     echo "======================================================================"
 
-    prep_deployer_account "${swarm}"
+    ensure_relay_deployer "${KEYVOL}"
 
     {
         echo "# Generated by generate-drone-accounts.sh — do not commit"
@@ -365,7 +366,7 @@ generate_for_swarm() {
 # sure starkli's next nonce fetch sees the previous tx as mined.
 fund_all_drones() {
     local swarm="$1"
-    local env_file="${REPO_ROOT}/.tmp-l2/drones-${swarm}.env"
+    local env_file="${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/drones-${swarm}.env"
     local addrs
     addrs=$(grep -E "^[A-Z]+_DRONE_[0-9]+_ADDR=" "${env_file}" | cut -d= -f2)
     [ -z "${addrs}" ] && return 0
@@ -394,7 +395,7 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-mkdir -p "${REPO_ROOT}/.tmp-l2/drones"
+mkdir -p "${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/drones"
 
 case "${SWARM_FILTER}" in
     alpha) generate_for_swarm alpha ;;

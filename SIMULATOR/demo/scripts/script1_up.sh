@@ -19,13 +19,13 @@
 # idempotent and the healthchecks short-circuit if everything's already up.
 #
 # Usage:
-#   ./SIMULATOR/scripts/script1_up.sh                  # bring up everything including Dozzle
-#   ./SIMULATOR/scripts/script1_up.sh --no-debugger    # skip Dozzle (saves a container)
+#   ./SIMULATOR/demo/scripts/script1_up.sh                  # bring up everything including Dozzle
+#   ./SIMULATOR/demo/scripts/script1_up.sh --no-debugger    # skip Dozzle (saves a container)
 #
 # After this exits the next step is:
-#   ./SIMULATOR/scripts/script2_deploy-l2.sh
-#   ./SIMULATOR/scripts/script3_generate-drone-accounts.sh --swarm both
-#   ./SIMULATOR/scripts/script4_register-missions.sh
+#   ./SIMULATOR/demo/scripts/script2_deploy-l2.sh
+#   ./SIMULATOR/demo/scripts/script3_generate-drone-accounts.sh --swarm both
+#   ./SIMULATOR/demo/scripts/script4_register-missions.sh
 # then submit telemetry per drone. See README for the full sequence.
 # =============================================================================
 
@@ -48,7 +48,7 @@ while [ $# -gt 0 ]; do
 done
 
 # root directory 
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "${REPO_ROOT}"
 
 # Helper that waits for a docker container to reach the healthy state. Polls every 3s.
@@ -76,6 +76,24 @@ wait_besu() {
     printf " ✓\n"
 }
 
+# ── Besu node-identity keys → per-ship volumes (QBFT validators) ──────────────
+# Each ship reads /nodekey/key.priv at boot, so seed the volumes BEFORE the L1
+# stack starts. Values piped via stdin (never on the host CLI / never in ps);
+# idempotent. These addresses are fixed in genesis.json — the values must match
+# EXACTLY or QBFT won't form consensus.
+NODE_IMG="ghcr.io/foundry-rs/foundry:latest"
+ensure_node_key() {   # $1 = volume   $2 = node private key (0x + 64 hex, no newline)
+    MSYS_NO_PATHCONV=1 docker run --rm -v "$1:/nodekey" --entrypoint sh "${NODE_IMG}" -c 'test -s /nodekey/key.priv' 2>/dev/null && return 0
+    printf "%s" "$2" | MSYS_NO_PATHCONV=1 docker run --rm -i --user 0:0 -v "$1:/nodekey" --entrypoint sh "${NODE_IMG}" -c 'cat > /nodekey/key.priv'
+    echo "  seeded node key -> $1"
+}
+ensure_node_key convoy-ship-a-node "0xa7ee3c7df230a53396aac1c057c06a0adf53369f4eb76f7c5f7126abd066f1b1"
+ensure_node_key convoy-ship-b-node "0x1cd7f0bbae7bd4acbd8df70d1927f30a3fceca1ad5c48ac72cbb215604b80002"
+ensure_node_key convoy-ship-c-node "0xd3446ccdd6a4327dc4641e3447afa5d2237d342a7a7a9f6b3df2103b2e48b672"
+ensure_node_key convoy-ship-d-node "0x3a18aac2f7ad9bb1d800331fcfa164ae152732dd26885226de635fcf480fd5db"
+ensure_node_key convoy-ship-e-node "0xf422d1787a6821de53a5d26e697dbd1b823a82a61e97646feedaf70d504bc536"
+ensure_node_key convoy-ship-f-node "0x2ba0265b8f32b99779b2a54b594bc18dc2d8891f59ebecf43c5e2728e5cb34b0"
+
 echo "  [1/4] L1 chain — 6 Besu QBFT validators (ships A–F)"
 echo "═══════════════════════════════════════════════════════════════"
 docker compose --project-directory . -f LAYER1/docker-compose.l1.yml up -d 2>&1 | tail -3
@@ -91,6 +109,30 @@ echo "════════════════════════�
 # fresh contracts at SHIFTED addresses (deployer nonce drift), and every
 # downstream script reading local.env would point at the wrong contracts.
 . LAYER1/deployments/local.env
+
+# ── Owner key custody: import anvil[0] into ship A's volume (L1 command node) ──
+# The owner/deployer key deploys + owns the L1 contracts. It lives ONLY in ship
+# A's volume; deploy-l1, deploy-stark-verifier and the cast calls below all read
+# it from there — it's never passed as --private-key on the host command line.
+FOUNDRY_IMG="ghcr.io/foundry-rs/foundry:latest"
+OWNER_KEYVOL="convoy-ship-a-key"
+ensure_ship_key() {   # $1 = key volume   $2 = raw private key
+    MSYS_NO_PATHCONV=1 docker run --rm -v "$1:/key" --entrypoint sh "${FOUNDRY_IMG}" -c 'test -s /key/pk' 2>/dev/null && return 0
+    echo "  importing owner key into ship volume $1 (host never keeps it)"
+    printf "%s" "$2" | MSYS_NO_PATHCONV=1 docker run --rm -i --user 0:0 -v "$1:/key" --entrypoint sh "${FOUNDRY_IMG}" -c 'cat > /key/pk'
+}
+ensure_ship_key "${OWNER_KEYVOL}" "${DEPLOYER_PK:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}"
+
+# Relay signer keys (L1 Stage-A proof submission) live in per-swarm volumes
+# mounted into each prover-api — kept SEPARATE from the owner/deployer volumes
+# so the forward prover never sees the higher-authority keys.
+ensure_ship_key "convoy-relay-alpha-key" "${ALPHA_RELAY_PK:-0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba}"
+ensure_ship_key "convoy-relay-bravo-key" "${BRAVO_RELAY_PK:-0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d}"
+# Commander key (ship D) — signs mission orders in script4. Seeded here so
+# script4 stays key-free and just reads it from ship D's volume.
+ensure_ship_key "convoy-ship-d-key" "${COMMANDER_PK:-0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356}"
+
+
 core_has_code() {
     local a="${1:-}"; [ -z "$a" ] && return 1
     local code
@@ -100,29 +142,32 @@ core_has_code() {
     [ "${#code}" -gt 4 ]
 }
 CORE_ADDR=""
-bootstrap_core() {   # $1=swarm  $2=config file  $3=deployer key
-    local swarm="$1" cfg="$2" key="$3"
+
+bootstrap_core() {   # $1=swarm  $2=config file   (signer read from the relay volume)
+    local swarm="$1" cfg="$2"
+    local keyvol="convoy-relay-${swarm}-key"
     local out="${REPO_ROOT}/LAYER1/bootstrap/output/addresses-${swarm}.json"
     CORE_ADDR=""
     [ -f "${out}" ] && CORE_ADDR=$(grep -oE '"coreContract"[^"]*"0x[0-9a-fA-F]+"' "${out}" | head -1 | grep -oE '0x[0-9a-fA-F]+')
     if core_has_code "${CORE_ADDR}"; then echo "  reusing ${swarm} core ${CORE_ADDR}"; return 0; fi
     echo "  deploying ${swarm} Starknet core (bootstrapper-v2 setup-base)..."
     mkdir -p "${REPO_ROOT}/LAYER1/bootstrap/output"; printf '{}' > "${out}"
+    # BASE_LAYER_PRIVATE_KEY read from the relay volume IN-CONTAINER (never on the
+    # host CLI / never in ps); then re-exec the image's real entrypoint (tini).
     MSYS_NO_PATHCONV=1 docker run --rm -w /app/build-artifacts \
-        -e BASE_LAYER_PRIVATE_KEY="${key}" \
+        -v "${keyvol}:/key" \
         -v "${REPO_ROOT}/LAYER1/bootstrap:/bootstrap" \
+        --entrypoint sh \
         ghcr.io/madara-alliance/bootstrapper-v2:nightly-b185bb3 \
+        -c 'export BASE_LAYER_PRIVATE_KEY=$(cat /key/pk); exec tini -- bootstrapper-v2 "$@"' sh \
         setup-base --config-path "/bootstrap/${cfg}" \
         --addresses-output-path "/bootstrap/output/addresses-${swarm}.json" 2>&1 \
         | grep -E "Deployed|config hash|saved" | tail -14
     CORE_ADDR=$(grep -oE '"coreContract"[^"]*"0x[0-9a-fA-F]+"' "${out}" | head -1 | grep -oE '0x[0-9a-fA-F]+')
 }
-bootstrap_core alpha config.json       "${ALPHA_RELAY_PK}"; STARKNET_CORE_ADDR_ALPHA="${CORE_ADDR}"
-bootstrap_core bravo config-bravo.json "${BRAVO_RELAY_PK}"; STARKNET_CORE_ADDR_BRAVO="${CORE_ADDR}"
-[ -n "${STARKNET_CORE_ADDR_ALPHA}" ] && [ -n "${STARKNET_CORE_ADDR_BRAVO}" ] || { echo "[up] bootstrapper failed" >&2; exit 1; }
-export STARKNET_CORE_ADDR_ALPHA STARKNET_CORE_ADDR_BRAVO
-echo "  Alpha core: ${STARKNET_CORE_ADDR_ALPHA}"
-echo "  Bravo core: ${STARKNET_CORE_ADDR_BRAVO}"
+bootstrap_core alpha config.json       ; STARKNET_CORE_ADDR_ALPHA="${CORE_ADDR}"
+bootstrap_core bravo config-bravo.json ; STARKNET_CORE_ADDR_BRAVO="${CORE_ADDR}"
+
 already_deployed=true
 for var in REGISTRY_ADDR CONVOY_VERIFIER_ADDR COMMAND_LOG_ADDR; do
     addr="${!var}"
@@ -147,20 +192,20 @@ fi
 
 # ── [2b] StarkWare 2023_9 GPS verifier suite + wire the convoy Verifier to it ──
 echo "  [2b] StarkWare 2023_9 GPS verifier suite (byte-identical mainnet bytecode)"
-STARK_ENV="${REPO_ROOT}/.tmp-l1/stark-verifier.env"
+STARK_ENV="${REPO_ROOT}/SIMULATOR/demo/.tmp-l1/stark-verifier.env"
 GPS_ADDR=""
 [ -f "${STARK_ENV}" ] && GPS_ADDR=$(grep '^GPS_STATEMENT_VERIFIER_ADDR=' "${STARK_ENV}" | cut -d= -f2)
 if core_has_code "${GPS_ADDR}"; then
     echo "  reusing STARK verifier suite (GPS ${GPS_ADDR})"
 else
-    "${REPO_ROOT}/SIMULATOR/scripts/deploy-stark-verifier.sh"
+    "${REPO_ROOT}/SIMULATOR/demo/scripts/deploy-stark-verifier.sh"
     GPS_ADDR=$(grep '^GPS_STATEMENT_VERIFIER_ADDR=' "${STARK_ENV}" | cut -d= -f2)
 fi
 echo "  wiring convoy Verifier ${CONVOY_VERIFIER_ADDR} -> GPS ${GPS_ADDR}"
-MSYS_NO_PATHCONV=1 docker run --rm --network convoy-l1 --entrypoint cast ghcr.io/foundry-rs/foundry:latest \
+MSYS_NO_PATHCONV=1 docker run --rm --network convoy-l1 -v "${OWNER_KEYVOL}:/key" --entrypoint sh "${FOUNDRY_IMG}" \
+    -c 'PK=$(cat /key/pk); exec cast "$@" --private-key "$PK"' sh \
     send "${CONVOY_VERIFIER_ADDR}" "setStarkVerifier(address)" "${GPS_ADDR}" \
     --rpc-url http://ship-a:8545 \
-    --private-key "${DEPLOYER_PK:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}" \
     --legacy --gas-price 0 >/dev/null 2>&1 && echo "  ✓ starkVerifier wired"
 
 echo
@@ -204,14 +249,14 @@ echo
 echo "═══════════════════════════════════════════════════════════════"
 echo "  Stack is up. Suggested next steps:"
 echo "═══════════════════════════════════════════════════════════════"
-echo "    ./SIMULATOR/scripts/script2_deploy-l2.sh --swarm both"
-echo "    ./SIMULATOR/scripts/script3_generate-drone-accounts.sh --swarm both"
-echo "    ./SIMULATOR/scripts/script4_register-missions.sh --swarm both"
-echo "    python3 SIMULATOR/scripts/script5_generate-mission.py --scenario both-safe"
+echo "    ./SIMULATOR/demo/scripts/script2_deploy-l2.sh --swarm both"
+echo "    ./SIMULATOR/demo/scripts/script3_generate-drone-accounts.sh --swarm both"
+echo "    ./SIMULATOR/demo/scripts/script4_register-missions.sh --swarm both"
+echo "    python3 SIMULATOR/demo/scripts/script5_generate-mission.py --scenario both-safe"
 echo "    for swarm in alpha bravo; do"
 echo "        for did in 1 2 3 4 5; do"
-echo "            f=SIMULATOR/scenarios/both-safe/\${swarm}_\${did}.json"
-echo "            [ -f \"\$f\" ] && ./SIMULATOR/scripts/script6_submit-telemetry.sh \$swarm \$did \"\$f\""
+echo "            f=SIMULATOR/demo/scenarios/both-safe/\${swarm}_\${did}.json"
+echo "            [ -f \"\$f\" ] && ./SIMULATOR/demo/scripts/script6_submit-telemetry.sh \$swarm \$did \"\$f\""
 echo "        done"
 echo "    done"
 echo "    
@@ -222,11 +267,11 @@ docker run --rm --network convoy-l1 ghcr.io/foundry-rs/foundry:latest \
 "
 echo "    
 
-docker run --rm --network convoy-l1 ghcr.io/foundry-rs/foundry:latest -c "\
+docker run --rm --network convoy-l1 -v convoy-ship-d-key:/key --entrypoint sh ghcr.io/foundry-rs/foundry:latest -c "\
   cast send 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0 \
     'advance(uint256,uint256,uint256)' 1 2 100 \
     --rpc-url http://ship-a:8545 \
-    --private-key 0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356 \
+    --private-key '$(cat /key/pk)' \
     --legacy"  
     
 "

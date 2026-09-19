@@ -103,18 +103,25 @@
   labelSprite(sprites, 'EX-011 · BRAVO', '#e9d5ff', 0.032).position.set(lonToX((CDIV_LON + COV.lonMax) / 2), 3, latToZ(COV.latMax));
 
   // ── ship/drone body (constant screen size) + hover data ─────────────────
+  // Entities are FIXED world-size (not constant-screen): one multiplier maps the
+  // per-entity `size` to world units, so they shrink WITH the world when you zoom
+  // out instead of growing/overlapping. Unit spacing is ~2 world units, so keep
+  // final sizes < 2. Tune ENTITY_WORLD_MULT to scale the whole fleet.
+  const ENTITY_WORLD_MULT = 20;
   function body(id, lon, lat, color, opts) {
     opts = opts || {};
+    const worldSize = (opts.size || 0.02) * ENTITY_WORLD_MULT;   // fixed size, world units
     const g = new T.Group();
     g.position.set(lonToX(lon), 0.6, latToZ(lat));
-    const mesh = new T.Mesh(new T.SphereGeometry(1, 24, 18),
+    g.scale.setScalar(worldSize);                                // set ONCE — never rescaled per frame
+    const mesh = new T.Mesh(new T.SphereGeometry(0.5, 24, 18),
       new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.4, roughness: 0.3, metalness: 0.25 }));
     mesh.userData = { group: g };
     pickables.push(mesh);
     g.add(mesh);
     const lbl = labelSprite(null, id, opts.textColor || '#0b1220', 0.024);
-    lbl.position.set(0, 2.5, 0); g.add(lbl); sprites.pop();
-    g.userData.label = lbl; g.userData.size = opts.size || 0.02;
+    lbl.position.set(0, 0.9, 0); g.add(lbl); sprites.pop();
+    g.userData.label = lbl; g.userData.worldSize = worldSize;
     g.userData.id = id; g.userData.lon = lon; g.userData.lat = lat; g.userData.sphere = mesh;
     bodies.push(g); scene.add(g);
     return g;
@@ -128,7 +135,7 @@
       const m = gltf.scene;
       const box = new T.Box3().setFromObject(m), sz = new T.Vector3(), ctr = new T.Vector3();
       box.getSize(sz); box.getCenter(ctr);
-      const s = (opts.fit || 2.4) / (Math.max(sz.x, sz.y, sz.z) || 1);
+      const s = 1.0 / (Math.max(sz.x, sz.y, sz.z) || 1);   // normalize to 1 unit; group's worldSize scale sets the final size (opts.fit ignored)
       m.scale.setScalar(s);
       m.position.set(-ctr.x * s, -ctr.y * s + (opts.lift || 0), -ctr.z * s);
       if (opts.rotY != null) m.rotation.y = opts.rotY;
@@ -386,8 +393,10 @@
     }
     cpos.copy(camera.position);
     for (const sp of sprites) { const d = cpos.distanceTo(sp.getWorldPosition(wp)); const s = d * sp.userData.size; sp.scale.set(s * sp.userData.aspect, s, 1); }
-    for (const g of bodies) { const d = cpos.distanceTo(g.position); g.scale.setScalar(Math.max(0.02, d * g.userData.size)); g.userData.label.scale.set(g.userData.label.userData.aspect, 1, 1); }
-    if (selected) { const d = cpos.distanceTo(selected.position); selRing.position.set(selected.position.x, 0.42, selected.position.z); selRing.scale.setScalar(Math.max(0.02, d * selected.userData.size) * 1.8); }
+    // bodies are FIXED world-size (scale baked in at creation) — only the text
+    // label is kept constant-screen (readable) by countering the group's scale.
+    for (const g of bodies) { const d = cpos.distanceTo(g.position); const L = (d * 0.03) / g.userData.worldSize; const lb = g.userData.label; lb.scale.set(L * lb.userData.aspect, L, 1); }
+    if (selected) { selRing.position.set(selected.position.x, 0.42, selected.position.z); selRing.scale.setScalar(selected.userData.worldSize * 1.6); }
     renderer.render(scene, camera);
   })();
 })();
