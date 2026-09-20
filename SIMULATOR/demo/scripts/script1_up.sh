@@ -167,6 +167,10 @@ bootstrap_core() {   # $1=swarm  $2=config file   (signer read from the relay vo
 }
 bootstrap_core alpha config.json       ; STARKNET_CORE_ADDR_ALPHA="${CORE_ADDR}"
 bootstrap_core bravo config-bravo.json ; STARKNET_CORE_ADDR_BRAVO="${CORE_ADDR}"
+[ -n "${STARKNET_CORE_ADDR_ALPHA}" ] && [ -n "${STARKNET_CORE_ADDR_BRAVO}" ] || { echo "[up] bootstrapper failed" >&2; exit 1; }
+export STARKNET_CORE_ADDR_ALPHA STARKNET_CORE_ADDR_BRAVO
+echo "  Alpha core: ${STARKNET_CORE_ADDR_ALPHA}"
+echo "  Bravo core: ${STARKNET_CORE_ADDR_BRAVO}"
 
 already_deployed=true
 for var in REGISTRY_ADDR CONVOY_VERIFIER_ADDR COMMAND_LOG_ADDR; do
