@@ -322,12 +322,12 @@ contract Registry is Ownable {
         //
         // L2 MissionSpec field order — must match cairo/convoy_protocol/src/lib.cairo:
         //   mission_id, swarm_id, zone_x, zone_y, zone_w, zone_h,
-        //   n_drones, strip_width, coverage_min, p_min, time_window, ts_start
+        //   n_drones, strip_width, coverage_min, p_min, time_window, ts_start,
         //
         // swarm_id == mission_id in our convention (alpha=1, bravo=2).
         uint256[] memory payload = new uint256[](18);
-        payload[0]  = missionId;                       // spec.mission_id
-        payload[1]  = missionId;                       // spec.swarm_id (= mission_id)
+        payload[0]  = missionId;
+        payload[1]  = missionId;
         payload[2]  = uint256(spec.zoneX);
         payload[3]  = uint256(spec.zoneY);
         payload[4]  = uint256(spec.zoneW);
@@ -351,7 +351,7 @@ contract Registry is Ownable {
         _coreFor(missionId).sendMessageToL2{value: msg.value}(
             convoyProtocolL2[missionId],   // toAddress = the L2 convoy_protocol
             OPEN_MISSION_SELECTOR,         // selector → routes to open_mission
-            payload                        // the 18 felts
+            payload                        // the 20 felts
         );
     }
 

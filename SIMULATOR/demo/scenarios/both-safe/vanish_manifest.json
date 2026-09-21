@@ -1,5 +1,5 @@
 {
   "scenario": "both-safe",
-  "summary": "all 10 drones SAFE -> both swarms complete -> convoy ADVANCES",
+  "summary": "all 10 drones SAFE -> both swarm proofs verdict=1 -> principal certified -> ADVANCE",
   "vanished": []
 }

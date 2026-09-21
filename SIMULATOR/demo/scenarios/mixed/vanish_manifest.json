@@ -1,0 +1,5 @@
+{
+  "scenario": "mixed",
+  "summary": "alpha all SAFE, bravo[4]=unsafe-contact -> single-flank fail -> HOLD",
+  "vanished": []
+}

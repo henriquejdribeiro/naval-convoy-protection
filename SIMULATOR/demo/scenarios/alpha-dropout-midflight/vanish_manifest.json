@@ -1,0 +1,5 @@
+{
+  "scenario": "alpha-dropout-midflight",
+  "summary": "alpha[3] disappears mid-sortie (~40% swept) -> swarm verdict=0 -> HOLD",
+  "vanished": []
+}

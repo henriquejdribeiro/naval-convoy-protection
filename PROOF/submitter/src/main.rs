@@ -63,26 +63,26 @@ abigen!(
     r#"[
         {
             "type": "function",
-            "name": "registerSafeProof",
+            "name": "registerSwarmProof",
             "stateMutability": "nonpayable",
             "inputs": [
                 {
                     "name": "inputs",
                     "type": "tuple",
-                    "internalType": "struct SafeProofInputs",
+                    "internalType": "struct SwarmProofInputs",
                     "components": [
-                        {"name": "programHash", "type": "bytes32"},
-                        {"name": "outputHash",  "type": "bytes32"},
-                        {"name": "missionId",   "type": "uint256"},
-                        {"name": "droneIndex",  "type": "uint8"},
-                        {"name": "stripXStart", "type": "uint32"},
-                        {"name": "stripXEnd",   "type": "uint32"},
-                        {"name": "stripYStart", "type": "uint32"},
-                        {"name": "stripYEnd",   "type": "uint32"},
-                        {"name": "verdictBool", "type": "uint8"},
-                        {"name": "commitment",  "type": "bytes32"},
-                        {"name": "dronePubkey", "type": "uint256"},
-                        {"name": "nSteps",      "type": "uint256"}
+                        {"name": "programHash",  "type": "bytes32"},
+                        {"name": "outputHash",   "type": "bytes32"},
+                        {"name": "missionId",    "type": "uint256"},
+                        {"name": "swarmId",      "type": "uint256"},
+                        {"name": "zoneX",        "type": "uint32"},
+                        {"name": "zoneY",        "type": "uint32"},
+                        {"name": "zoneW",        "type": "uint32"},
+                        {"name": "zoneH",        "type": "uint32"},
+                        {"name": "swarmVerdict", "type": "uint8"},
+                        {"name": "swarmHash",    "type": "bytes32"},
+                        {"name": "dronePubkeys", "type": "uint256[5]"},
+                        {"name": "nSteps",       "type": "uint256"}
                     ]
                 }
             ],
@@ -117,10 +117,11 @@ fn keccak256(data: &[u8]) -> [u8; 32] {
     out
 }
 
-/// Extract the six felts safe_area_verify.cairo writes via serialize_word.
-/// Returns them in declaration order: (mission_id, drone_id, coverage_permille,
-/// max_p_contact, elapsed_seconds, commitment, drone_pubkey).
-fn extract_public_outputs(annotated_proof: &AnnotatedProof) -> Result<([U256; 9], U256)> {
+/// Extract the 13 felts safe_area_verify_{alpha,bravo}.cairo write via
+/// serialize_word, in declaration order: (mission_id, swarm_id, zone_x, zone_y,
+/// zone_w, zone_h, swarm_verdict, swarm_hash, pk_1..pk_5), plus the Cairo
+/// program hash (the word just before them).
+fn extract_public_outputs(annotated_proof: &AnnotatedProof) -> Result<([U256; 13], U256)> {
     // The annotated proof carries the public_input shape Stone emitted;
     // its memory_segments map names a region called "output" with begin
     // and stop addresses, and public_memory is a list of (address, value)
@@ -170,23 +171,22 @@ fn extract_public_outputs(annotated_proof: &AnnotatedProof) -> Result<([U256; 9]
 
     // Bootloader-wrapped output: [simpleBootloaderProgramHash,
     // hashedSupportedCairoVerifiers, nTasks, taskOutputSize, cairoProgramHash,
-    // <9 safe_area outputs>]. We need the 9 outputs (last 9) and the Cairo
-    // program hash (word just before them) — the GPS registers its fact under
-    // that Cairo hash, not keccak-of-JSON.
-    if pairs.len() < 10 {
+    // <13 swarm outputs>]. We need the 13 outputs (last 13) and the Cairo
+    // program hash (word just before them).
+    if pairs.len() < 14 {
         bail!(
-            "expected at least 10 output words (bootloader header + program hash + 9 outputs), got {}: {:?}",
+            "expected at least 14 output words (bootloader header + program hash + 13 outputs), got {}: {:?}",
             pairs.len(),
             pairs
         );
     }
-    let cairo_program_hash = pairs[pairs.len() - 10].1;
-    let values: [U256; 9] = pairs[pairs.len() - 9..]
+    let cairo_program_hash = pairs[pairs.len() - 14].1;
+    let values: [U256; 13] = pairs[pairs.len() - 13..]
         .iter()
         .map(|p| p.1)
         .collect::<Vec<_>>()
         .try_into()
-        .map_err(|_| anyhow!("could not coerce to [U256; 9]"))?;
+        .map_err(|_| anyhow!("could not coerce to [U256; 13]"))?;
     Ok((values, cairo_program_hash))
 }
 
@@ -352,10 +352,11 @@ async fn main() -> Result<()> {
 
     // ── Phase 4b: gate the verdict on the verified fact (our Verifier, 1-arg) ──
     let convoy_verifier_addr = env_address("CONVOY_VERIFIER_ADDR")?;
-    println!("[submitter] Phase 4b: Verifier.registerSafeProof → {:?}", convoy_verifier_addr);
+    println!("[submitter] Phase 4b: Verifier.registerSwarmProof → {:?}", convoy_verifier_addr);
 
     let (outputs, cairo_program_hash) = extract_public_outputs(&annotated_proof)?;
-    let [mission_id, drone_id, sx0, sx1, sy0, sy1, verdict, commitment, drone_pubkey] = outputs;
+    let [mission_id, swarm_id, zone_x, zone_y, zone_w, zone_h,
+         swarm_verdict, swarm_hash, pk1, pk2, pk3, pk4, pk5] = outputs;
 
     // Match the GPS fact = keccak256(abi.encode(cairoProgramHash, programOutputFact)):
     // program hash is the Cairo hash felt, output hash is the node-stack fact from the event.
@@ -372,31 +373,32 @@ async fn main() -> Result<()> {
         .map(U256::from)
         .ok_or_else(|| anyhow!("public_input.n_steps missing"))?;
 
-    let mut commitment_bytes = [0u8; 32];
-    commitment.to_big_endian(&mut commitment_bytes);
+    let mut swarm_hash_bytes = [0u8; 32];
+    swarm_hash.to_big_endian(&mut swarm_hash_bytes);
 
-    let inputs = SafeProofInputs {
+    let inputs = SwarmProofInputs {
         program_hash,
         output_hash,
         mission_id,
-        drone_index: drone_id.as_u32() as u8,
-        strip_x_start: sx0.as_u32(),
-        strip_x_end: sx1.as_u32(),
-        strip_y_start: sy0.as_u32(),
-        strip_y_end: sy1.as_u32(),
-        verdict_bool: verdict.as_u32() as u8,
-        commitment: commitment_bytes,
-        drone_pubkey,
+        swarm_id,
+        zone_x: zone_x.as_u32(),
+        zone_y: zone_y.as_u32(),
+        zone_w: zone_w.as_u32(),
+        zone_h: zone_h.as_u32(),
+        swarm_verdict: swarm_verdict.as_u32() as u8,
+        swarm_hash: swarm_hash_bytes,
+        drone_pubkeys: [pk1, pk2, pk3, pk4, pk5],
         n_steps,
     };
 
     println!("[submitter]   programHash: 0x{}", hex::encode(program_hash));
     println!("[submitter]   outputHash:  0x{}", hex::encode(output_hash));
-    println!("[submitter]   mission {} drone {} verdict {}", mission_id, drone_id, verdict);
-    println!("[submitter]   strip x[{},{}] y[{},{}]", sx0, sx1, sy0, sy1);
+    println!("[submitter]   mission {} swarm {} verdict {}", mission_id, swarm_id, swarm_verdict);
+    println!("[submitter]   zone x={} y={} w={} h={}", zone_x, zone_y, zone_w, zone_h);
+    println!("[submitter]   swarm_hash 0x{}", hex::encode(swarm_hash_bytes));
 
     let verifier = ConvoyVerifier::new(convoy_verifier_addr, signer.clone());
-    await_tx(verifier.register_safe_proof(inputs).send().await?, "registerSafeProof").await?;
+    await_tx(verifier.register_swarm_proof(inputs).send().await?, "registerSwarmProof").await?;
 
     println!("[submitter] DONE.");
     Ok(())

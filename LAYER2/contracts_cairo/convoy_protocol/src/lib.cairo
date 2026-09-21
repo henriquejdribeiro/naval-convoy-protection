@@ -63,12 +63,12 @@ use core::starknet::ContractAddress;
 pub struct MissionSpec {
     pub mission_id:   felt252,
     pub swarm_id:     felt252,    // 1 = Alpha, 2 = Bravo
-    pub zone_x:       u32,        // grid origin
-    pub zone_y:       u32,
-    pub zone_w:       u32,        // cells wide  (15 for Alpha, 20 for Bravo)
-    pub zone_h:       u32,        // cells tall  (8 for both)
+    pub zone_x:       u32,        // E7 SW-corner |lon|·1e7 (deg west, +ve)
+    pub zone_y:       u32,        // E7 SW-corner  lat·1e7  (deg north, +ve)
+    pub zone_w:       u32,        // E7 width  (Alpha 10_000_000=1°; Bravo 20_000_000=2°)
+    pub zone_h:       u32,        // E7 height (both 10_000_000=1°)
     pub n_drones:     u8,         // 5
-    pub strip_width:  u32,        // = zone_w / n_drones (must be exact)
+    pub strip_width:  u32,        // E7 = zone_w / n_drones (Alpha 2_000_000; Bravo 4_000_000)
     pub coverage_min: u16,        // permille; e.g. 950 = 95%
     pub p_min:        u16,        // basis points; e.g. 7000 = 70%
     pub time_window:  u64,        // seconds
@@ -534,6 +534,9 @@ mod ConvoyProtocol {
             // 7. Evaluate the four SAFE_AREA predicates against the cells.
             //    First failing predicate wins — verdict becomes UNSAFE
             //    and fail_reason records which check rejected.
+            // sensor footprint half-edge is a sensor-class constant, not mission
+            // data: Alpha (swarm 1) = 0.05°, Bravo (swarm 2) = 0.1° (E7).
+            let sensor_half: u32 = if spec.swarm_id == 1 { 500000_u32 } else { 1000000_u32 };
             let fail = evaluate_predicates(
                 strip,
                 spec.p_min,
@@ -542,6 +545,7 @@ mod ConvoyProtocol {
                 spec.coverage_min,
                 spec.strip_width,
                 spec.zone_h,
+                sensor_half,
                 @cells_x,
                 @cells_y,
                 @cells_p_contact,
@@ -760,7 +764,7 @@ mod ConvoyProtocol {
     /// could sort-and-dedupe in-contract, but at 5×~120 cells the gas cost
     /// of an O(n log n) sort is non-trivial for what is supposed to be a
     /// cheap L2 invocation.
-    fn evaluate_predicates(
+        fn evaluate_predicates(
         strip:        StripBounds,
         p_min:        u16,
         time_window:  u64,
@@ -768,12 +772,14 @@ mod ConvoyProtocol {
         coverage_min: u16,
         strip_width:  u32,
         zone_h:       u32,
+        sensor_half:  u32,        // E7 half-edge of the square footprint (derived from swarm_id)
         cells_x:          @Array<u32>,
         cells_y:          @Array<u32>,
         cells_p_contact:  @Array<u16>,
         cells_ts:         @Array<u64>,
     ) -> u8 {
         let n = cells_x.len();
+        let block_size = 1000000_u32;   // E7 per 0.1° coverage block (const, not stored)
         let mut i: u32 = 0;
 
         // Cairo 1 disallows early `return` inside `loop`. We use `break expr`
@@ -786,11 +792,14 @@ mod ConvoyProtocol {
             let p = *cells_p_contact.at(i);
             let ts = *cells_ts.at(i);
 
-            // ① Strip bounds: the cell must lie inside this drone's assigned rectangle
-            if x < strip.x_start || x >= strip.x_end {
+            // ① Strip bounds: the reading's SQUARE SENSOR FOOTPRINT (side
+            //    2·sensor_half, centred on the reading) must lie fully inside this
+            //    drone's strip — footprint ⊆ [x_start,x_end)×[y_start,y_end).
+            //    Written as x ≥ x_start+half / x+half ≤ x_end to avoid u32 underflow.
+            if x < strip.x_start + sensor_half || x + sensor_half > strip.x_end {
                 break FAIL_STRIP;
             }
-            if y < strip.y_start || y >= strip.y_end {
+            if y < strip.y_start + sensor_half || y + sensor_half > strip.y_end {
                 break FAIL_STRIP;
             }
 
@@ -816,13 +825,21 @@ mod ConvoyProtocol {
             return per_cell_fail;
         }
 
-        // ④ Coverage: n_cells * 1000 / strip_total_cells ≥ coverage_min
-        //    where strip_total_cells = strip_width * zone_h.
-        //    Rearranged to avoid division: n * 1000 ≥ coverage_min * total
-        let total_cells: u32 = strip_width * zone_h;
-        let coverage_min_u32: u32 = coverage_min.into();
-        let lhs: u64 = (n.into()) * 1000_u64;
-        let rhs: u64 = (coverage_min_u32.into()) * (total_cells.into());
+        // ④ Coverage (in 0.1° blocks): each reading clears a square footprint of
+        //    (2·sensor_half/block_size)² blocks (Alpha 1, Bravo 4); a strip is
+        //    (strip_width/block_size)×(zone_h/block_size) blocks (Alpha 20, Bravo 40).
+        //    Divisions are exact (open_mission asserts block-alignment).
+        //    coverage permille = covered·1000/total; rearranged: covered·1000 ≥ min·total.
+        //    NB duplicate/overlapping readings would inflate `covered` — same
+        //    caller-side no-dup invariant as before; the swarm proof (file #2)
+        //    binds the reading lattice more tightly.
+        let edge_blocks:  u32 = (2_u32 * sensor_half) / block_size;   // Alpha 1, Bravo 2
+        let footprint:    u32 = edge_blocks * edge_blocks;            // Alpha 1, Bravo 4
+        let total_blocks: u32 = (strip_width / block_size) * (zone_h / block_size);
+        let covered:      u64 = (n.into()) * (footprint.into());
+        let coverage_min_u64: u64 = coverage_min.into();
+        let lhs: u64 = covered * 1000_u64;
+        let rhs: u64 = coverage_min_u64 * (total_blocks.into());
         if lhs < rhs {
             return FAIL_COVERAGE;
         }

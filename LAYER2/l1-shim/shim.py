@@ -1,18 +1,24 @@
 import json, urllib.request, urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-GETH = "http://ship-a:8545"
+BESU = "http://ship-a:8545"
 
 def fix(obj):
-    # Madara's .watch() sends eth_newFilter with toBlock:"finalized",
-    # which stock geth rejects ("invalid block range params"). Rewrite it
-    # to "latest"; madara still enforces finality client-side via
-    # l1_messages_finality_blocks (=10), so semantics are preserved.
+    # Besu-QBFT doesn't expose the `finalized` tag (QBFT finalizes every block,
+    # so `latest` IS final). Madara touches `finalized` two ways — rewrite both:
+    #   1. eth_newFilter toBlock:"finalized"    (event scan)
+    #   2. eth_getBlockByNumber "finalized"      (L1→L2 finality counter)
+    # Without (2) the message sync sticks at N/10 confirmations forever, because
+    # Besu never advances `finalized`.
     try:
-        if obj.get("method") == "eth_newFilter":
-            p = obj.get("params")
+        m = obj.get("method")
+        p = obj.get("params")
+        if m == "eth_newFilter":
             if isinstance(p, list) and p and isinstance(p[0], dict) and p[0].get("toBlock") == "finalized":
                 p[0]["toBlock"] = "latest"
+        elif m == "eth_getBlockByNumber":
+            if isinstance(p, list) and p and p[0] == "finalized":
+                p[0] = "latest"
     except Exception:
         pass
 
@@ -28,7 +34,7 @@ class H(BaseHTTPRequestHandler):
         except Exception:
             pass
         try:
-            req = urllib.request.Request(GETH, data=body, headers={"Content-Type": "application/json"})
+            req = urllib.request.Request(BESU, data=body, headers={"Content-Type": "application/json"})
             with urllib.request.urlopen(req, timeout=60) as r:
                 out, code = r.read(), r.status
         except urllib.error.HTTPError as e:

@@ -38,6 +38,7 @@ OUTPUT_DIR="${STONE_OUTPUT_DIR:-/proofs}"
 LAYOUT="starknet"
 CAIRO_LAYOUT="starknet"
 INPUT_FILE_DEFAULT="${OUTPUT_DIR}/program_input.json"
+SWARM="${SWARM:?SWARM env (alpha|bravo) required}"
 
 mkdir -p "${OUTPUT_DIR}"
 
@@ -57,9 +58,9 @@ cast --version            > /dev/null 2>&1 && echo "    cast              : OK"
 python3 -c "import starkware; print('    cairo-lang        : ' + __import__('importlib.metadata', fromlist=['version']).version('cairo-lang'))"
 echo ""
 
-# ── Step 1: compile safe_area_verify.cairo (once) ──────────────────────
-echo "[*] Step 1/6: compile safe_area_verify.cairo (proof mode)"
-cairo-compile /app/safe_area_verify.cairo \
+# ── Step 1: compile this container's swarm program (once) ──────────────
+echo "[*] Step 1/6: compile safe_area_verify_${SWARM}.cairo (proof mode)"
+cairo-compile /app/safe_area_verify_${SWARM}.cairo \
     --output "${OUTPUT_DIR}/safe_area_verify.json" \
     --proof_mode
 python3 -c "
@@ -289,71 +290,24 @@ while true; do
         TRIGGER=$(cat "${OUTPUT_DIR}/prove_trigger" 2>/dev/null || echo "manual")
         rm -f "${OUTPUT_DIR}/prove_trigger"
 
-        # Parse "input=... tag=..." form, else fall back to scenario / tag
-        INPUT_OVERRIDE=""
-        SCENARIO_DIR=""
-        TAG="manual"
+        # Per-swarm proving: prove THIS container's swarm ($SWARM) over the nested
+        # 5-drone program_input.json that fetch_l2_swarm.py wrote into /proofs.
+        # "input=<path>" overrides the input; anything else is just a tag.
+        INPUT_PATH="${INPUT_FILE_DEFAULT}"
+        TAG="${SWARM}"
         case "${TRIGGER}" in
             input=*)
-                INPUT_OVERRIDE=$(echo "${TRIGGER}" | sed -nE 's/.*input=([^ ]+).*/\1/p')
-                TAG=$(echo "${TRIGGER}" | sed -nE 's/.*tag=([^ ]+).*/\1/p')
-                [ -z "${TAG}" ] && TAG=$(basename "${INPUT_OVERRIDE}" _input.json)
+                INPUT_PATH=$(echo "${TRIGGER}" | sed -nE 's/.*input=([^ ]+).*/\1/p')
+                T=$(echo "${TRIGGER}" | sed -nE 's/.*tag=([^ ]+).*/\1/p')
+                [ -n "${T}" ] && TAG="${T}"
                 ;;
-            ALL|ALL_SAFE)         SCENARIO_DIR="${OUTPUT_DIR}/missions/both-safe" ;;
-            ALL_UNSAFE)           SCENARIO_DIR="${OUTPUT_DIR}/missions/both-unsafe" ;;
-            ALL_MIXED)            SCENARIO_DIR="${OUTPUT_DIR}/missions/mixed" ;;
-            ALL_VANISH|ALL_DROPOUT_VANISH)
-                                  SCENARIO_DIR="${OUTPUT_DIR}/missions/alpha-dropout-vanish" ;;
-            ALL_MIDFLIGHT|ALL_DROPOUT_MIDFLIGHT)
-                                  SCENARIO_DIR="${OUTPUT_DIR}/missions/alpha-dropout-midflight" ;;
-            ALL_DUAL_DROPOUT|ALL_DROPOUT)
-                                  SCENARIO_DIR="${OUTPUT_DIR}/missions/dual-dropout" ;;
-            *)                    TAG="${TRIGGER}" ;;
+            ?*) TAG="${TRIGGER}" ;;
         esac
 
-        if [ -n "${SCENARIO_DIR}" ]; then
-            echo "[*] ALL-scenarios run from ${SCENARIO_DIR}"
-
-            # Announce the vanish manifest up front (operator awareness)
-            MANIFEST="${SCENARIO_DIR}/vanish_manifest.json"
-            if [ -f "${MANIFEST}" ]; then
-                N_VANISHED=$(python3 -c "
-import json, sys
-try:
-    m = json.load(open('${MANIFEST}'))
-    print(len(m.get('vanished', [])))
-except Exception:
-    print(0)
-")
-                if [ "${N_VANISHED}" != "0" ]; then
-                    echo "[!] vanish manifest: ${N_VANISHED} drone(s) reported missing - sectors will stay blind"
-                    python3 -c "
-import json
-m = json.load(open('${MANIFEST}'))
-for v in m.get('vanished', []):
-    print(f\"      WANTED: {v['swarm']}{v['drone_id']} - sector \"
-          f\"x=[{v['strip_x_start']},{v['strip_x_end']}) \"
-          f\"y=[{v['strip_y_start']},{v['strip_y_end']}) blind\")
-"
-                fi
-            fi
-
-            for SWARM in alpha bravo; do
-                for IDX in 1 2 3 4 5; do
-                    F="${SCENARIO_DIR}/${SWARM}${IDX}_input.json"
-                    if [ -f "${F}" ]; then
-                        prove_one "${F}" "${SWARM}${IDX}" \
-                            || echo "[!] prove failed for ${SWARM}${IDX}"
-                    else
-                        echo "[!] no telemetry for ${SWARM}${IDX} (expected at ${F}) - skipping"
-                    fi
-                done
-            done
-            SCENARIO_DIR=""
-        elif [ -n "${INPUT_OVERRIDE}" ] && [ -f "${INPUT_OVERRIDE}" ]; then
-            prove_one "${INPUT_OVERRIDE}" "${TAG}" || echo "[!] prove failed"
+        if [ -f "${INPUT_PATH}" ]; then
+            prove_one "${INPUT_PATH}" "${TAG}" || echo "[!] prove failed for ${TAG}"
         else
-            prove_one "${INPUT_FILE_DEFAULT}" "${TAG}" || echo "[!] prove failed"
+            echo "[!] no swarm input at ${INPUT_PATH} — run script7_prove-swarm.sh ${SWARM} first"
         fi
 
         echo "DONE" > "${OUTPUT_DIR}/prove_result"

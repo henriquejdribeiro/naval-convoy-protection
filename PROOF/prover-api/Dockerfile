@@ -109,8 +109,9 @@ COPY --from=convoy-submitter-builder /usr/local/bin/convoy-submitter /usr/local/
 
 # Install the naval-convoy program + scripts + entrypoint
 WORKDIR /app
-COPY PROOF/prover-api/safe_area_verify.cairo /app/safe_area_verify.cairo
-COPY PROOF/prover-api/fetch_l2_cells.py      /app/fetch_l2_cells.py
+COPY PROOF/prover-api/safe_area_verify_alpha.cairo /app/safe_area_verify_alpha.cairo
+COPY PROOF/prover-api/safe_area_verify_bravo.cairo /app/safe_area_verify_bravo.cairo
+COPY PROOF/prover-api/fetch_l2_swarm.py      /app/fetch_l2_swarm.py
 COPY PROOF/prover-api/entrypoint.sh          /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 

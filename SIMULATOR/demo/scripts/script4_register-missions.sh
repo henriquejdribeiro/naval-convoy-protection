@@ -77,19 +77,17 @@ fi
 # Placeholder in dev; in prod this would commit to the real zone definition.
 AREA_HASH="0x6172656172656172656172656172656172656172656172656172656172656131"
 
-# declare -A = associative array (map keyed by swarm: ${SPEC_ZONE_W[alpha]} → 15).
-declare -A SPEC_ZONE_W=( [alpha]=15 [bravo]=20 )          # zone width in cells (the area is zone_w × zone_h)
-declare -A SPEC_STRIP_WIDTH=( [alpha]=3 [bravo]=4 )       # per-drone lane width = zone_w / n_drones (15/5=3, 20/5=4)
-declare -A MISSION_ID=( [alpha]=1 [bravo]=2 )             # on-chain mission id per swarm
+declare -A SPEC_ZONE_X=( [alpha]=150000000 [bravo]=130000000 )   # E7 |lon|·1e7: 15°W / 13°W
+declare -A SPEC_ZONE_W=( [alpha]=10000000 [bravo]=20000000 )     # E7 width: 1° / 2°
+declare -A SPEC_STRIP_WIDTH=( [alpha]=2000000 [bravo]=4000000 )  # E7 = zone_w / 5
+declare -A MISSION_ID=( [alpha]=1 [bravo]=2 )
 
-# SHARED_* — identical for both swarms (the area shape + the SAFE thresholds):
-SHARED_ZONE_X=0                # zone origin x (bottom-left corner)
-SHARED_ZONE_Y=0                # zone origin y
-SHARED_ZONE_H=8                # zone height in cells → each strip is strip_width × 8
-SHARED_N_DRONES=5              # drones per swarm = number of strips the zone is split into
-SHARED_COVERAGE_MIN=950        # min coverage, permille (950/1000 = 95% of the strip's cells must be swept)
-SHARED_P_MIN=7000              # detection threshold, basis points (cell p_contact must be < 7000/10000 = 70%)
-SHARED_TIME_WINDOW=360         # seconds; every cell's timestamp must be within ts_start + 360s
+SHARED_ZONE_Y=370000000        # E7 lat·1e7 = 37°N
+SHARED_ZONE_H=10000000         # E7 = 1°
+SHARED_N_DRONES=5
+SHARED_COVERAGE_MIN=950        # permille (bravo needs full 10/10 readings; alpha allows one miss)
+SHARED_P_MIN=7000
+SHARED_TIME_WINDOW=360
 
 # L1 transaction wrapper — runs `cast` (Foundry's Ethereum CLI) in the foundry
 # container, the L1 counterpart to the SK() starkli wrapper.
@@ -176,6 +174,7 @@ register_swarm() {
     local mid="${MISSION_ID[$swarm]}"
     local zone_w="${SPEC_ZONE_W[$swarm]}"
     local strip_width="${SPEC_STRIP_WIDTH[$swarm]}"
+    local zone_x="${SPEC_ZONE_X[$swarm]}"
 
     echo
     echo "[register/${swarm}] mission ${mid} on Registry ${REGISTRY_ADDR}"
@@ -211,7 +210,7 @@ register_swarm() {
     # Mixes per-swarm values (zone_w, strip_width) with the SHARED_* constants.
     # The parens + commas are why CAST() uses --entrypoint cast (no shell to
     # mangle them).
-    local spec="(${AREA_HASH},${SHARED_ZONE_X},${SHARED_ZONE_Y},${zone_w},${SHARED_ZONE_H},${SHARED_N_DRONES},${strip_width},${SHARED_COVERAGE_MIN},${SHARED_P_MIN},${SHARED_TIME_WINDOW})"
+    local spec="(${AREA_HASH},${zone_x},${SHARED_ZONE_Y},${zone_w},${SHARED_ZONE_H},${SHARED_N_DRONES},${strip_width},${SHARED_COVERAGE_MIN},${SHARED_P_MIN},${SHARED_TIME_WINDOW})"
 
     # ── Build the uint256[5] drone-addresses literal ───────────────────────
     # The 5 drone addresses as a fixed-size Solidity array: [0x…, 0x…, …].
@@ -243,7 +242,7 @@ register_swarm() {
     CAST_SHIP "convoy-ship-d-key" send "${REGISTRY_ADDR}" \
         "deploy(uint256,(bytes32,uint32,uint32,uint32,uint32,uint8,uint32,uint16,uint16,uint64),uint256[5],uint256)" \
         "${mid}" "${spec}" "${drones}" "${TS_START}" \
-        --value 0.01ether \
+        --value 0.1ether \
         --rpc-url "${L1_RPC}" \
         --legacy \
         2>&1 | tail -3
@@ -265,6 +264,24 @@ register_swarm() {
             --legacy \
             2>&1 | tail -2
     done
+
+    # ── Step 4: pin this swarm's Cairo program hash on the Verifier, so a relay
+    #    can't submit the other swarm's (different-sensor) program. The hash is of
+    #    the SAME proof_mode-compiled safe_area_verify_<swarm> the prover proves.
+    echo "[register/${swarm}] step 4: setSwarmProgram(${mid}, <program hash>)"
+    local prog_hash
+    prog_hash=$(MSYS_NO_PATHCONV=1 docker run --rm --entrypoint sh convoy-prover-api:latest -c \
+        "cairo-compile /app/safe_area_verify_${swarm}.cairo --output /tmp/p.json --proof_mode >/dev/null 2>&1 && cairo-hash-program --program /tmp/p.json")
+    [ -z "${prog_hash}" ] && { echo "[register/${swarm}] failed to compute program hash"; return 1; }
+    # cairo-hash-program drops leading zeros → pad to a full 32-byte bytes32
+    prog_hash="0x$(printf '%064s' "${prog_hash#0x}" | tr ' ' '0')"
+    echo "[register/${swarm}]   program hash: ${prog_hash}"
+    CAST_SHIP "convoy-ship-a-key" send "${CONVOY_VERIFIER_ADDR}" \
+        "setSwarmProgram(uint256,bytes32)" \
+        "${mid}" "${prog_hash}" \
+        --rpc-url "${L1_RPC}" \
+        --legacy \
+        2>&1 | tail -2
 
     echo "[register/${swarm}] OK"
 }

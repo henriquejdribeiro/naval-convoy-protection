@@ -7,17 +7,36 @@ import "./IStarkVerifier.sol";
 
 /**
  * @title  Verifier
- * @notice On-chain registry for STARK-verified per-drone SAFE_AREA proofs,
- *         with mission-level aggregation across the 5 drones of a swarm.
- *         Restored from pre-4fa6ad4 (the trustless registerSafeProof design),
- *         adapted: per-drone SAFE tally lives here now (the current Registry
- *         exposes only mission-level setMissionSafe, not per-drone setVerdict).
+ * @notice On-chain gate for STARK-verified PER-SWARM SAFE_AREA coverage proofs.
  *
- * Stage A (path-a-runner) verifies the STARK against the StarkWare contracts
- * and registers factHash on the GpsStatementVerifier. Stage B (here) submits
- * only the 11-field SafeProofInputs and gates on starkVerifier.isValid(factHash).
+ *         Each swarm's leader (a1 / b1) produces ONE proof over all 5 of its
+ *         drones with safe_area_verify_{alpha,bravo}.cairo; the swarm's relay
+ *         ship (alpha→ship F, bravo→ship B) submits it here via convoy-submitter
+ *         after the StarkWare GPS verification has registered the fact.
+ *
+ *         When BOTH swarm proofs verify SAFE, the whole green+purple area is
+ *         certified — the two swarm hashes fold into a single PRINCIPAL hash and
+ *         both Registry.missionSafe flags flip, so Registry.isDualSafe(1,2) opens
+ *         the advance gate (CommandLog.advance()).
+ *
+ *         13-hash tree: each proof carries 5 in-circuit drone hashes folded into
+ *         its swarm hash (this contract's input); the two swarm hashes fold into
+ *         principalHash here. 5+5 drone + 2 swarm + 1 principal = 13.
+ *
+ *         Sensor-class pinning: the two Cairo programs bake their footprint
+ *         (alpha 0.1° → 1 block, bravo 0.2° → 4 blocks) into their constants, so
+ *         each program HASH certifies a sensor class. registeredSwarmProgram pins
+ *         the expected hash per mission, so a relay cannot pass off the other
+ *         swarm's program.
+ *
+ * Stage A (convoy-submitter, phases 1-4a) verifies the STARK against the
+ * StarkWare suite and registers factHash on the GpsStatementVerifier. Stage B
+ * (registerSwarmProof, phase 4b) submits the 13-field SwarmProofInputs and gates
+ * on starkVerifier.isValid(factHash).
  */
 contract Verifier is Ownable {
+    uint8 public constant N_DRONES = 5;
+
     // ── local fact cache ────────────────────────────────────────────────
     mapping(bytes32 => bool) public verifiedFacts;
 
@@ -35,23 +54,20 @@ contract Verifier is Ownable {
     // ── per-mission relay whitelist (alpha→ship F, bravo→ship B) ────────
     mapping(uint256 => address) public relayOf;
 
-    // ── ADAPTED: per-drone SAFE aggregation now lives HERE (Registry no
-    //    longer exposes setVerdict / per-drone safeCount) ─────────────────
-    mapping(uint256 => uint8) public safeCount;                        // missionId → # SAFE drones counted
-    mapping(uint256 => mapping(uint8 => bool)) public droneSafeCounted; // (missionId, droneIndex) → counted?
-
     // ── bound external contracts ────────────────────────────────────────
     Registry        public immutable registry;
-    //IStarkVerifier  public immutable starkVerifier;   // the GpsStatementVerifier on Besu
     IStarkVerifier  public starkVerifier;   // the GpsStatementVerifier on Besu
-    // new setter:
+
     function setStarkVerifier(address newStarkVerifier) external onlyOwner {
         require(newStarkVerifier != address(0), "Verifier: starkVerifier = 0x0");
         starkVerifier = IStarkVerifier(newStarkVerifier);
     }
-    /// Register the STARK-curve public key authorised to sign telemetry for
-    /// (missionId, droneIndex). onlyOwner; registerSafeProof then requires the
-    /// proof's drone_pubkey to equal this.
+
+    // ── Route-B identity binding: authorised STARK-curve pubkey per drone ──
+    //    registerSwarmProof requires the proof's 5 drone pubkeys to equal the
+    //    ones registered for (missionId, 1..5).
+    mapping(uint256 => mapping(uint8 => uint256)) public registeredDronePubkey;
+
     function setDronePubkey(uint256 missionId, uint8 droneIndex, uint256 pubkey)
         external onlyOwner
     {
@@ -59,56 +75,69 @@ contract Verifier is Ownable {
         registeredDronePubkey[missionId][droneIndex] = pubkey;
     }
 
-    struct ProofRecord {
+    // ── sensor-class pinning: expected Cairo program hash per swarm ──────
+    //    Set to the cairo program hash of safe_area_verify_alpha (mission 1) /
+    //    _bravo (mission 2). registerSwarmProof requires an exact match.
+    mapping(uint256 => bytes32) public registeredSwarmProgram;
+
+    function setSwarmProgram(uint256 missionId, bytes32 programHash)
+        external onlyOwner
+    {
+        require(programHash != bytes32(0), "Verifier: programHash = 0");
+        registeredSwarmProgram[missionId] = programHash;
+    }
+
+    // ── verified swarm hashes + principal ───────────────────────────────
+    mapping(uint256 => bytes32) public swarmHashOf;   // missionId → swarm hash (once SAFE)
+    bytes32 public principalHash;                     // keccak(alphaHash, bravoHash) once both SAFE
+
+    struct SwarmProofRecord {
         bytes32 programHash;
         bytes32 outputHash;
         uint256 missionId;
-        uint8   droneIndex;
-        uint32  stripXStart;
-        uint32  stripXEnd;
-        uint32  stripYStart;
-        uint32  stripYEnd;
-        uint8   verdictBool;
-        bytes32 commitment;
-        uint256 dronePubkey;
+        uint256 swarmId;
+        uint32  zoneX;
+        uint32  zoneY;
+        uint32  zoneW;
+        uint32  zoneH;
+        uint8   swarmVerdict;
+        bytes32 swarmHash;
         uint256 nSteps;
         uint256 timestamp;
         uint256 blockNumber;
     }
 
-    ProofRecord[] public proofs;
-    uint256       public proofCount;
-    mapping(uint256 => mapping(uint8 => bytes32)) public droneCommitment;
+    SwarmProofRecord[] public proofs;
+    uint256            public proofCount;
 
-    // ── Route-B identity binding: authorised STARK-curve pubkey per drone ──
-    mapping(uint256 => mapping(uint8 => uint256)) public registeredDronePubkey;
+    // ── the 13 public outputs of safe_area_verify_{alpha,bravo}.cairo,
+    //    plus the two hashes convoy-submitter derives (programHash, outputHash)
+    //    and nSteps. Order/names must stay in lockstep with the submitter abigen.
+    struct SwarmProofInputs {
+        bytes32     programHash;
+        bytes32     outputHash;
+        uint256     missionId;
+        uint256     swarmId;
+        uint32      zoneX;
+        uint32      zoneY;
+        uint32      zoneW;
+        uint32      zoneH;
+        uint8       swarmVerdict;
+        bytes32     swarmHash;
+        uint256[5]  dronePubkeys;   // proof outputs 9..13
+        uint256     nSteps;
+    }
 
     event FactRegistered(bytes32 indexed factHash);
-    event DroneVerified(
+    event SwarmVerified(
         uint256 indexed proofId,
         uint256 indexed missionId,
-        uint8   indexed droneIndex,
         bytes32         factHash,
-        uint8           verdictBool,
-        bytes32         commitment
+        uint8           swarmVerdict,
+        bytes32         swarmHash
     );
-    event MissionAggregated(uint256 indexed missionId, bytes32 aggH, uint8 nDrones);
+    event PrincipalCertified(bytes32 principalHash, bytes32 alphaHash, bytes32 bravoHash);
     event RelayUpdated(uint256 indexed missionId, address indexed previous, address indexed current);
-
-    struct SafeProofInputs {
-        bytes32 programHash;
-        bytes32 outputHash;
-        uint256 missionId;
-        uint8   droneIndex;
-        uint32  stripXStart;
-        uint32  stripXEnd;
-        uint32  stripYStart;
-        uint32  stripYEnd;
-        uint8   verdictBool;
-        bytes32 commitment;
-        uint256 dronePubkey;   // STARK-curve pubkey (proof's 9th output)
-        uint256 nSteps;
-    }
 
     constructor(
         address initialOwner,
@@ -135,92 +164,88 @@ contract Verifier is Ownable {
         relayOf[missionId] = newRelay;
     }
 
-    function registerSafeProof(SafeProofInputs calldata inputs)
+    /**
+     * @notice Verify one swarm's coverage proof and, if SAFE, flip that mission's
+     *         L1 flag. When both swarms are SAFE, certify the principal hash.
+     * @dev    Called by the swarm's relay ship (via convoy-submitter) AFTER the
+     *         StarkWare GPS verification has registered the fact.
+     */
+    function registerSwarmProof(SwarmProofInputs calldata inputs)
         external
         returns (uint256 proofId, bytes32 factHash)
     {
-        // 1. Relay-whitelist gate
+        // 1. Relay-whitelist gate — only the swarm's relay ship may submit.
         require(msg.sender == relayOf[inputs.missionId], "Verifier: onlyRelay");
 
-        // 2. Mission spec sanity
+        // 2. Mission sanity + swarm-id convention (alpha=1, bravo=2).
         Registry.MissionSpec memory spec = registry.getSpec(inputs.missionId);
-        require(spec.nDrones > 0, "Verifier: unknown mission");
-        require(inputs.droneIndex >= 1 && inputs.droneIndex <= spec.nDrones,
-                "Verifier: droneIndex out of range");
-        require(inputs.verdictBool <= 1, "Verifier: verdictBool not 0/1");
+        require(spec.nDrones == N_DRONES, "Verifier: unknown/incomplete mission");
+        require(inputs.swarmId == inputs.missionId, "Verifier: swarmId != missionId");
+        require(inputs.swarmVerdict <= 1, "Verifier: verdict not 0/1");
 
-        // 3. Strip-bounds gate — derive expected bounds from spec + droneIndex
-        uint32 expectedXStart = spec.zoneX + (uint32(inputs.droneIndex) - 1) * spec.stripWidth;
-        uint32 expectedXEnd   = expectedXStart + spec.stripWidth;
-        require(inputs.stripXStart == expectedXStart, "Verifier: wrong stripXStart");
-        require(inputs.stripXEnd   == expectedXEnd,   "Verifier: wrong stripXEnd");
-        require(inputs.stripYStart == spec.zoneY,     "Verifier: wrong stripYStart");
-        require(inputs.stripYEnd   == spec.zoneY + spec.zoneH, "Verifier: wrong stripYEnd");
+        // 3. Zone gate — the proof must cover THIS mission's registered zone.
+        //    zoneX/zoneY come from the proof inputs (drone location); zoneW/zoneH
+        //    are also baked in the program, checked here belt-and-suspenders.
+        require(inputs.zoneX == spec.zoneX, "Verifier: wrong zoneX");
+        require(inputs.zoneY == spec.zoneY, "Verifier: wrong zoneY");
+        require(inputs.zoneW == spec.zoneW, "Verifier: wrong zoneW");
+        require(inputs.zoneH == spec.zoneH, "Verifier: wrong zoneH");
 
-        // 3b. Identity gate — the proof's drone pubkey must be the one
-        //     registered for (mission, drone). Binds the verdict to an
-        //     authorised swarm identity (the proof already verified the drone's
-        //     ECDSA signature over the commitment in-circuit).
-        require(inputs.dronePubkey ==
-                registeredDronePubkey[inputs.missionId][inputs.droneIndex],
-                "Verifier: unregistered drone pubkey");
+        // 4. Sensor-class gate — the proof's program hash must be the one pinned
+        //    for this swarm (alpha 0.1° vs bravo 0.2° footprint). Stops a relay
+        //    swapping in the other swarm's (easier) program.
+        bytes32 expectedProgram = registeredSwarmProgram[inputs.missionId];
+        require(expectedProgram != bytes32(0), "Verifier: swarm program not set");
+        require(inputs.programHash == expectedProgram, "Verifier: wrong swarm program");
 
+        // 5. Identity gate — all 5 drone pubkeys must be the registered swarm
+        //    identities (the proof already verified each drone's ECDSA in-circuit).
+        for (uint8 i = 1; i <= N_DRONES; i++) {
+            require(inputs.dronePubkeys[i - 1] == registeredDronePubkey[inputs.missionId][i],
+                    "Verifier: unregistered drone pubkey");
+        }
 
-        // 4. Cryptographic gate — reuse Stage A's verification on the GPS
+        // 6. Cryptographic gate — reuse the GPS verification convoy-submitter just
+        //    ran (phases 1-4a): the fact for (program, output) must be registered.
         factHash = keccak256(abi.encodePacked(inputs.programHash, inputs.outputHash));
         require(starkVerifier.isValid(factHash),
-                "Verifier: STARK fact not registered (run path-a-runner first?)");
+                "Verifier: STARK fact not registered (run GPS phases first?)");
 
-        // 5. Register the fact + audit record
+        // 7. Register the fact + audit record.
         _registerFact(factHash);
         proofId = proofs.length;
-        proofs.push(ProofRecord({
+        proofs.push(SwarmProofRecord({
             programHash: inputs.programHash, outputHash: inputs.outputHash,
-            missionId:   inputs.missionId,   droneIndex:  inputs.droneIndex,
-            stripXStart: inputs.stripXStart, stripXEnd:   inputs.stripXEnd,
-            stripYStart: inputs.stripYStart, stripYEnd:   inputs.stripYEnd,
-            verdictBool: inputs.verdictBool, commitment:  inputs.commitment,
-            dronePubkey: inputs.dronePubkey, nSteps:      inputs.nSteps,
-            timestamp:   block.timestamp, blockNumber: block.number
+            missionId:   inputs.missionId,   swarmId:     inputs.swarmId,
+            zoneX:       inputs.zoneX,        zoneY:      inputs.zoneY,
+            zoneW:       inputs.zoneW,        zoneH:      inputs.zoneH,
+            swarmVerdict: inputs.swarmVerdict, swarmHash:  inputs.swarmHash,
+            nSteps:      inputs.nSteps,
+            timestamp:   block.timestamp,     blockNumber: block.number
         }));
         proofCount = proofs.length;
-        droneCommitment[inputs.missionId][inputs.droneIndex] = inputs.commitment;
+        emit SwarmVerified(proofId, inputs.missionId, factHash,
+                           inputs.swarmVerdict, inputs.swarmHash);
 
-        emit DroneVerified(proofId, inputs.missionId, inputs.droneIndex,
-                           factHash, inputs.verdictBool, inputs.commitment);
+        // 8. SAFE swarm → flip the mission flag; certify the principal when both in.
+        if (inputs.swarmVerdict == 1) {
+            swarmHashOf[inputs.missionId] = inputs.swarmHash;
+            registry.setMissionSafe(inputs.missionId, inputs.swarmHash);  // reverts if already SAFE
 
-        // 6. ADAPTED: per-drone SAFE tally here (was registry.setVerdict)
-        if (inputs.verdictBool == 1) {
-            require(!droneSafeCounted[inputs.missionId][inputs.droneIndex],
-                    "Verifier: drone already counted SAFE");
-            droneSafeCounted[inputs.missionId][inputs.droneIndex] = true;
-            uint8 newCount = safeCount[inputs.missionId] + 1;
-            safeCount[inputs.missionId] = newCount;
-            if (newCount == spec.nDrones) {
-                bytes32 aggH = _aggregateCommitment(inputs.missionId, spec.nDrones);
-                registry.setMissionSafe(inputs.missionId, aggH);
-                emit MissionAggregated(inputs.missionId, aggH, spec.nDrones);
+            uint256 alphaId = registry.ALPHA_MISSION_ID();
+            uint256 bravoId = registry.BRAVO_MISSION_ID();
+            if (registry.isDualSafe(alphaId, bravoId)) {
+                // principal = keccak(swarm_alpha, swarm_bravo) — the single hash
+                // certifying the whole green+purple area is clear.
+                principalHash = keccak256(
+                    abi.encodePacked(swarmHashOf[alphaId], swarmHashOf[bravoId]));
+                emit PrincipalCertified(principalHash, swarmHashOf[alphaId], swarmHashOf[bravoId]);
             }
         }
     }
 
-    function _aggregateCommitment(uint256 missionId, uint8 nDrones)
-        internal view returns (bytes32 aggH)
-    {
-        bytes memory buf = new bytes(uint256(nDrones) * 32);
-        for (uint8 i = 1; i <= nDrones; i++) {
-            bytes32 h = droneCommitment[missionId][i];
-            assembly { mstore(add(add(buf, 32), mul(sub(i, 1), 32)), h) }
-        }
-        aggH = keccak256(buf);
-    }
-
-    function getProof(uint256 proofId) external view returns (ProofRecord memory) {
+    function getProof(uint256 proofId) external view returns (SwarmProofRecord memory) {
         require(proofId < proofs.length, "Verifier: invalid proofId");
         return proofs[proofId];
-    }
-    function getDroneCommitment(uint256 missionId, uint8 droneIndex)
-        external view returns (bytes32) {
-        return droneCommitment[missionId][droneIndex];
     }
 }

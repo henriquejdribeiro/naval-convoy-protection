@@ -1,0 +1,16 @@
+{
+  "scenario": "alpha-dropout-vanish",
+  "summary": "alpha[3] VANISHES (no input file, no proof) -> alpha swarm never proves -> HOLD",
+  "vanished": [
+    {
+      "swarm": "alpha",
+      "mission_id": 1,
+      "drone_id": 3,
+      "strip_x_start": 154000000,
+      "strip_x_end": 156000000,
+      "strip_y_start": 370000000,
+      "strip_y_end": 380000000,
+      "reason": "vanished (no telemetry recovered)"
+    }
+  ]
+}

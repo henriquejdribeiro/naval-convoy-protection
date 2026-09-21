@@ -1,0 +1,5 @@
+{
+  "scenario": "both-unsafe",
+  "summary": "alpha[3]=unsafe-coverage, bravo[3]=unsafe-contact -> both swarms fail -> HOLD",
+  "vanished": []
+}
