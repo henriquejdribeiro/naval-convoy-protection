@@ -8,23 +8,44 @@ Writes one cells.json per drone (10 total: alpha1..5 + bravo1..5) in the schema
 
     {
       "_comment":         <human-readable label>,
+      "home":             {"lon_e7": u32, "lat_e7": u32},   # convoy berth (start)
+      "path":             [ {lon_e7,lat_e7,ts,phase}, ... ],# FULL flight track
+      "returned":         bool,                             # flew back to the fleet?
       "cells_x":          [u32, ...],       # E7 |lon|·1e7 — reading CENTRES
       "cells_y":          [u32, ...],       # E7  lat·1e7  — reading CENTRES
       "cells_p_contact":  [u16, ...],       # basis points
       "cells_ts":         [u64, ...]        # unix seconds
     }
 
+REALISTIC FULL PATH vs PROOF READINGS
+-------------------------------------
+`cells_*` are the ONLY thing the STARK proof consumes — the coverage circuit runs
+a strip-bounds check on every reading (each must lie inside the drone's strip) and
+counts coverage. So transit points (which sit OUTSIDE the strip, down at the
+convoy) can NOT go into `cells_*` or the proof would reject them.
+
+Instead every drone also logs its full realistic flight track in `path`:
+
+    home (convoy berth) → transit out → sweep the strip → transit back → home
+
+`path` phases: "transit" (out/back legs, outside the zone) and "sweep" (the in-zone
+readings, identical to cells_*). The webapp demo replays this; the proof ignores it.
+A drone that drops out mid-flight (`returned=false`) has no transit-back leg. A
+"vanish" drone writes no file at all.
+
 E7 + SENSOR FOOTPRINT MODEL
 ---------------------------
-Each cell is now a SENSOR READING whose CENTRE is (cells_x, cells_y) and which
-clears a square footprint of side 2·sensor_half. Readings tile the drone's strip:
+Each cell is a SENSOR READING whose CENTRE is (cells_x, cells_y) and which clears a
+square footprint of side 2·sensor_half. Readings tile the drone's strip:
 
-  - alpha (green 37–38°N, 15–16°W): sensor_half = 0.05° → 0.1° footprint = 1
-    block. Drone flies through CELL CENTRES; a 0.2°-wide × 1° strip = 2×10 = 20
-    readings (20 blocks).
-  - bravo (purple 37–38°N, 13–15°W): sensor_half = 0.1° → 0.2° footprint = 2×2 =
-    4 blocks. Drone flies along GRID VERTICES; a 0.4°-wide × 1° strip = 2×5 = 10
-    readings (40 blocks).
+  - alpha (green 37–38°N, 15–16°W): sensor_half = 0.05° → 0.1° footprint = 1 block.
+    2×10 = 20 readings (20 blocks).
+  - bravo (purple 37–38°N, 13–15°W): sensor_half = 0.1° → 0.2° footprint = 2×2 = 4
+    blocks. 2×5 = 10 readings (40 blocks).
+
+Readings are emitted in a SERPENTINE order (up column 0, down column 1) so the
+replayed flight is smooth — the proof is order-independent (bounds + coverage count
++ monotonic timestamps), so serpentine is as valid as raster.
 
 Coverage = n_cells · footprint_blocks, checked against strip_total_blocks
 (alpha 20, bravo 40) — so a full sweep is 20 alpha readings / 10 bravo readings.
@@ -65,6 +86,30 @@ COVERAGE_MIN = 950        # permille; ≥ 95% strip coverage (bravo needs full 1
 P_MIN        = 7000       # basis points; per-cell p_contact < 70%
 TIME_WINDOW  = 360        # seconds
 TS_START     = 1700000000
+
+TRANSIT_STEPS = 6         # interpolated points per transit leg (home↔strip)
+
+
+# ---------------------------------------------------------------------------
+# Drone home berths in the convoy formation — MUST mirror SIMULATOR/webapp/js/
+# world3d.js so the webapp demo replays the same track:
+#   cLon=-15.0, cLat=36.01, SX=0.025, SY=0.03;  P(col,row)=(cLon+col*SX, cLat+row*SY)
+#   Alpha wing (left):  a1..a5 = P(-6,2),P(-5,2),P(-6,1),P(-5,1),P(-6,0)
+#   Bravo wing (right): b1..b5 = P( 6,2),P( 5,2),P( 6,1),P( 5,1),P( 6,0)
+# ---------------------------------------------------------------------------
+C_LON, C_LAT, SX_, SY_ = -15.0, 36.01, 0.025, 0.03
+_HOME_COLROW = {
+    "alpha": [(-6, 2), (-5, 2), (-6, 1), (-5, 1), (-6, 0)],
+    "bravo": [(6, 2), (5, 2), (6, 1), (5, 1), (6, 0)],
+}
+
+
+def home_e7(prefix: str, drone_id: int) -> tuple[int, int]:
+    """Convoy berth of a drone as (lon_e7 = |lon|·1e7, lat_e7 = lat·1e7)."""
+    col, row = _HOME_COLROW[prefix][drone_id - 1]
+    lon = C_LON + col * SX_
+    lat = C_LAT + row * SY_
+    return (round(abs(lon) * 1e7), round(lat * 1e7))
 
 
 # ---------------------------------------------------------------------------
@@ -121,8 +166,10 @@ def strip_total_blocks(swarm: SwarmSpec) -> int:
 
 # ---------------------------------------------------------------------------
 # Footprint-centre lattice — the reading CENTRES that tile a strip with no
-# gap/overlap. Centres are spaced one footprint apart (step = 2·sensor_half)
-# and offset by sensor_half so each footprint sits flush inside the strip.
+# gap/overlap. Centres are spaced one footprint apart (step = 2·sensor_half) and
+# offset by sensor_half so each footprint sits flush inside the strip. Emitted in
+# a SERPENTINE order (column 0 south→north, column 1 north→south) so the replayed
+# flight is smooth.
 #   alpha: step 0.1° → 2×10 = 20 centres at cell centres (…5e5)
 #   bravo: step 0.2° → 2×5  = 10 centres at grid vertices (…e6)
 # ---------------------------------------------------------------------------
@@ -132,10 +179,11 @@ def footprint_centres(swarm, x_start, x_end, y_start, y_end):
     nx = (x_end - x_start) // step
     ny = (y_end - y_start) // step
     out = []
-    for iy in range(ny):
-        cy = y_start + half + iy * step
-        for ix in range(nx):
-            cx = x_start + half + ix * step
+    for ix in range(nx):
+        cx = x_start + half + ix * step
+        rows = range(ny) if ix % 2 == 0 else range(ny - 1, -1, -1)   # serpentine
+        for iy in rows:
+            cy = y_start + half + iy * step
             out.append((cx, cy))
     return out
 
@@ -150,6 +198,43 @@ def _emit(centres, rng, threat_idx=None):
                   else rng.randint(1000, 6500))     # 8500 > P_MIN=7000 → detection fail
         cts.append(TS_START + 10 + i * 7)            # ≤ TIME_WINDOW for ≤ ~50 readings
     return cx, cy, cp, cts
+
+
+# ---------------------------------------------------------------------------
+# Full realistic flight track: home → transit out → sweep → transit back → home.
+# Only "sweep" points are proof readings (== cells_*); "transit" points are the
+# out/back legs outside the zone. A drone that dropped out mid-flight never
+# returns (no back leg).
+# ---------------------------------------------------------------------------
+def _lerp_e7(a, b, t):
+    return (round(a[0] + (b[0] - a[0]) * t), round(a[1] + (b[1] - a[1]) * t))
+
+
+def build_path(home, sweep_centres, cells_ts, returned, n=TRANSIT_STEPS):
+    if not sweep_centres:
+        return []
+    path = []
+    entry, exit_ = sweep_centres[0], sweep_centres[-1]
+    t_first, t_last = cells_ts[0], cells_ts[-1]
+
+    # transit OUT: home → strip entry (ts ramps from TS_START up to the 1st reading)
+    for j in range(n):
+        t = j / n
+        x, y = _lerp_e7(home, entry, t)
+        path.append({"lon_e7": x, "lat_e7": y,
+                     "ts": TS_START + round((t_first - TS_START) * t), "phase": "transit"})
+
+    # SWEEP: the in-zone readings (identical to cells_*, same timestamps)
+    for (x, y), ts in zip(sweep_centres, cells_ts):
+        path.append({"lon_e7": x, "lat_e7": y, "ts": ts, "phase": "sweep"})
+
+    # transit BACK: strip exit → home (only if the drone made it back)
+    if returned:
+        for j in range(1, n + 1):
+            t = j / n
+            x, y = _lerp_e7(exit_, home, t)
+            path.append({"lon_e7": x, "lat_e7": y, "ts": t_last + j * 7, "phase": "transit"})
+    return path
 
 
 # ---------------------------------------------------------------------------
@@ -184,13 +269,24 @@ _KIND_TO_GENERATOR = {
     "dropout-midflight": (make_dropout_midflight_cells,   "drone disappeared after sweeping ~40% of strip"),
 }
 
+# Did the drone fly back to the convoy? A mid-flight dropout vanished en route.
+_KIND_RETURNS = {
+    "safe":              True,
+    "unsafe-coverage":   True,
+    "unsafe-contact":    True,
+    "dropout-midflight": False,
+}
+
 
 # ---------------------------------------------------------------------------
-# JSON assembly — the slim per-drone cells.json script6 submits.
+# JSON assembly — the per-drone telemetry: full path + the proof readings.
 # ---------------------------------------------------------------------------
-def make_input_json(cells_x, cells_y, cells_p, cells_ts, label):
+def make_input_json(cells_x, cells_y, cells_p, cells_ts, label, home, path, returned):
     return {
         "_comment":        label,
+        "home":            {"lon_e7": home[0], "lat_e7": home[1]},
+        "path":            path,
+        "returned":        returned,
         "cells_x":         cells_x,
         "cells_y":         cells_y,
         "cells_p_contact": cells_p,
@@ -268,12 +364,17 @@ def generate(scenario, seed):
             centres = footprint_centres(swarm, x_start, x_end, y_start, y_end)
             gen, _label = _KIND_TO_GENERATOR[kind]
             cells = gen(rng, centres)
+            used_centres = list(zip(cells[0], cells[1]))     # the readings actually emitted
+            home = home_e7(prefix, drone_id)
+            returned = _KIND_RETURNS[kind]
+            path = build_path(home, used_centres, cells[3], returned)
             label = (
                 f"{prefix} drone {drone_id} ({kind}): "
                 f"strip x=[{x_start},{x_end}) y=[{y_start},{y_end}), "
                 f"n_cells={len(cells[0])}"
             )
-            results.append((f"{prefix}_{drone_id}.json", make_input_json(*cells, label)))
+            results.append((f"{prefix}_{drone_id}.json",
+                            make_input_json(*cells, label, home, path, returned)))
 
     return results, vanished
 
@@ -310,7 +411,8 @@ def main() -> int:
         elapsed = payload["cells_ts"][-1] - TS_START if payload["cells_ts"] else 0
         max_p   = max(payload["cells_p_contact"]) if payload["cells_p_contact"] else 0
         print(f"  {path}: n_cells={n_cells} covered={covered}/{strip_total_blocks(swarm)} "
-              f"blocks cov={cov_per}/1000 max_p={max_p} elapsed={elapsed}s")
+              f"blocks cov={cov_per}/1000 max_p={max_p} elapsed={elapsed}s "
+              f"path_pts={len(payload['path'])} returned={payload['returned']}")
 
     manifest_path = scenario_dir / "vanish_manifest.json"
     manifest_path.write_text(json.dumps({

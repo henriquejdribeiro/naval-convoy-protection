@@ -99,6 +99,24 @@ print(" ".join(parts))
 EOF
 )
 
+# ── Full flight track (home→sweep→home): the honest on-chain record (stored, NOT
+#    proven). Three u32/u32/u64 arrays from the JSON 'path'; empty if the file
+#    predates the path field. Param order matches lib.cairo (…, sig_s, track_*).
+TRACK_CALLDATA=$(MSYS_NO_PATHCONV=1 docker run --rm -i \
+    -v "${REPO_ROOT}:/work" -w /work \
+    convoy-cairo-builder \
+    python3 - <<EOF
+import json
+d = json.load(open("${CELLS_JSON}"))
+path = d.get("path", [])
+tx  = [str(p["lon_e7"]) for p in path]
+ty  = [str(p["lat_e7"]) for p in path]
+tts = [str(p["ts"])     for p in path]
+m = len(tx)
+print(" ".join([str(m)] + tx + [str(m)] + ty + [str(m)] + tts))
+EOF
+)
+
 # ── Route-B identity binding: sign IN THE DRONE'S MACHINE (key never leaves) ──
 MACHINE="convoy-machine-${SWARM}-${DRONE_ID}"
 echo "[submit/${SWARM}/${DRONE_ID}] signing telemetry commitment in ${MACHINE}..."
@@ -120,7 +138,7 @@ echo "  cells_file:  ${CELLS_JSON}"
 echo
 
 MSYS_NO_PATHCONV=1 docker exec "${MACHINE}" \
-    starkli invoke "${CONV_ADDR}" submit_telemetry ${MISSION_ID} ${DRONE_ID} ${CALLDATA} ${SIG_TAIL} \
+    starkli invoke "${CONV_ADDR}" submit_telemetry ${MISSION_ID} ${DRONE_ID} ${CALLDATA} ${SIG_TAIL} ${TRACK_CALLDATA} \
         --rpc "${RPC_URL}" \
         --l1-gas 100000 \
         --watch 2>&1 | tail -10

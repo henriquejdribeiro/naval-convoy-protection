@@ -43,9 +43,47 @@
     padding: 8px 14px; backdrop-filter: blur(4px); user-select: none;
   }
   #sel .dim { color: #64748b; }
+  /* ── Landing menu ─────────────────────────────────────────────── */
+  #hud, #sel { transition: opacity 0.4s ease; }
+  body.menu-open #hud, body.menu-open #sel { opacity: 0; pointer-events: none; }
+  #menu {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 34px; text-align: center; padding: 24px;
+    background: radial-gradient(ellipse at 50% 32%, rgba(10,18,32,0.70), rgba(3,6,12,0.93));
+    backdrop-filter: blur(3px);
+    transition: opacity 0.5s ease;
+  }
+  #menu.hidden { opacity: 0; pointer-events: none; }
+  #menu .brand h1 {
+    margin: 0; font-size: 30px; letter-spacing: 3px; font-weight: 700;
+    color: #e2e8f0; text-transform: uppercase;
+  }
+  #menu .brand .sub  { margin-top: 8px; font-size: 13px; letter-spacing: 1px; color: #7dd3fc; }
+  #menu .brand .sub2 { margin-top: 3px; font-size: 12px; color: #64748b; }
+  #menu .cards { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; }
+  #menu .card {
+    width: 300px; cursor: pointer; text-align: left;
+    background: rgba(6,12,22,0.66);
+    border: 1px solid #1e3a5f; border-radius: 12px;
+    padding: 22px 22px 20px; color: #cbd5e1;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  #menu .card:hover {
+    transform: translateY(-4px); border-color: #38bdf8;
+    box-shadow: 0 14px 40px rgba(2,8,20,0.6), 0 0 0 1px rgba(56,189,248,0.35);
+  }
+  #menu .card .tag {
+    font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: #38bdf8; font-weight: 700;
+  }
+  #menu .card h2 { margin: 6px 0 8px; font-size: 20px; color: #f1f5f9; font-weight: 600; }
+  #menu .card p  { margin: 0; font-size: 12.5px; line-height: 1.5; color: #94a3b8; }
+  #menu .card .go { margin-top: 14px; font-size: 12px; color: #7dd3fc; }
+  #menu .hint { font-size: 11px; color: #475569; }
 </style>
 </head>
-<body>
+<body class="menu-open">
 <div id="world"></div>
 <div id="tip" hidden></div>
 <div id="sel"></div>
@@ -54,17 +92,36 @@
   <div>World · <span class="dim">35–40°N, 10–20°W — open Atlantic (Portugal EEZ)</span></div>
   <div>Grid · <span class="dim">zoom-adaptive 1° → 0.0001° · coords to 0.0001°</span></div>
   <div><span class="dim">drag</span> orbit &nbsp;·&nbsp; <span class="dim">right-drag</span> pan &nbsp;·&nbsp; <span class="dim">scroll</span> zoom &nbsp;·&nbsp; <span class="dim">hover</span> coords</div>
-  <div><span class="dim">click</span> select &nbsp;·&nbsp; <span class="dim">arrows</span> fly &nbsp;·&nbsp; <span class="dim">Enter</span> save &nbsp;·&nbsp; <span class="dim">C</span> clear track</div>
-  <div class="legend">
-    <b><span style="color:#60a5fa">●</span> ships</b> &nbsp;
-    <b><span style="color:#facc15">●</span> commander</b> &nbsp;
-    <b><span style="color:#a855f7">●</span> HVU</b> &nbsp;
-    <b><span style="color:#f59e0b">●</span> drones</b>
-  </div>
+  <div class="hud-play"><span class="dim">click</span> select &nbsp;·&nbsp; <span class="dim">arrows</span> fly &nbsp;·&nbsp; <span class="dim">Enter</span> save &nbsp;·&nbsp; <span class="dim">C</span> clear track</div>
   <div class="legend">
     <b><span style="color:#22c55e">■</span> alpha zone (EX-010)</b> &nbsp;
     <b><span style="color:#a855f7">■</span> bravo zone (EX-011)</b>
   </div>
+</div>
+<div id="menu">
+  <div class="brand">
+    <h1>Naval Convoy Protection</h1>
+    <div class="sub">Verifiable drone mission-compliance</div>
+    <div class="sub2">Besu QBFT L1 · Madara Starknet L2 · Stone STARK proofs</div>
+  </div>
+  <div class="cards">
+    <div class="card" data-mode="demo">
+      <div class="tag">Demo</div>
+      <h2>Watch the certified mission</h2>
+      <p>Replay the recorded scenario: 10 drones clear the green + purple zones, two
+         STARK proofs verify on L1, the convoy advances — overlaid with the real proof
+         sizes, step counts, gas and transaction hashes.</p>
+      <div class="go">▶ Play the demo</div>
+    </div>
+    <div class="card" data-mode="play">
+      <div class="tag">Simulate</div>
+      <h2>Fly it yourself</h2>
+      <p>Take manual control of the drones, sweep the zones, and produce your own
+         telemetry to feed the L2 → proof → L1 pipeline. Free-flight sandbox.</p>
+      <div class="go">▶ Start the game</div>
+    </div>
+  </div>
+  <div class="hint">select a mode to begin — the ocean behind is live</div>
 </div>
 
 <script src="js/vendor/three.min.js"></script>
@@ -72,5 +129,23 @@
 <script src="js/vendor/Sky.js"></script>
 <script src="js/vendor/GLTFLoader.js"></script>
 <script src="js/world3d.js"></script>
+<script src="js/demo.js"></script>
+<script>
+(function () {
+  var menu = document.getElementById('menu');
+  window.CONVOY_MODE = null;
+  menu.querySelectorAll('.card').forEach(function (card) {
+    card.addEventListener('click', function () {
+      var mode = card.getAttribute('data-mode');   // 'demo' | 'play'
+      window.CONVOY_MODE = mode;
+      document.body.classList.remove('menu-open');  // reveal HUD + selection bar
+      menu.classList.add('hidden');
+      window.dispatchEvent(new CustomEvent('convoy:mode', { detail: mode }));
+      setTimeout(function () { menu.style.display = 'none'; }, 500);
+    });
+  });
+})();
+</script>
+
 </body>
 </html>

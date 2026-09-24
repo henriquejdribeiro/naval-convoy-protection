@@ -135,6 +135,12 @@ pub trait IConvoyProtocol<TContractState> {
         drone_pubkey:     felt252,   // drone's STARK-curve public key
         sig_r:            felt252,   // signature (r) over H
         sig_s:            felt252,   // signature (s) over H
+        // ── Full flight track (home→sweep→home): the honest on-chain record.
+        //    Stored, NOT evaluated and NOT proven — the verdict + STARK cover only
+        //    the in-zone cells above. Out-of-zone transit points live only here.
+        track_x:          Array<u32>,  // E7 |lon|·1e7 along the whole flight
+        track_y:          Array<u32>,  // E7  lat·1e7  along the whole flight
+        track_ts:         Array<u64>,  // unix seconds along the whole flight
     );
 
     // ── Read-only views ─────────────────────────────────────────────
@@ -169,6 +175,14 @@ pub trait IConvoyProtocol<TContractState> {
     /// index returns zeros — callers bound with get_n_cells.
     fn get_cell(self: @TContractState, mission_id: felt252, drone_id: u8, index: u32)
         -> (u32, u32, u16, u64);
+
+    /// Number of full-flight track points the drone recorded (0 if none).
+    fn get_n_track(self: @TContractState, mission_id: felt252, drone_id: u8) -> u32;
+
+    /// One stored flight-track point: (x, y, ts) — the honest full-flight log
+    /// (home→sweep→home), NOT proven. Bound with get_n_track.
+    fn get_track_point(self: @TContractState, mission_id: felt252, drone_id: u8, index: u32)
+        -> (u32, u32, u64);
 
     /// The drone's published commitment H for (mission, drone) (0 if none).
     fn get_commitment(self: @TContractState, mission_id: felt252, drone_id: u8) -> felt252;
@@ -281,6 +295,14 @@ mod ConvoyProtocol {
         cell_y:        Map<felt252, u32>,               // cell_key → y
         cell_p:        Map<felt252, u16>,               // cell_key → p_contact
         cell_ts:       Map<felt252, u64>,               // cell_key → ts
+
+        // ── Honest full-flight track (home→sweep→home) — stored, NOT proven ──
+        //   Keyed like the cells (encode_cell_key). The verdict + STARK use only
+        //   the in-zone cells above; this is the complete flight log for the record.
+        n_track_map:   Map<felt252, u32>,               // drone_key → # track points
+        track_x_map:   Map<felt252, u32>,               // track cell_key → x (E7 |lon|)
+        track_y_map:   Map<felt252, u32>,               // track cell_key → y (E7 lat)
+        track_ts_map:  Map<felt252, u64>,               // track cell_key → ts
 
         // Per-mission aggregates
         safe_count: Map<felt252, u8>,                   // mission_id → # of SAFE drones so far. THE counter relay-l2-messages reads.
@@ -492,6 +514,9 @@ mod ConvoyProtocol {
             drone_pubkey:     felt252,
             sig_r:            felt252,
             sig_s:            felt252,
+            track_x:          Array<u32>,   // full flight track — stored, not proven
+            track_y:          Array<u32>,
+            track_ts:         Array<u64>,
         ) {
 
             // ── GUARDS (steps 1–5): reject bad input before doing real work ──
@@ -579,6 +604,24 @@ mod ConvoyProtocol {
                 self.cell_p.write(ckey, *cells_p_contact.at(ci));
                 self.cell_ts.write(ckey, *cells_ts.at(ci));
                 ci += 1_u32;
+            };
+
+            // ── Store the full flight track (home→sweep→home) as the honest
+            //    on-chain record. Length-checked but NOT evaluated: the verdict and
+            //    the STARK proof cover ONLY the in-zone cells. Transit points
+            //    (outside the strip) live here and nowhere else.
+            let n_track = track_x.len();
+            assert(track_y.len() == n_track,  'track_y length mismatch');
+            assert(track_ts.len() == n_track, 'track_ts length mismatch');
+            self.n_track_map.write(dkey, n_track);
+            let mut ti: u32 = 0;
+            loop {
+                if ti >= n_track { break; }
+                let tkey = encode_cell_key(mission_id, drone_id, ti);
+                self.track_x_map.write(tkey, *track_x.at(ti));
+                self.track_y_map.write(tkey, *track_y.at(ti));
+                self.track_ts_map.write(tkey, *track_ts.at(ti));
+                ti += 1_u32;
             };
 
             self.emit(TelemetrySubmitted {
@@ -694,6 +737,23 @@ mod ConvoyProtocol {
                 self.cell_y.read(ckey),
                 self.cell_p.read(ckey),
                 self.cell_ts.read(ckey),
+            )
+        }
+
+        fn get_n_track(
+            self: @ContractState, mission_id: felt252, drone_id: u8,
+        ) -> u32 {
+            self.n_track_map.read(encode_drone_key(mission_id, drone_id))
+        }
+
+        fn get_track_point(
+            self: @ContractState, mission_id: felt252, drone_id: u8, index: u32,
+        ) -> (u32, u32, u64) {
+            let tkey = encode_cell_key(mission_id, drone_id, index);
+            (
+                self.track_x_map.read(tkey),
+                self.track_y_map.read(tkey),
+                self.track_ts_map.read(tkey),
             )
         }
 

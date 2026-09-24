@@ -22,8 +22,8 @@
   const latToZ = lat => -(lat - latC) * SCALE;
   const xToLon = x => x / SCALE + lonC;
   const zToLat = z => -z / SCALE + latC;
-  const COV = { latMin: 37, latMax: 38, lonMin: -16, lonMax: -14 };
-  const CDIV_LON = (COV.lonMin + COV.lonMax) / 2;
+  const COV = { latMin: 37, latMax: 38, lonMin: -16, lonMax: -13 };   // green -16..-15, purple -15..-13
+  const CDIV_LON = -15;                                               // green/purple split 
 
   const renderer = new T.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -366,7 +366,23 @@
   const el = renderer.domElement;
   el.addEventListener('mousedown', e => { mode = (e.shiftKey || e.button === 2) ? 'pan' : 'orbit'; lx = e.clientX; ly = e.clientY; downX = e.clientX; downY = e.clientY; downBtn = e.button; if (tip) tip.hidden = true; e.preventDefault(); });
   el.addEventListener('contextmenu', e => e.preventDefault());
-  window.addEventListener('mouseup', e => { const wasClick = downBtn === 0 && Math.abs(e.clientX - downX) < 5 && Math.abs(e.clientY - downY) < 5; mode = null; if (wasClick) selectAt(e); });
+  window.addEventListener('mouseup', e => {
+    const wasClick = downBtn === 0 && Math.abs(e.clientX - downX) < 5 && Math.abs(e.clientY - downY) < 5;
+    mode = null;
+    if (!wasClick) return;
+    if (window.CONVOY_MODE === 'demo') {
+      // demo: a click on a unit → hand its id + screen position to js/demo.js,
+      // which renders the "what's inside this unit" container box.
+      const w = host.clientWidth, h = host.clientHeight;
+      ndc.set((e.clientX / w) * 2 - 1, -(e.clientY / h) * 2 + 1);
+      raycaster.setFromCamera(ndc, camera);
+      const hits = raycaster.intersectObjects(pickables, false);
+      const id = hits.length ? hits[0].object.userData.group.userData.id : null;
+      if (window.convoyWorld && window.convoyWorld.onDemoPick) window.convoyWorld.onDemoPick(id, e.clientX, e.clientY);
+    } else {
+      selectAt(e);
+    }
+  });
   window.addEventListener('mousemove', e => {
     if (!mode) { hover(e); return; }
     const dx = e.clientX - lx, dy = e.clientY - ly; lx = e.clientX; ly = e.clientY;
@@ -399,4 +415,66 @@
     if (selected) { selRing.position.set(selected.position.x, 0.42, selected.position.z); selRing.scale.setScalar(selected.userData.worldSize * 1.6); }
     renderer.render(scene, camera);
   })();
+  
+  // ── external API for the guided demo (js/demo.js) ────────────────────────
+  function byId(id) { for (const g of bodies) if (g.userData.id === id) return g; return null; }
+  const demoTracks = [], demoTiles = [], demoTrail = Object.create(null);
+  window.convoyWorld = {
+    drones: ['a1','a2','a3','a4','a5','b1','b2','b3','b4','b5'],
+    get: byId,
+    posOf(id) { const g = byId(id); return g ? { lon: g.userData.lon, lat: g.userData.lat } : null; },
+    setPos(id, lon, lat) { const g = byId(id); if (!g) return;
+      g.userData.lon = lon; g.userData.lat = lat; g.position.x = lonToX(lon); g.position.z = latToZ(lat); },
+    // EVERY unit (ships + all 3 HVUs + 10 drones) as index-keyed handles. The 3
+    // HVUs share id 'HVU' and can't be addressed by id — the index key reaches each.
+    allUnits() { return bodies.map((g, i) => ({ key: i, id: g.userData.id, lon: g.userData.lon, lat: g.userData.lat })); },
+    setUnit(key, lon, lat) { const g = bodies[key]; if (!g) return;
+      g.userData.lon = lon; g.userData.lat = lat; g.position.x = lonToX(lon); g.position.z = latToZ(lat); },
+    focus(lon, lat, rad) { target.set(lonToX(lon), 0, latToZ(lat)); if (rad) radius = rad; place(); buildGrid(); },
+    // Full camera control for the demo: set any subset of target / zoom / orbit.
+    //   theta = orbit heading, phi = polar tilt (0 = straight down, ~1.5 = horizon).
+    getView() { return { lon: xToLon(target.x), lat: zToLat(target.z), rad: radius, theta, phi }; },
+    view(o) {
+      o = o || {};
+      const lo = o.lon != null ? o.lon : xToLon(target.x);
+      const la = o.lat != null ? o.lat : zToLat(target.z);
+      target.set(lonToX(lo), 0, latToZ(la));
+      if (o.rad   != null) radius = o.rad;
+      if (o.theta != null) theta  = o.theta;
+      if (o.phi   != null) phi    = Math.max(0.05, Math.min(1.50, o.phi));
+      place(); buildGrid();
+    },
+    select(id) { select(byId(id)); },
+    drawTrack(id, latlons, color) {
+      const pts = latlons.map(p => new T.Vector3(lonToX(p.lon), 0.5, latToZ(p.lat)));
+      const ln = new T.Line(new T.BufferGeometry().setFromPoints(pts),
+        new T.LineBasicMaterial({ color: color || swarmColor(id), transparent: true, opacity: 0.95, depthWrite: false }));
+      scene.add(ln); demoTracks.push(ln); return ln;
+    },
+    // Paint a translucent "covered-safe" footprint square (the E7 sensor footprint),
+    // centred on (lon,lat), spanning ±hLon / ±hLat degrees. Alpha green, Bravo purple.
+    paintCell(lon, lat, hLon, hLat, color) {
+      const w = Math.abs(lonToX(lon + hLon) - lonToX(lon - hLon));
+      const h = Math.abs(latToZ(lat + hLat) - latToZ(lat - hLat));
+      const m = new T.Mesh(new T.PlaneGeometry(w, h),
+        new T.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.30, side: T.DoubleSide, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2; m.position.set(lonToX(lon), 0.56, latToZ(lat));
+      scene.add(m); demoTiles.push(m); return m;
+    },
+    // Append one point to a drone's growing breadcrumb trail (the line under it).
+    trail(id, lon, lat, color) {
+      const tr = demoTrail[id] || (demoTrail[id] = { pts: [], line: null });
+      tr.pts.push(new T.Vector3(lonToX(lon), 0.62, latToZ(lat)));
+      if (tr.pts.length < 2) return;
+      if (tr.line) { scene.remove(tr.line); tr.line.geometry.dispose(); }
+      tr.line = new T.Line(new T.BufferGeometry().setFromPoints(tr.pts),
+        new T.LineBasicMaterial({ color: color || swarmColor(id), transparent: true, opacity: 0.95, depthWrite: false }));
+      scene.add(tr.line);
+    },
+    clearTracks() {
+      for (const ln of demoTracks) { scene.remove(ln); ln.geometry.dispose(); } demoTracks.length = 0;
+      for (const m of demoTiles) { scene.remove(m); m.geometry.dispose(); m.material.dispose(); } demoTiles.length = 0;
+      for (const id in demoTrail) { const tr = demoTrail[id]; if (tr.line) { scene.remove(tr.line); tr.line.geometry.dispose(); } delete demoTrail[id]; }
+    },
+  };
 })();

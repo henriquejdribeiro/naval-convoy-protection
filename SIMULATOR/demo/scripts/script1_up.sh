@@ -212,7 +212,7 @@ MSYS_NO_PATHCONV=1 docker run --rm --network convoy-l1 -v "${OWNER_KEYVOL}:/key"
     --rpc-url http://ship-a:8545 \
     --legacy --gas-price 0 >/dev/null 2>&1 && echo "  ✓ starkVerifier wired"
 
-echo
+echo 
 echo "═══════════════════════════════════════════════════════════════"
 echo "  [3/4] L2 stack — 10 Madara + 2 pathfinder leaders + prover APIs"
 echo "═══════════════════════════════════════════════════════════════"

@@ -3,22 +3,28 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 BESU = "http://ship-a:8545"
 
+def _relabel(x):
+    # Besu-QBFT serves neither `finalized` nor `safe` (it ERRORS on the tag), yet
+    # every QBFT block is final — so `latest` IS the finalized/safe block. Rewrite
+    # those tags to `latest` wherever they appear as a block parameter, for ANY
+    # method (eth_getBlockByNumber, eth_call, eth_getCode, eth_getStorageAt,
+    # eth_getLogs, eth_newFilter, …). Madara probes the core and VALIDATES each
+    # L1→L2 message with eth_call/eth_getCode at `finalized`; unrewritten, those
+    # error and Madara reports "core not found" and skips the message as
+    # invalid/cancelled — so open_mission never lands. These tag strings only ever
+    # occur as block params in JSON-RPC, so a blanket rewrite of the params is safe.
+    if isinstance(x, str):
+        return "latest" if x in ("finalized", "safe") else x
+    if isinstance(x, list):
+        return [_relabel(v) for v in x]
+    if isinstance(x, dict):
+        return {k: _relabel(v) for k, v in x.items()}
+    return x
+
 def fix(obj):
-    # Besu-QBFT doesn't expose the `finalized` tag (QBFT finalizes every block,
-    # so `latest` IS final). Madara touches `finalized` two ways — rewrite both:
-    #   1. eth_newFilter toBlock:"finalized"    (event scan)
-    #   2. eth_getBlockByNumber "finalized"      (L1→L2 finality counter)
-    # Without (2) the message sync sticks at N/10 confirmations forever, because
-    # Besu never advances `finalized`.
     try:
-        m = obj.get("method")
-        p = obj.get("params")
-        if m == "eth_newFilter":
-            if isinstance(p, list) and p and isinstance(p[0], dict) and p[0].get("toBlock") == "finalized":
-                p[0]["toBlock"] = "latest"
-        elif m == "eth_getBlockByNumber":
-            if isinstance(p, list) and p and p[0] == "finalized":
-                p[0] = "latest"
+        if isinstance(obj, dict) and isinstance(obj.get("params"), (list, dict)):
+            obj["params"] = _relabel(obj["params"])
     except Exception:
         pass
 
