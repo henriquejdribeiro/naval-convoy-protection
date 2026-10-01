@@ -35,29 +35,33 @@
 //
 // Layout:   starknet (Cairo VM layout 6)
 // Compiler: cairo-lang 0.14.0.1
-// Builtins: output, pedersen, range_check, ecdsa
+// Builtins: output, pedersen, range_check, ecdsa, bitwise
 // =============================================================================
 
-%builtins output pedersen range_check ecdsa
+%builtins output pedersen range_check ecdsa bitwise
 
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
+from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin, BitwiseBuiltin
 from starkware.cairo.common.hash import hash2
 from starkware.cairo.common.signature import verify_ecdsa_signature
 from starkware.cairo.common.serialize import serialize_word
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.math_cmp import is_le
+from starkware.cairo.common.bitwise import bitwise_or
+from starkware.cairo.common.math import assert_nn_le
 
 // ── ALPHA swarm constants — the sensor class is part of the program hash ──────
 const SWARM_ID           = 1;
 const N_DRONES           = 5;
-const BLOCK_SIZE         = 1000000;    // E7 per 0.1° coverage block
-const ZONE_W             = 10000000;   // 1°  (green is 1° wide, 15–16°W)
+const COORD_QUANTUM      = 1000;       // 0.0001° — fine grid (informational only)
+const ACCOUNTING_CELL    = 500000;     // 0.05°   — one coverage bit
+const SENSOR_HALF        = 500000;     // 0.05°   — half-edge → 0.1° footprint (2×2 cells)
+const ZONE_W             = 10000000;   // 1°  (green, 15–16°W)
 const ZONE_H             = 10000000;   // 1°  (37–38°N)
 const STRIP_WIDTH        = 2000000;    // 0.2° = ZONE_W / N_DRONES
-const SENSOR_HALF        = 500000;     // 0.05° half-edge → 0.1° square footprint
-const SENSOR_FOOTPRINT   = 1;          // ((2·SENSOR_HALF)/BLOCK_SIZE)² = 1 block
-const STRIP_TOTAL_BLOCKS = 20;         // (STRIP_WIDTH/BLOCK)·(ZONE_H/BLOCK) = 2·10
-const PERMILLE_BASE      = 1000;
+const STRIP_COLS         = 4;          // STRIP_WIDTH / ACCOUNTING_CELL
+const STRIP_ROWS         = 20;         // ZONE_H      / ACCOUNTING_CELL
+const STRIP_TOTAL_BLOCKS = 80;         // STRIP_COLS * STRIP_ROWS
+const FULL_MASK          = 1208925819614629174706175;  // 2**80 - 1 (all 80 bits)
 
 // ─────────────────────────────────────────────────────────────────────────
 //  Read one drone's cell array from program_input['drones'][drone][field].
@@ -72,31 +76,6 @@ func read_array(dst: felt*, n: felt, idx: felt, drone: felt, key_id: felt) {
         memory[ids.dst + ids.idx] = program_input['drones'][ids.drone][keymap[ids.key_id]][ids.idx]
     %}
     return read_array(dst, n, idx + 1, drone, key_id);
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-//  ① Strip bounds — every reading's SQUARE FOOTPRINT (side 2·SENSOR_HALF,
-//  centred on the reading) must lie fully inside the strip:
-//     x_start + HALF ≤ x  and  x + HALF ≤ x_end   (same for y)
-//  acc starts at 1, ×= each cell's containment bool. Returns 1 iff all pass.
-// ─────────────────────────────────────────────────────────────────────────
-func check_all_in_strip{range_check_ptr}(
-    cells_x: felt*, cells_y: felt*,
-    x_start: felt, x_end: felt, y_start: felt, y_end: felt,
-    n: felt, idx: felt, acc: felt,
-) -> (result: felt) {
-    if (idx == n) {
-        return (result=acc);
-    }
-    let x_lo_ok = is_le(x_start + SENSOR_HALF, cells_x[idx]);
-    let x_hi_ok = is_le(cells_x[idx] + SENSOR_HALF, x_end);
-    let y_lo_ok = is_le(y_start + SENSOR_HALF, cells_y[idx]);
-    let y_hi_ok = is_le(cells_y[idx] + SENSOR_HALF, y_end);
-    let cell_ok = x_lo_ok * x_hi_ok * y_lo_ok * y_hi_ok;
-    return check_all_in_strip(
-        cells_x, cells_y, x_start, x_end, y_start, y_end,
-        n, idx + 1, acc * cell_ok,
-    );
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -149,13 +128,65 @@ func hash_cells_with_nonce{pedersen_ptr: HashBuiltin*}(
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+//  pow2(e) = 2**e  (e ≤ STRIP_TOTAL_BLOCKS-1, so cheap). Sets one bit.
+// ─────────────────────────────────────────────────────────────────────────
+func pow2(e: felt) -> (r: felt) {
+    if (e == 0) {
+        return (r=1);
+    }
+    let (half) = pow2(e - 1);
+    return (r=half * 2);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  Distinct-cell coverage. Each reading's footprint (side 2·SENSOR_HALF) is a
+//  2×2 patch of accounting cells; its SW corner must sit on the accounting grid
+//  (aligned + inside the strip, else abort). OR the 4 bits into cover_map
+//  (idempotent → duplicates add nothing).  block_id = row*STRIP_COLS + col.
+// ─────────────────────────────────────────────────────────────────────────
+func cover_blocks{range_check_ptr, bitwise_ptr: BitwiseBuiltin*}(
+    cells_x: felt*, cells_y: felt*, x_start: felt, y_start: felt,
+    n: felt, idx: felt, cover_map: felt,
+) -> (cover_map: felt) {
+    alloc_locals;
+    if (idx == n) {
+        return (cover_map=cover_map);
+    }
+    let dx = cells_x[idx] - SENSOR_HALF - x_start;
+    let dy = cells_y[idx] - SENSOR_HALF - y_start;
+    local col: felt;
+    local row: felt;
+    %{
+        ids.col = (memory[ids.cells_x + ids.idx] - ids.SENSOR_HALF - ids.x_start) // ids.ACCOUNTING_CELL
+        ids.row = (memory[ids.cells_y + ids.idx] - ids.SENSOR_HALF - ids.y_start) // ids.ACCOUNTING_CELL
+    %}
+    assert col * ACCOUNTING_CELL = dx;
+    assert row * ACCOUNTING_CELL = dy;
+    assert_nn_le(col, STRIP_COLS - 2);   // 0 <= col <= STRIP_COLS-2  (2×2 footprint fits)
+    assert_nn_le(row, STRIP_ROWS - 2);   // 0 <= row <= STRIP_ROWS-2
+    let b00 = row * STRIP_COLS + col;
+    let b01 = b00 + 1;
+    let b10 = b00 + STRIP_COLS;
+    let b11 = b10 + 1;
+    let (q00) = pow2(b00);
+    let (m1) = bitwise_or(cover_map, q00);
+    let (q01) = pow2(b01);
+    let (m2) = bitwise_or(m1, q01);
+    let (q10) = pow2(b10);
+    let (m3) = bitwise_or(m2, q10);
+    let (q11) = pow2(b11);
+    let (m4) = bitwise_or(m3, q11);
+    return cover_blocks(cells_x, cells_y, x_start, y_start, n, idx + 1, m4);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 //  Aggregate the swarm: for each drone d ∈ 0..N_DRONES-1 evaluate the four
 //  predicates against its DERIVED strip (deriving the strip in-circuit is what
 //  forces the 5 strips to tile the zone), verify its ECDSA signature over its
 //  hash H_d, record its pubkey, AND the verdicts, and Pedersen-chain the hashes
 //  into the swarm hash.
 // ─────────────────────────────────────────────────────────────────────────
-func process_drones{pedersen_ptr: HashBuiltin*, range_check_ptr, ecdsa_ptr: SignatureBuiltin*}(
+func process_drones{pedersen_ptr: HashBuiltin*, range_check_ptr, ecdsa_ptr: SignatureBuiltin*, bitwise_ptr: BitwiseBuiltin*}(
     zone_x: felt, zone_y: felt,
     coverage_min: felt, p_min: felt, time_window: felt, ts_start: felt,
     pubkeys: felt*, d: felt, verdict_acc: felt, hash_acc: felt,
@@ -190,16 +221,10 @@ func process_drones{pedersen_ptr: HashBuiltin*, range_check_ptr, ecdsa_ptr: Sign
         ids.sig_s        = program_input['drones'][ids.d]['sig_s']
     %}
 
-    // ── derive drone d's strip (0-based d; drone_id = d+1) ──
+    // ── derive drone d's strip origin (0-based d; drone_id = d+1) ──
     let x_start = zone_x + d * STRIP_WIDTH;
-    let x_end   = x_start + STRIP_WIDTH;
     let y_start = zone_y;
-    let y_end   = zone_y + ZONE_H;
 
-    // ① strip-bounds (footprint ⊆ strip)
-    let (strip_ok) = check_all_in_strip(
-        cells_x, cells_y, x_start, x_end, y_start, y_end, n_cells, 0, 1,
-    );
     // ② detection
     let (contact_ok) = check_all_p_below_min(cells_p, p_min, n_cells, 0, 1);
     // ③ time: max(ts) − ts_start ∈ [0, time_window]
@@ -210,11 +235,15 @@ func process_drones{pedersen_ptr: HashBuiltin*, range_check_ptr, ecdsa_ptr: Sign
     let elapsed_nonneg = is_le(0, elapsed);
     let elapsed_within = is_le(elapsed, time_window);
     let time_ok = elapsed_nonneg * elapsed_within;
-    // ④ coverage: covered_blocks·1000 ≥ coverage_min·strip_blocks
-    let covered = n_cells * SENSOR_FOOTPRINT;
-    let coverage_ok = is_le(coverage_min * STRIP_TOTAL_BLOCKS, covered * PERMILLE_BASE);
+    // ④ coverage: EVERY accounting cell of the strip must be covered (100 %).
+    //    Each reading OR's its 2×2 footprint patch (alignment/in-strip asserted);
+    //    duplicates can't inflate (OR). coverage_ok = 1 iff cover_map is FULL.
+    let (cover_map) = cover_blocks{range_check_ptr=range_check_ptr, bitwise_ptr=bitwise_ptr}(
+        cells_x, cells_y, x_start, y_start, n_cells, 0, 0,
+    );
+    let coverage_ok = is_le(FULL_MASK, cover_map);   // 1 iff cover_map == FULL_MASK
 
-    let drone_verdict = strip_ok * contact_ok * time_ok * coverage_ok;
+    let drone_verdict = contact_ok * time_ok * coverage_ok;
     assert drone_verdict * (drone_verdict - 1) = 0;
 
     // ── drone hash H_d + in-circuit ECDSA identity binding ──
@@ -226,9 +255,18 @@ func process_drones{pedersen_ptr: HashBuiltin*, range_check_ptr, ecdsa_ptr: Sign
         signature_r=sig_r, signature_s=sig_s,
     );
 
-    // record pubkey for the public output; fold H_d into the swarm hash
+    // record pubkey for the public output;
     assert pubkeys[d] = drone_pubkey;
-    let (new_hash) = hash2{hash_ptr=pedersen_ptr}(hash_acc, commitment_H);
+    
+    // AREA commitment A_d — the 5 params defining drone d's covered region:
+    // SW corner (x_start, y_start), width, height, and the proven coverage
+    // bitmap (cover_map; FULL_MASK at 100%). Telemetry-independent. (commitment_H
+    // above is still ECDSA-checked — signed telemetry — but is not the anchor.)
+    let (h1)       = hash2{hash_ptr=pedersen_ptr}(x_start, y_start);
+    let (h2)       = hash2{hash_ptr=pedersen_ptr}(h1, STRIP_WIDTH);
+    let (h3)       = hash2{hash_ptr=pedersen_ptr}(h2, ZONE_H);
+    let (area_d)   = hash2{hash_ptr=pedersen_ptr}(h3, cover_map);
+    let (new_hash) = hash2{hash_ptr=pedersen_ptr}(hash_acc, area_d);
 
     return process_drones(
         zone_x, zone_y,
@@ -240,7 +278,7 @@ func process_drones{pedersen_ptr: HashBuiltin*, range_check_ptr, ecdsa_ptr: Sign
 // ─────────────────────────────────────────────────────────────────────────
 //  Main
 // ─────────────────────────────────────────────────────────────────────────
-func main{output_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr, ecdsa_ptr: SignatureBuiltin*}() {
+func main{output_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr, ecdsa_ptr: SignatureBuiltin*, bitwise_ptr: BitwiseBuiltin*}() {
     alloc_locals;
 
     // ── mission inputs (echoed as outputs → checked against the registered
@@ -248,7 +286,7 @@ func main{output_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr, ecdsa_
     local mission_id: felt;
     local zone_x: felt;
     local zone_y: felt;
-    local coverage_min: felt;
+    local coverage_min: felt; // no longer used 100 percent coverage is required
     local p_min: felt;
     local time_window: felt;
     local ts_start: felt;

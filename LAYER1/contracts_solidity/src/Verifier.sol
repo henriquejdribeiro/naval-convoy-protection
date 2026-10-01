@@ -190,6 +190,9 @@ contract Verifier is Ownable {
         require(inputs.zoneY == spec.zoneY, "Verifier: wrong zoneY");
         require(inputs.zoneW == spec.zoneW, "Verifier: wrong zoneW");
         require(inputs.zoneH == spec.zoneH, "Verifier: wrong zoneH");
+        // Area gate — the proof's swarm AREA hash must equal the mission's
+        // registered expected area (Pedersen chain of the 5 drone area records).
+        require(inputs.swarmHash == spec.areaHash, "Verifier: wrong area");
 
         // 4. Sensor-class gate — the proof's program hash must be the one pinned
         //    for this swarm (alpha 0.1° vs bravo 0.2° footprint). Stops a relay

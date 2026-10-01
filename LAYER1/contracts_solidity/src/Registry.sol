@@ -74,6 +74,11 @@ contract Registry is Ownable {
     // payload.
     uint8 public constant N_DRONES = 5;
 
+    // cover_map == FULL_MASK per swarm (must match FULL_MASK in safe_area_verify_*.cairo):
+    // alpha strip = 80 cells, bravo = 40.
+    uint256 public constant FULL_MASK_ALPHA = (uint256(1) << 80) - 1;
+    uint256 public constant FULL_MASK_BRAVO = (uint256(1) << 40) - 1;
+
     // ── Mission spec — L1's record of a mission (Registry.specs[missionId]).
     //    L1 counterpart to convoy_protocol.MissionSpec, but a DIFFERENT schema:
     //    shares the geometry+thresholds, ADDS areaHash (L1-only provenance), and
@@ -84,7 +89,9 @@ contract Registry is Ownable {
     //    as the anchor + forwarded to L2 in the open_mission payload.
     // ───────────────────────────────────────────────────────────────────
     struct MissionSpec {
-        bytes32 areaHash;          // L1-ONLY: Poseidon hash of the zone polygon (provenance); not sent to L2
+        bytes32 areaHash;          // expected SWARM AREA hash = Pedersen chain of the 5
+                                   // A_d = Pedersen(xStart,yStart,width,height,coverTarget);
+                                   // precomputed off-chain, checked against the proof.
         uint32  zoneX;             // grid origin x
         uint32  zoneY;             // grid origin y
         uint32  zoneW;             // 15 (Alpha) or 20 (Bravo)
@@ -94,6 +101,14 @@ contract Registry is Ownable {
         uint16  coverageMin;       // permille; 950 = ≥ 95% strip coverage
         uint16  pMin;              // basis points; 7000 = p_contact < 0.7
         uint64  timeWindow;        // seconds; 360 = 6 minutes
+    }
+
+    struct DroneArea {
+        uint32  xStart;        // SW corner |lon|·1e7  (= zoneX + i*stripWidth)
+        uint32  yStart;        // SW corner  lat·1e7   (= zoneY)
+        uint32  width;         // strip width E7        (= stripWidth)
+        uint32  height;        // strip height E7       (= zoneH)
+        uint256 coverTarget;   // cover_map target      (FULL_MASK for the swarm)
     }
 
     // ───────────────────────────────────────────────────────────────────
@@ -127,6 +142,9 @@ contract Registry is Ownable {
 
     /// missionId → spec.
     mapping(uint256 => MissionSpec) public specs;
+
+    /// missionId → the 5 explicit per-drone area records (derived at deploy()).
+    mapping(uint256 => DroneArea[N_DRONES]) public droneAreas;
 
     // ── Per-mission state ───────────────────────────────────────────────
     /// @dev THE live flag: all-drones-safe. Flipped once by setMissionSafe;
@@ -292,6 +310,7 @@ contract Registry is Ownable {
                 "Registry: L2 contract addr not set"); // ordering
 
         // Spec sanity
+        require(spec.areaHash != bytes32(0), "Registry: areaHash = 0");
         require(spec.nDrones == N_DRONES,                          "Registry: nDrones must be 5"); // exactly 5
         require(spec.zoneW > 0 && spec.zoneH > 0,                  "Registry: zone dims = 0");     // TILING INVARIANT
         require(spec.stripWidth > 0,                               "Registry: stripWidth = 0");    // permille range
@@ -303,6 +322,19 @@ contract Registry is Ownable {
         require(tsStart > 0,                                       "Registry: tsStart = 0");
 
         specs[missionId] = spec; // the L1 ANCHOR
+
+        // Explicit per-drone area records = the registered area the Verifier checks.
+        uint256 coverTarget =
+            missionId == BRAVO_MISSION_ID ? FULL_MASK_BRAVO : FULL_MASK_ALPHA;
+        for (uint8 i = 0; i < N_DRONES; i++) {
+            droneAreas[missionId][i] = DroneArea({
+                xStart:      spec.zoneX + uint32(i) * spec.stripWidth,
+                yStart:      spec.zoneY,
+                width:       spec.stripWidth,
+                height:      spec.zoneH,
+                coverTarget: coverTarget
+            });
+        }
 
         // Keep nextMissionId monotone for any callers that still use it
         // as a "deployed missions count" probe.
@@ -369,6 +401,13 @@ contract Registry is Ownable {
         missionSafe[missionId] = true;
         missionAggH[missionId] = aggH;
         emit MissionSafe(missionId, aggH);
+    }
+
+    function getDroneArea(uint256 missionId, uint8 droneId)
+        external view returns (DroneArea memory)
+    {
+        require(droneId >= 1 && droneId <= N_DRONES, "Registry: bad droneId");
+        return droneAreas[missionId][droneId - 1];
     }
 
     // ───────────────────────────────────────────────────────────────────

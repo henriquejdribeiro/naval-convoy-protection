@@ -1,0 +1,1099 @@
+[2026-10-01 05:10:02:131] INFO No private key provided, auto-generating one for block signing
+[2026-10-01 05:10:02:131] INFO 🥷  Madara Node
+[2026-10-01 05:10:02:131] INFO 💁 Support URL: https://github.com/madara-alliance/madara/issues
+[2026-10-01 05:10:02:131] INFO 🏷  Node Name: MadaraBravoDrone4
+[2026-10-01 05:10:02:131] INFO 👤 Role: Full Node
+[2026-10-01 05:10:02:131] INFO 🌐 Network: Madara (chain id `convoy_bravo`)
+[2026-10-01 05:10:02:135] INFO 💻 Operating system: Linux 12 Debian GNU/Linux
+[2026-10-01 05:10:02:135] INFO 💻 CPU architecture: x86_64
+[2026-10-01 05:10:02:135] INFO 💻 CPU: Intel(R) Core(TM) Ultra 9 285H
+[2026-10-01 05:10:02:135] INFO 💻 CPU cores: 16
+[2026-10-01 05:10:02:135] INFO 💻 Memory: 24032MiB
+[2026-10-01 05:10:02:135] INFO 💻 Kernel: 6.6.87.2-microsoft-standard-WSL2
+[2026-10-01 05:10:02:135] INFO Cairo native disabled - all contracts will use Cairo VM
+[2026-10-01 05:10:02:135] INFO 💾 Opening database at: /madara_db
+[2026-10-01 05:10:02:135] INFO 💾  Preconfirmed blocks will be saved to database
+[2026-10-01 05:10:02:135] INFO 📦 Creating new database at version 8
+[2026-10-01 05:10:02:485] INFO 📝 Database write mode: WAL enabled, fsync disabled (recommended)
+[2026-10-01 05:10:02:486] INFO 💼 Starting chain with block: empty state
+[2026-10-01 05:10:02:560] INFO 📱 Running JSON-RPC server at http://0.0.0.0:9944/rpc/v0.9.0/ (allowed origins=["*"], supported versions=["/rpc/v0.7.1/", "/rpc/v0.8.1/", "/rpc/v0.9.0/"])
+[2026-10-01 05:10:02:605] INFO 🌐 Initializing sync from gateway
+[2026-10-01 05:10:02:606] INFO 📊 Database head status: latest_full_block=0, starting sync from block #0
+[2026-10-01 05:10:05:607] INFO 📥 Blocks: 1 [0] | Classes: 1 [0] | State: 1 [0]
+[2026-10-01 05:10:05:607] INFO 🔗 Sync is at 1/1 [0.67 blocks/s]
+[2026-10-01 05:10:08:607] INFO 📥 Blocks: 1 [0] | Classes: 1 [0] | State: 1 [0]
+[2026-10-01 05:10:08:607] INFO 🔗 Sync is at 1/1 [0.33 blocks/s]
+[2026-10-01 05:10:11:608] INFO 📥 Blocks: 2 [0] | Classes: 2 [0] | State: 2 [0]
+[2026-10-01 05:10:11:608] INFO 🔗 Sync is at 2/2 [0.33 blocks/s]
+[2026-10-01 05:10:14:607] INFO 📥 Blocks: 2 [0] | Classes: 2 [0] | State: 2 [0]
+[2026-10-01 05:10:14:607] INFO 🔗 Sync is at 2/2 [0.25 blocks/s]
+[2026-10-01 05:10:17:607] INFO 📥 Blocks: 3 [0] | Classes: 3 [0] | State: 3 [0]
+[2026-10-01 05:10:17:607] INFO 🔗 Sync is at 3/3 [0.27 blocks/s]
+[2026-10-01 05:10:20:607] INFO 📥 Blocks: 3 [0] | Classes: 3 [0] | State: 3 [0]
+[2026-10-01 05:10:20:607] INFO 🔗 Sync is at 3/3 [0.22 blocks/s]
+[2026-10-01 05:10:23:607] INFO 📥 Blocks: 4 [0] | Classes: 4 [0] | State: 4 [0]
+[2026-10-01 05:10:23:607] INFO 🔗 Sync is at 4/4 [0.24 blocks/s]
+[2026-10-01 05:10:26:607] INFO 📥 Blocks: 4 [0] | Classes: 4 [0] | State: 4 [0]
+[2026-10-01 05:10:26:607] INFO 🔗 Sync is at 4/4 [0.21 blocks/s]
+[2026-10-01 05:10:30:691] INFO 📥 Blocks: 5 [0] | Classes: 5 [0] | State: 5 [0]
+[2026-10-01 05:10:30:691] INFO 🔗 Sync is at 5/5 [0.22 blocks/s]
+[2026-10-01 05:10:33:691] INFO 📥 Blocks: 5 [0] | Classes: 5 [0] | State: 5 [0]
+[2026-10-01 05:10:33:691] INFO 🔗 Sync is at 5/5 [0.20 blocks/s]
+[2026-10-01 05:10:36:691] INFO 📥 Blocks: 6 [0] | Classes: 6 [0] | State: 6 [0]
+[2026-10-01 05:10:36:691] INFO 🔗 Sync is at 6/6 [0.21 blocks/s]
+[2026-10-01 05:10:39:691] INFO 📥 Blocks: 6 [0] | Classes: 6 [0] | State: 6 [0]
+[2026-10-01 05:10:39:691] INFO 🔗 Sync is at 6/6 [0.19 blocks/s]
+[2026-10-01 05:10:42:691] INFO 📥 Blocks: 7 [0] | Classes: 7 [0] | State: 7 [0]
+[2026-10-01 05:10:42:691] INFO 🔗 Sync is at 7/7 [0.21 blocks/s]
+[2026-10-01 05:10:45:691] INFO 📥 Blocks: 7 [0] | Classes: 7 [0] | State: 7 [0]
+[2026-10-01 05:10:45:691] INFO 🔗 Sync is at 7/7 [0.19 blocks/s]
+[2026-10-01 05:10:48:691] INFO 📥 Blocks: 8 [0] | Classes: 8 [0] | State: 8 [0]
+[2026-10-01 05:10:48:691] INFO 🔗 Sync is at 8/8 [0.20 blocks/s]
+[2026-10-01 05:10:51:691] INFO 📥 Blocks: 8 [0] | Classes: 8 [0] | State: 8 [0]
+[2026-10-01 05:10:51:691] INFO 🔗 Sync is at 8/8 [0.19 blocks/s]
+[2026-10-01 05:10:54:691] INFO 📥 Blocks: 9 [0] | Classes: 9 [0] | State: 9 [0]
+[2026-10-01 05:10:54:691] INFO 🔗 Sync is at 9/9 [0.20 blocks/s]
+[2026-10-01 05:10:57:691] INFO 📥 Blocks: 9 [0] | Classes: 9 [0] | State: 9 [0]
+[2026-10-01 05:10:57:691] INFO 🔗 Sync is at 9/9 [0.19 blocks/s]
+[2026-10-01 05:11:01:745] INFO 📥 Blocks: 10 [0] | Classes: 10 [0] | State: 10 [0]
+[2026-10-01 05:11:01:745] INFO 🔗 Sync is at 10/10 [0.19 blocks/s]
+[2026-10-01 05:11:04:594] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 11 was not found. Current pre-confirmed block number is 12." }), retrying
+[2026-10-01 05:11:04:695] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 11 was not found. Current pre-confirmed block number is 12." }), retrying
+[2026-10-01 05:11:04:745] INFO 📥 Blocks: 10 [0] | Classes: 10 [0] | State: 10 [0]
+[2026-10-01 05:11:04:745] INFO 🔗 Sync is at 10/10 [0.18 blocks/s]
+[2026-10-01 05:11:07:745] INFO 📥 Blocks: 11 [0] | Classes: 11 [0] | State: 11 [0]
+[2026-10-01 05:11:07:745] INFO 🔗 Sync is at 11/11 [0.19 blocks/s]
+[2026-10-01 05:11:10:745] INFO 📥 Blocks: 11 [0] | Classes: 11 [0] | State: 11 [0]
+[2026-10-01 05:11:10:745] INFO 🔗 Sync is at 11/11 [0.18 blocks/s]
+[2026-10-01 05:11:13:745] INFO 📥 Blocks: 12 [0] | Classes: 12 [0] | State: 12 [0]
+[2026-10-01 05:11:13:745] INFO 🔗 Sync is at 12/12 [0.19 blocks/s]
+[2026-10-01 05:11:16:744] INFO 📥 Blocks: 12 [0] | Classes: 12 [0] | State: 12 [0]
+[2026-10-01 05:11:16:744] INFO 🔗 Sync is at 12/12 [0.18 blocks/s]
+[2026-10-01 05:11:19:745] INFO 📥 Blocks: 13 [0] | Classes: 13 [0] | State: 13 [0]
+[2026-10-01 05:11:19:745] INFO 🔗 Sync is at 13/13 [0.19 blocks/s]
+[2026-10-01 05:11:22:745] INFO 📥 Blocks: 13 [0] | Classes: 13 [0] | State: 13 [0]
+[2026-10-01 05:11:22:745] INFO 🔗 Sync is at 13/13 [0.18 blocks/s]
+[2026-10-01 05:11:25:745] INFO 📥 Blocks: 14 [0] | Classes: 14 [0] | State: 14 [0]
+[2026-10-01 05:11:25:745] INFO 🔗 Sync is at 14/14 [0.19 blocks/s]
+[2026-10-01 05:11:28:745] INFO 📥 Blocks: 14 [0] | Classes: 14 [0] | State: 14 [0]
+[2026-10-01 05:11:28:745] INFO 🔗 Sync is at 14/14 [0.18 blocks/s]
+[2026-10-01 05:11:32:800] INFO 📥 Blocks: 15 [0] | Classes: 15 [0] | State: 15 [0]
+[2026-10-01 05:11:32:800] INFO 🔗 Sync is at 15/15 [0.18 blocks/s]
+[2026-10-01 05:11:35:800] INFO 📥 Blocks: 15 [0] | Classes: 15 [0] | State: 15 [0]
+[2026-10-01 05:11:35:800] INFO 🔗 Sync is at 15/15 [0.18 blocks/s]
+[2026-10-01 05:11:38:800] INFO 📥 Blocks: 16 [0] | Classes: 16 [0] | State: 16 [0]
+[2026-10-01 05:11:38:800] INFO 🔗 Sync is at 16/16 [0.18 blocks/s]
+[2026-10-01 05:11:41:799] INFO 📥 Blocks: 16 [0] | Classes: 16 [0] | State: 16 [0]
+[2026-10-01 05:11:41:799] INFO 🔗 Sync is at 16/16 [0.18 blocks/s]
+[2026-10-01 05:11:44:800] INFO 📥 Blocks: 17 [0] | Classes: 17 [0] | State: 17 [0]
+[2026-10-01 05:11:44:800] INFO 🔗 Sync is at 17/17 [0.18 blocks/s]
+[2026-10-01 05:11:47:800] INFO 📥 Blocks: 17 [0] | Classes: 17 [0] | State: 17 [0]
+[2026-10-01 05:11:47:800] INFO 🔗 Sync is at 17/17 [0.18 blocks/s]
+[2026-10-01 05:11:50:802] INFO 📥 Blocks: 18 [0] | Classes: 18 [0] | State: 18 [0]
+[2026-10-01 05:11:50:802] INFO 🔗 Sync is at 18/18 [0.18 blocks/s]
+[2026-10-01 05:11:53:800] INFO 📥 Blocks: 18 [0] | Classes: 18 [0] | State: 18 [0]
+[2026-10-01 05:11:53:800] INFO 🔗 Sync is at 18/18 [0.18 blocks/s]
+[2026-10-01 05:11:56:800] INFO 📥 Blocks: 19 [0] | Classes: 19 [0] | State: 19 [0]
+[2026-10-01 05:11:56:800] INFO 🔗 Sync is at 19/19 [0.18 blocks/s]
+[2026-10-01 05:11:59:799] INFO 📥 Blocks: 19 [0] | Classes: 19 [0] | State: 19 [0]
+[2026-10-01 05:11:59:799] INFO 🔗 Sync is at 19/19 [0.18 blocks/s]
+[2026-10-01 05:12:03:902] INFO 📥 Blocks: 20 [0] | Classes: 20 [0] | State: 20 [0]
+[2026-10-01 05:12:03:903] INFO 🔗 Sync is at 20/20 [0.18 blocks/s]
+[2026-10-01 05:12:06:903] INFO 📥 Blocks: 20 [0] | Classes: 20 [0] | State: 20 [0]
+[2026-10-01 05:12:06:903] INFO 🔗 Sync is at 20/20 [0.17 blocks/s]
+[2026-10-01 05:12:09:903] INFO 📥 Blocks: 21 [0] | Classes: 21 [0] | State: 21 [0]
+[2026-10-01 05:12:09:903] INFO 🔗 Sync is at 21/21 [0.18 blocks/s]
+[2026-10-01 05:12:12:903] INFO 📥 Blocks: 21 [0] | Classes: 21 [0] | State: 21 [0]
+[2026-10-01 05:12:12:903] INFO 🔗 Sync is at 21/21 [0.17 blocks/s]
+[2026-10-01 05:12:15:903] INFO 📥 Blocks: 22 [0] | Classes: 22 [0] | State: 22 [0]
+[2026-10-01 05:12:15:903] INFO 🔗 Sync is at 22/22 [0.18 blocks/s]
+[2026-10-01 05:12:18:903] INFO 📥 Blocks: 22 [0] | Classes: 22 [0] | State: 22 [0]
+[2026-10-01 05:12:18:903] INFO 🔗 Sync is at 22/22 [0.17 blocks/s]
+[2026-10-01 05:12:21:903] INFO 📥 Blocks: 23 [0] | Classes: 23 [0] | State: 23 [0]
+[2026-10-01 05:12:21:903] INFO 🔗 Sync is at 23/23 [0.18 blocks/s]
+[2026-10-01 05:12:24:902] INFO 📥 Blocks: 23 [0] | Classes: 23 [0] | State: 23 [0]
+[2026-10-01 05:12:24:902] INFO 🔗 Sync is at 23/23 [0.17 blocks/s]
+[2026-10-01 05:12:27:903] INFO 📥 Blocks: 24 [0] | Classes: 24 [0] | State: 24 [0]
+[2026-10-01 05:12:27:903] INFO 🔗 Sync is at 24/24 [0.18 blocks/s]
+[2026-10-01 05:12:30:782] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 25 was not found. Current pre-confirmed block number is 26." }), retrying
+[2026-10-01 05:12:30:884] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 25 was not found. Current pre-confirmed block number is 26." }), retrying
+[2026-10-01 05:12:30:903] INFO 📥 Blocks: 24 [0] | Classes: 24 [0] | State: 24 [0]
+[2026-10-01 05:12:30:903] INFO 🔗 Sync is at 24/24 [0.17 blocks/s]
+[2026-10-01 05:12:31:085] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 25 was not found. Current pre-confirmed block number is 26." }), retrying
+[2026-10-01 05:12:34:979] INFO 📥 Blocks: 25 [0] | Classes: 25 [0] | State: 25 [0]
+[2026-10-01 05:12:34:979] INFO 🔗 Sync is at 25/25 [0.18 blocks/s]
+[2026-10-01 05:12:37:980] INFO 📥 Blocks: 25 [0] | Classes: 25 [0] | State: 25 [0]
+[2026-10-01 05:12:37:980] INFO 🔗 Sync is at 25/25 [0.17 blocks/s]
+[2026-10-01 05:12:40:980] INFO 📥 Blocks: 26 [0] | Classes: 26 [0] | State: 26 [0]
+[2026-10-01 05:12:40:980] INFO 🔗 Sync is at 26/26 [0.18 blocks/s]
+[2026-10-01 05:12:43:980] INFO 📥 Blocks: 26 [0] | Classes: 26 [0] | State: 26 [0]
+[2026-10-01 05:12:43:980] INFO 🔗 Sync is at 26/26 [0.17 blocks/s]
+[2026-10-01 05:12:46:980] INFO 📥 Blocks: 27 [0] | Classes: 27 [0] | State: 27 [0]
+[2026-10-01 05:12:46:980] INFO 🔗 Sync is at 27/27 [0.18 blocks/s]
+[2026-10-01 05:12:49:980] INFO 📥 Blocks: 27 [0] | Classes: 27 [0] | State: 27 [0]
+[2026-10-01 05:12:49:980] INFO 🔗 Sync is at 27/27 [0.17 blocks/s]
+[2026-10-01 05:12:52:979] INFO 📥 Blocks: 28 [0] | Classes: 28 [0] | State: 28 [0]
+[2026-10-01 05:12:52:979] INFO 🔗 Sync is at 28/28 [0.18 blocks/s]
+[2026-10-01 05:12:55:979] INFO 📥 Blocks: 28 [0] | Classes: 28 [0] | State: 28 [0]
+[2026-10-01 05:12:55:979] INFO 🔗 Sync is at 28/28 [0.17 blocks/s]
+[2026-10-01 05:12:58:979] INFO 📥 Blocks: 29 [0] | Classes: 29 [0] | State: 29 [0]
+[2026-10-01 05:12:58:979] INFO 🔗 Sync is at 29/29 [0.18 blocks/s]
+[2026-10-01 05:13:01:980] INFO 📥 Blocks: 29 [0] | Classes: 29 [0] | State: 29 [0]
+[2026-10-01 05:13:01:980] INFO 🔗 Sync is at 29/29 [0.17 blocks/s]
+[2026-10-01 05:13:06:027] INFO 📥 Blocks: 30 [0] | Classes: 30 [0] | State: 30 [0]
+[2026-10-01 05:13:06:027] INFO 🔗 Sync is at 30/30 [0.18 blocks/s]
+[2026-10-01 05:13:09:027] INFO 📥 Blocks: 30 [0] | Classes: 30 [0] | State: 30 [0]
+[2026-10-01 05:13:09:027] INFO 🔗 Sync is at 30/30 [0.17 blocks/s]
+[2026-10-01 05:13:12:027] INFO 📥 Blocks: 31 [0] | Classes: 31 [0] | State: 31 [0]
+[2026-10-01 05:13:12:027] INFO 🔗 Sync is at 31/31 [0.17 blocks/s]
+[2026-10-01 05:13:15:027] INFO 📥 Blocks: 31 [0] | Classes: 31 [0] | State: 31 [0]
+[2026-10-01 05:13:15:027] INFO 🔗 Sync is at 31/31 [0.17 blocks/s]
+[2026-10-01 05:13:18:027] INFO 📥 Blocks: 32 [0] | Classes: 32 [0] | State: 32 [0]
+[2026-10-01 05:13:18:027] INFO 🔗 Sync is at 32/32 [0.17 blocks/s]
+[2026-10-01 05:13:20:902] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 33 was not found. Current pre-confirmed block number is 34." }), retrying
+[2026-10-01 05:13:21:004] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 33 was not found. Current pre-confirmed block number is 34." }), retrying
+[2026-10-01 05:13:21:027] INFO 📥 Blocks: 32 [0] | Classes: 32 [0] | State: 32 [0]
+[2026-10-01 05:13:21:027] INFO 🔗 Sync is at 32/32 [0.17 blocks/s]
+[2026-10-01 05:13:21:205] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 33 was not found. Current pre-confirmed block number is 34." }), retrying
+[2026-10-01 05:13:24:027] INFO 📥 Blocks: 33 [0] | Classes: 33 [0] | State: 33 [0]
+[2026-10-01 05:13:24:027] INFO 🔗 Sync is at 33/33 [0.17 blocks/s]
+[2026-10-01 05:13:27:027] INFO 📥 Blocks: 33 [0] | Classes: 33 [0] | State: 33 [0]
+[2026-10-01 05:13:27:027] INFO 🔗 Sync is at 33/33 [0.17 blocks/s]
+[2026-10-01 05:13:30:027] INFO 📥 Blocks: 34 [0] | Classes: 34 [0] | State: 34 [0]
+[2026-10-01 05:13:30:027] INFO 🔗 Sync is at 34/34 [0.17 blocks/s]
+[2026-10-01 05:13:33:027] INFO 📥 Blocks: 34 [0] | Classes: 34 [0] | State: 34 [0]
+[2026-10-01 05:13:33:027] INFO 🔗 Sync is at 34/34 [0.17 blocks/s]
+[2026-10-01 05:13:37:091] INFO 📥 Blocks: 35 [0] | Classes: 35 [0] | State: 35 [0]
+[2026-10-01 05:13:37:091] INFO 🔗 Sync is at 35/35 [0.17 blocks/s]
+[2026-10-01 05:13:40:091] INFO 📥 Blocks: 35 [0] | Classes: 35 [0] | State: 35 [0]
+[2026-10-01 05:13:40:091] INFO 🔗 Sync is at 35/35 [0.17 blocks/s]
+[2026-10-01 05:13:43:091] INFO 📥 Blocks: 36 [0] | Classes: 36 [0] | State: 36 [0]
+[2026-10-01 05:13:43:091] INFO 🔗 Sync is at 36/36 [0.17 blocks/s]
+[2026-10-01 05:13:45:972] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 37 was not found. Current pre-confirmed block number is 38." }), retrying
+[2026-10-01 05:13:46:073] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 37 was not found. Current pre-confirmed block number is 38." }), retrying
+[2026-10-01 05:13:46:092] INFO 📥 Blocks: 36 [0] | Classes: 36 [0] | State: 36 [0]
+[2026-10-01 05:13:46:092] INFO 🔗 Sync is at 36/36 [0.17 blocks/s]
+[2026-10-01 05:13:46:274] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 37 was not found. Current pre-confirmed block number is 38." }), retrying
+[2026-10-01 05:13:49:091] INFO 📥 Blocks: 37 [0] | Classes: 37 [0] | State: 37 [0]
+[2026-10-01 05:13:49:091] INFO 🔗 Sync is at 37/37 [0.17 blocks/s]
+[2026-10-01 05:13:52:092] INFO 📥 Blocks: 37 [0] | Classes: 37 [0] | State: 37 [0]
+[2026-10-01 05:13:52:092] INFO 🔗 Sync is at 37/37 [0.17 blocks/s]
+[2026-10-01 05:13:55:091] INFO 📥 Blocks: 38 [0] | Classes: 38 [0] | State: 38 [0]
+[2026-10-01 05:13:55:091] INFO 🔗 Sync is at 38/38 [0.17 blocks/s]
+[2026-10-01 05:13:58:091] INFO 📥 Blocks: 38 [0] | Classes: 38 [0] | State: 38 [0]
+[2026-10-01 05:13:58:091] INFO 🔗 Sync is at 38/38 [0.17 blocks/s]
+[2026-10-01 05:14:01:091] INFO 📥 Blocks: 39 [0] | Classes: 39 [0] | State: 39 [0]
+[2026-10-01 05:14:01:091] INFO 🔗 Sync is at 39/39 [0.17 blocks/s]
+[2026-10-01 05:14:03:984] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 40 was not found. Current pre-confirmed block number is 41." }), retrying
+[2026-10-01 05:14:04:086] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 40 was not found. Current pre-confirmed block number is 41." }), retrying
+[2026-10-01 05:14:04:091] INFO 📥 Blocks: 39 [0] | Classes: 39 [0] | State: 39 [0]
+[2026-10-01 05:14:04:091] INFO 🔗 Sync is at 39/39 [0.17 blocks/s]
+[2026-10-01 05:14:04:288] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 40 was not found. Current pre-confirmed block number is 41." }), retrying
+[2026-10-01 05:14:08:182] INFO 📥 Blocks: 40 [0] | Classes: 40 [0] | State: 40 [0]
+[2026-10-01 05:14:08:182] INFO 🔗 Sync is at 40/40 [0.17 blocks/s]
+[2026-10-01 05:14:11:071] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 41 was not found. Current pre-confirmed block number is 42." }), retrying
+[2026-10-01 05:14:11:173] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 41 was not found. Current pre-confirmed block number is 42." }), retrying
+[2026-10-01 05:14:11:181] INFO 📥 Blocks: 40 [0] | Classes: 40 [0] | State: 40 [0]
+[2026-10-01 05:14:11:181] INFO 🔗 Sync is at 40/40 [0.17 blocks/s]
+[2026-10-01 05:14:11:375] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 41 was not found. Current pre-confirmed block number is 42." }), retrying
+[2026-10-01 05:14:14:182] INFO 📥 Blocks: 41 [0] | Classes: 41 [0] | State: 41 [0]
+[2026-10-01 05:14:14:182] INFO 🔗 Sync is at 41/41 [0.17 blocks/s]
+[2026-10-01 05:14:17:080] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 42 was not found. Current pre-confirmed block number is 43." }), retrying
+[2026-10-01 05:14:17:181] INFO 📥 Blocks: 41 [0] | Classes: 41 [0] | State: 41 [0]
+[2026-10-01 05:14:17:181] INFO 🔗 Sync is at 41/41 [0.17 blocks/s]
+[2026-10-01 05:14:17:182] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 42 was not found. Current pre-confirmed block number is 43." }), retrying
+[2026-10-01 05:14:17:383] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 42 was not found. Current pre-confirmed block number is 43." }), retrying
+[2026-10-01 05:14:20:182] INFO 📥 Blocks: 42 [0] | Classes: 42 [0] | State: 42 [0]
+[2026-10-01 05:14:20:182] INFO 🔗 Sync is at 42/42 [0.17 blocks/s]
+[2026-10-01 05:14:23:088] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 43 was not found. Current pre-confirmed block number is 44." }), retrying
+[2026-10-01 05:14:23:181] INFO 📥 Blocks: 42 [0] | Classes: 42 [0] | State: 42 [0]
+[2026-10-01 05:14:23:181] INFO 🔗 Sync is at 42/42 [0.17 blocks/s]
+[2026-10-01 05:14:23:189] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 43 was not found. Current pre-confirmed block number is 44." }), retrying
+[2026-10-01 05:14:23:391] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 43 was not found. Current pre-confirmed block number is 44." }), retrying
+[2026-10-01 05:14:26:182] INFO 📥 Blocks: 43 [0] | Classes: 43 [0] | State: 43 [0]
+[2026-10-01 05:14:26:182] INFO 🔗 Sync is at 43/43 [0.17 blocks/s]
+[2026-10-01 05:14:29:097] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 44 was not found. Current pre-confirmed block number is 45." }), retrying
+[2026-10-01 05:14:29:182] INFO 📥 Blocks: 43 [0] | Classes: 43 [0] | State: 43 [0]
+[2026-10-01 05:14:29:182] INFO 🔗 Sync is at 43/43 [0.17 blocks/s]
+[2026-10-01 05:14:29:200] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 44 was not found. Current pre-confirmed block number is 45." }), retrying
+[2026-10-01 05:14:29:402] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 44 was not found. Current pre-confirmed block number is 45." }), retrying
+[2026-10-01 05:14:32:184] INFO 📥 Blocks: 44 [0] | Classes: 44 [0] | State: 44 [0]
+[2026-10-01 05:14:32:184] INFO 🔗 Sync is at 44/44 [0.17 blocks/s]
+[2026-10-01 05:14:35:182] INFO 📥 Blocks: 44 [0] | Classes: 44 [0] | State: 44 [0]
+[2026-10-01 05:14:35:182] INFO 🔗 Sync is at 44/44 [0.17 blocks/s]
+[2026-10-01 05:14:35:381] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 45 was not found. Current pre-confirmed block number is 46." }), retrying
+[2026-10-01 05:14:35:483] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 45 was not found. Current pre-confirmed block number is 46." }), retrying
+[2026-10-01 05:14:39:277] INFO 📥 Blocks: 45 [0] | Classes: 45 [0] | State: 45 [0]
+[2026-10-01 05:14:39:277] INFO 🔗 Sync is at 45/45 [0.17 blocks/s]
+[2026-10-01 05:14:42:213] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 46 was not found. Current pre-confirmed block number is 47." }), retrying
+[2026-10-01 05:14:42:276] INFO 📥 Blocks: 45 [0] | Classes: 45 [0] | State: 45 [0]
+[2026-10-01 05:14:42:276] INFO 🔗 Sync is at 45/45 [0.17 blocks/s]
+[2026-10-01 05:14:42:314] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 46 was not found. Current pre-confirmed block number is 47." }), retrying
+[2026-10-01 05:14:42:516] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 46 was not found. Current pre-confirmed block number is 47." }), retrying
+[2026-10-01 05:14:45:277] INFO 📥 Blocks: 46 [0] | Classes: 46 [0] | State: 46 [0]
+[2026-10-01 05:14:45:277] INFO 🔗 Sync is at 46/46 [0.17 blocks/s]
+[2026-10-01 05:14:48:225] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 47 was not found. Current pre-confirmed block number is 48." }), retrying
+[2026-10-01 05:14:48:277] INFO 📥 Blocks: 46 [0] | Classes: 46 [0] | State: 46 [0]
+[2026-10-01 05:14:48:277] INFO 🔗 Sync is at 46/46 [0.17 blocks/s]
+[2026-10-01 05:14:48:327] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 47 was not found. Current pre-confirmed block number is 48." }), retrying
+[2026-10-01 05:14:48:529] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 47 was not found. Current pre-confirmed block number is 48." }), retrying
+[2026-10-01 05:14:51:277] INFO 📥 Blocks: 47 [0] | Classes: 47 [0] | State: 47 [0]
+[2026-10-01 05:14:51:277] INFO 🔗 Sync is at 47/47 [0.17 blocks/s]
+[2026-10-01 05:14:54:230] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 48 was not found. Current pre-confirmed block number is 49." }), retrying
+[2026-10-01 05:14:54:277] INFO 📥 Blocks: 47 [0] | Classes: 47 [0] | State: 47 [0]
+[2026-10-01 05:14:54:277] INFO 🔗 Sync is at 47/47 [0.17 blocks/s]
+[2026-10-01 05:14:54:331] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 48 was not found. Current pre-confirmed block number is 49." }), retrying
+[2026-10-01 05:14:54:533] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 48 was not found. Current pre-confirmed block number is 49." }), retrying
+[2026-10-01 05:14:57:276] INFO 📥 Blocks: 48 [0] | Classes: 48 [0] | State: 48 [0]
+[2026-10-01 05:14:57:276] INFO 🔗 Sync is at 48/48 [0.17 blocks/s]
+[2026-10-01 05:15:00:238] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 49 was not found. Current pre-confirmed block number is 50." }), retrying
+[2026-10-01 05:15:00:277] INFO 📥 Blocks: 48 [0] | Classes: 48 [0] | State: 48 [0]
+[2026-10-01 05:15:00:277] INFO 🔗 Sync is at 48/48 [0.17 blocks/s]
+[2026-10-01 05:15:00:340] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 49 was not found. Current pre-confirmed block number is 50." }), retrying
+[2026-10-01 05:15:00:542] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 49 was not found. Current pre-confirmed block number is 50." }), retrying
+[2026-10-01 05:15:03:277] INFO 📥 Blocks: 49 [0] | Classes: 49 [0] | State: 49 [0]
+[2026-10-01 05:15:03:277] INFO 🔗 Sync is at 49/49 [0.17 blocks/s]
+[2026-10-01 05:15:06:252] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 50 was not found. Current pre-confirmed block number is 51." }), retrying
+[2026-10-01 05:15:06:277] INFO 📥 Blocks: 49 [0] | Classes: 49 [0] | State: 49 [0]
+[2026-10-01 05:15:06:277] INFO 🔗 Sync is at 49/49 [0.17 blocks/s]
+[2026-10-01 05:15:06:354] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 50 was not found. Current pre-confirmed block number is 51." }), retrying
+[2026-10-01 05:15:06:556] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 50 was not found. Current pre-confirmed block number is 51." }), retrying
+[2026-10-01 05:15:10:339] INFO 📥 Blocks: 50 [0] | Classes: 50 [0] | State: 50 [0]
+[2026-10-01 05:15:10:339] INFO 🔗 Sync is at 50/50 [0.17 blocks/s]
+[2026-10-01 05:15:13:322] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 51 was not found. Current pre-confirmed block number is 52." }), retrying
+[2026-10-01 05:15:13:340] INFO 📥 Blocks: 50 [0] | Classes: 50 [0] | State: 50 [0]
+[2026-10-01 05:15:13:340] INFO 🔗 Sync is at 50/50 [0.16 blocks/s]
+[2026-10-01 05:15:13:423] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 51 was not found. Current pre-confirmed block number is 52." }), retrying
+[2026-10-01 05:15:13:625] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 51 was not found. Current pre-confirmed block number is 52." }), retrying
+[2026-10-01 05:15:16:339] INFO 📥 Blocks: 51 [0] | Classes: 51 [0] | State: 51 [0]
+[2026-10-01 05:15:16:339] INFO 🔗 Sync is at 51/51 [0.17 blocks/s]
+[2026-10-01 05:15:19:333] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 52 was not found. Current pre-confirmed block number is 53." }), retrying
+[2026-10-01 05:15:19:339] INFO 📥 Blocks: 51 [0] | Classes: 51 [0] | State: 51 [0]
+[2026-10-01 05:15:19:339] INFO 🔗 Sync is at 51/51 [0.17 blocks/s]
+[2026-10-01 05:15:19:434] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 52 was not found. Current pre-confirmed block number is 53." }), retrying
+[2026-10-01 05:15:19:636] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 52 was not found. Current pre-confirmed block number is 53." }), retrying
+[2026-10-01 05:15:22:339] INFO 📥 Blocks: 52 [0] | Classes: 52 [0] | State: 52 [0]
+[2026-10-01 05:15:22:339] INFO 🔗 Sync is at 52/52 [0.17 blocks/s]
+[2026-10-01 05:15:25:339] INFO 📥 Blocks: 52 [0] | Classes: 52 [0] | State: 52 [0]
+[2026-10-01 05:15:25:339] INFO 🔗 Sync is at 52/52 [0.17 blocks/s]
+[2026-10-01 05:15:25:339] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 53 was not found. Current pre-confirmed block number is 54." }), retrying
+[2026-10-01 05:15:25:441] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 53 was not found. Current pre-confirmed block number is 54." }), retrying
+[2026-10-01 05:15:25:643] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 53 was not found. Current pre-confirmed block number is 54." }), retrying
+[2026-10-01 05:15:28:339] INFO 📥 Blocks: 53 [0] | Classes: 53 [0] | State: 53 [0]
+[2026-10-01 05:15:28:339] INFO 🔗 Sync is at 53/53 [0.17 blocks/s]
+[2026-10-01 05:15:31:339] INFO 📥 Blocks: 53 [0] | Classes: 53 [0] | State: 53 [0]
+[2026-10-01 05:15:31:339] INFO 🔗 Sync is at 53/53 [0.17 blocks/s]
+[2026-10-01 05:15:31:350] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 54 was not found. Current pre-confirmed block number is 55." }), retrying
+[2026-10-01 05:15:31:451] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 54 was not found. Current pre-confirmed block number is 55." }), retrying
+[2026-10-01 05:15:31:652] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 54 was not found. Current pre-confirmed block number is 55." }), retrying
+[2026-10-01 05:15:34:339] INFO 📥 Blocks: 54 [0] | Classes: 54 [0] | State: 54 [0]
+[2026-10-01 05:15:34:339] INFO 🔗 Sync is at 54/54 [0.17 blocks/s]
+[2026-10-01 05:15:37:339] INFO 📥 Blocks: 54 [0] | Classes: 54 [0] | State: 54 [0]
+[2026-10-01 05:15:37:339] INFO 🔗 Sync is at 54/54 [0.17 blocks/s]
+[2026-10-01 05:15:37:356] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 55 was not found. Current pre-confirmed block number is 56." }), retrying
+[2026-10-01 05:15:37:458] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 55 was not found. Current pre-confirmed block number is 56." }), retrying
+[2026-10-01 05:15:37:660] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 55 was not found. Current pre-confirmed block number is 56." }), retrying
+[2026-10-01 05:15:41:406] INFO 📥 Blocks: 55 [0] | Classes: 55 [0] | State: 55 [0]
+[2026-10-01 05:15:41:406] INFO 🔗 Sync is at 55/55 [0.17 blocks/s]
+[2026-10-01 05:15:44:405] INFO 📥 Blocks: 55 [0] | Classes: 55 [0] | State: 55 [0]
+[2026-10-01 05:15:44:405] INFO 🔗 Sync is at 55/55 [0.17 blocks/s]
+[2026-10-01 05:15:44:459] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 56 was not found. Current pre-confirmed block number is 57." }), retrying
+[2026-10-01 05:15:44:560] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 56 was not found. Current pre-confirmed block number is 57." }), retrying
+[2026-10-01 05:15:44:762] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 56 was not found. Current pre-confirmed block number is 57." }), retrying
+[2026-10-01 05:15:47:406] INFO 📥 Blocks: 56 [0] | Classes: 56 [0] | State: 56 [0]
+[2026-10-01 05:15:47:406] INFO 🔗 Sync is at 56/56 [0.17 blocks/s]
+[2026-10-01 05:15:50:406] INFO 📥 Blocks: 56 [0] | Classes: 56 [0] | State: 56 [0]
+[2026-10-01 05:15:50:406] INFO 🔗 Sync is at 56/56 [0.17 blocks/s]
+[2026-10-01 05:15:50:445] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 57 was not found. Current pre-confirmed block number is 58." }), retrying
+[2026-10-01 05:15:50:545] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 57 was not found. Current pre-confirmed block number is 58." }), retrying
+[2026-10-01 05:15:50:747] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 57 was not found. Current pre-confirmed block number is 58." }), retrying
+[2026-10-01 05:15:53:405] INFO 📥 Blocks: 57 [0] | Classes: 57 [0] | State: 57 [0]
+[2026-10-01 05:15:53:405] INFO 🔗 Sync is at 57/57 [0.17 blocks/s]
+[2026-10-01 05:15:56:406] INFO 📥 Blocks: 57 [0] | Classes: 57 [0] | State: 57 [0]
+[2026-10-01 05:15:56:406] INFO 🔗 Sync is at 57/57 [0.17 blocks/s]
+[2026-10-01 05:15:56:459] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 58 was not found. Current pre-confirmed block number is 59." }), retrying
+[2026-10-01 05:15:56:561] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 58 was not found. Current pre-confirmed block number is 59." }), retrying
+[2026-10-01 05:15:56:761] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 58 was not found. Current pre-confirmed block number is 59." }), retrying
+[2026-10-01 05:15:59:405] INFO 📥 Blocks: 58 [0] | Classes: 58 [0] | State: 58 [0]
+[2026-10-01 05:15:59:405] INFO 🔗 Sync is at 58/58 [0.17 blocks/s]
+[2026-10-01 05:16:02:405] INFO 📥 Blocks: 58 [0] | Classes: 58 [0] | State: 58 [0]
+[2026-10-01 05:16:02:405] INFO 🔗 Sync is at 58/58 [0.17 blocks/s]
+[2026-10-01 05:16:02:470] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 59 was not found. Current pre-confirmed block number is 60." }), retrying
+[2026-10-01 05:16:02:571] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 59 was not found. Current pre-confirmed block number is 60." }), retrying
+[2026-10-01 05:16:02:773] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 59 was not found. Current pre-confirmed block number is 60." }), retrying
+[2026-10-01 05:16:05:405] INFO 📥 Blocks: 59 [0] | Classes: 59 [0] | State: 59 [0]
+[2026-10-01 05:16:05:405] INFO 🔗 Sync is at 59/59 [0.17 blocks/s]
+[2026-10-01 05:16:08:405] INFO 📥 Blocks: 59 [0] | Classes: 59 [0] | State: 59 [0]
+[2026-10-01 05:16:08:405] INFO 🔗 Sync is at 59/59 [0.17 blocks/s]
+[2026-10-01 05:16:08:480] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 60 was not found. Current pre-confirmed block number is 61." }), retrying
+[2026-10-01 05:16:08:580] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 60 was not found. Current pre-confirmed block number is 61." }), retrying
+[2026-10-01 05:16:08:781] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 60 was not found. Current pre-confirmed block number is 61." }), retrying
+[2026-10-01 05:16:12:491] INFO 📥 Blocks: 60 [0] | Classes: 60 [0] | State: 60 [0]
+[2026-10-01 05:16:12:491] INFO 🔗 Sync is at 60/60 [0.17 blocks/s]
+[2026-10-01 05:16:15:490] INFO 📥 Blocks: 60 [0] | Classes: 60 [0] | State: 60 [0]
+[2026-10-01 05:16:15:490] INFO 🔗 Sync is at 60/60 [0.17 blocks/s]
+[2026-10-01 05:16:15:573] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 61 was not found. Current pre-confirmed block number is 62." }), retrying
+[2026-10-01 05:16:15:675] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 61 was not found. Current pre-confirmed block number is 62." }), retrying
+[2026-10-01 05:16:15:877] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 61 was not found. Current pre-confirmed block number is 62." }), retrying
+[2026-10-01 05:16:18:490] INFO 📥 Blocks: 61 [0] | Classes: 61 [0] | State: 61 [0]
+[2026-10-01 05:16:18:490] INFO 🔗 Sync is at 61/61 [0.17 blocks/s]
+[2026-10-01 05:16:21:491] INFO 📥 Blocks: 61 [0] | Classes: 61 [0] | State: 61 [0]
+[2026-10-01 05:16:21:491] INFO 🔗 Sync is at 61/61 [0.17 blocks/s]
+[2026-10-01 05:16:21:584] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 62 was not found. Current pre-confirmed block number is 63." }), retrying
+[2026-10-01 05:16:21:686] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 62 was not found. Current pre-confirmed block number is 63." }), retrying
+[2026-10-01 05:16:21:887] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 62 was not found. Current pre-confirmed block number is 63." }), retrying
+[2026-10-01 05:16:24:490] INFO 📥 Blocks: 62 [0] | Classes: 62 [0] | State: 62 [0]
+[2026-10-01 05:16:24:490] INFO 🔗 Sync is at 62/62 [0.17 blocks/s]
+[2026-10-01 05:16:27:491] INFO 📥 Blocks: 62 [0] | Classes: 62 [0] | State: 62 [0]
+[2026-10-01 05:16:27:491] INFO 🔗 Sync is at 62/62 [0.17 blocks/s]
+[2026-10-01 05:16:27:593] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 63 was not found. Current pre-confirmed block number is 64." }), retrying
+[2026-10-01 05:16:27:695] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 63 was not found. Current pre-confirmed block number is 64." }), retrying
+[2026-10-01 05:16:27:897] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 63 was not found. Current pre-confirmed block number is 64." }), retrying
+[2026-10-01 05:16:30:491] INFO 📥 Blocks: 63 [0] | Classes: 63 [0] | State: 63 [0]
+[2026-10-01 05:16:30:491] INFO 🔗 Sync is at 63/63 [0.17 blocks/s]
+[2026-10-01 05:16:33:490] INFO 📥 Blocks: 63 [0] | Classes: 63 [0] | State: 63 [0]
+[2026-10-01 05:16:33:490] INFO 🔗 Sync is at 63/63 [0.17 blocks/s]
+[2026-10-01 05:16:33:602] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 64 was not found. Current pre-confirmed block number is 65." }), retrying
+[2026-10-01 05:16:33:704] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 64 was not found. Current pre-confirmed block number is 65." }), retrying
+[2026-10-01 05:16:33:906] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 64 was not found. Current pre-confirmed block number is 65." }), retrying
+[2026-10-01 05:16:36:490] INFO 📥 Blocks: 64 [0] | Classes: 64 [0] | State: 64 [0]
+[2026-10-01 05:16:36:490] INFO 🔗 Sync is at 64/64 [0.17 blocks/s]
+[2026-10-01 05:16:39:490] INFO 📥 Blocks: 64 [0] | Classes: 64 [0] | State: 64 [0]
+[2026-10-01 05:16:39:490] INFO 🔗 Sync is at 64/64 [0.17 blocks/s]
+[2026-10-01 05:16:39:611] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 65 was not found. Current pre-confirmed block number is 66." }), retrying
+[2026-10-01 05:16:39:713] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 65 was not found. Current pre-confirmed block number is 66." }), retrying
+[2026-10-01 05:16:39:915] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 65 was not found. Current pre-confirmed block number is 66." }), retrying
+[2026-10-01 05:16:43:605] INFO 📥 Blocks: 65 [0] | Classes: 65 [0] | State: 65 [0]
+[2026-10-01 05:16:43:605] INFO 🔗 Sync is at 65/65 [0.17 blocks/s]
+[2026-10-01 05:16:46:604] INFO 📥 Blocks: 65 [0] | Classes: 65 [0] | State: 65 [0]
+[2026-10-01 05:16:46:604] INFO 🔗 Sync is at 65/65 [0.17 blocks/s]
+[2026-10-01 05:16:46:736] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 66 was not found. Current pre-confirmed block number is 67." }), retrying
+[2026-10-01 05:16:46:838] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 66 was not found. Current pre-confirmed block number is 67." }), retrying
+[2026-10-01 05:16:47:040] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 66 was not found. Current pre-confirmed block number is 67." }), retrying
+[2026-10-01 05:16:49:605] INFO 📥 Blocks: 66 [0] | Classes: 66 [0] | State: 66 [0]
+[2026-10-01 05:16:49:605] INFO 🔗 Sync is at 66/66 [0.17 blocks/s]
+[2026-10-01 05:16:52:605] INFO 📥 Blocks: 66 [0] | Classes: 66 [0] | State: 66 [0]
+[2026-10-01 05:16:52:605] INFO 🔗 Sync is at 66/66 [0.17 blocks/s]
+[2026-10-01 05:16:52:745] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 67 was not found. Current pre-confirmed block number is 68." }), retrying
+[2026-10-01 05:16:52:847] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 67 was not found. Current pre-confirmed block number is 68." }), retrying
+[2026-10-01 05:16:53:049] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 67 was not found. Current pre-confirmed block number is 68." }), retrying
+[2026-10-01 05:16:55:605] INFO 📥 Blocks: 67 [0] | Classes: 67 [0] | State: 67 [0]
+[2026-10-01 05:16:55:605] INFO 🔗 Sync is at 67/67 [0.17 blocks/s]
+[2026-10-01 05:16:58:605] INFO 📥 Blocks: 67 [0] | Classes: 67 [0] | State: 67 [0]
+[2026-10-01 05:16:58:605] INFO 🔗 Sync is at 67/67 [0.17 blocks/s]
+[2026-10-01 05:16:58:756] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 68 was not found. Current pre-confirmed block number is 69." }), retrying
+[2026-10-01 05:16:58:858] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 68 was not found. Current pre-confirmed block number is 69." }), retrying
+[2026-10-01 05:16:59:060] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 68 was not found. Current pre-confirmed block number is 69." }), retrying
+[2026-10-01 05:17:01:604] INFO 📥 Blocks: 68 [0] | Classes: 68 [0] | State: 68 [0]
+[2026-10-01 05:17:01:604] INFO 🔗 Sync is at 68/68 [0.17 blocks/s]
+[2026-10-01 05:17:04:605] INFO 📥 Blocks: 68 [0] | Classes: 68 [0] | State: 68 [0]
+[2026-10-01 05:17:04:605] INFO 🔗 Sync is at 68/68 [0.17 blocks/s]
+[2026-10-01 05:17:04:761] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 69 was not found. Current pre-confirmed block number is 70." }), retrying
+[2026-10-01 05:17:04:863] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 69 was not found. Current pre-confirmed block number is 70." }), retrying
+[2026-10-01 05:17:05:065] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 69 was not found. Current pre-confirmed block number is 70." }), retrying
+[2026-10-01 05:17:07:604] INFO 📥 Blocks: 69 [0] | Classes: 69 [0] | State: 69 [0]
+[2026-10-01 05:17:07:604] INFO 🔗 Sync is at 69/69 [0.17 blocks/s]
+[2026-10-01 05:17:10:605] INFO 📥 Blocks: 69 [0] | Classes: 69 [0] | State: 69 [0]
+[2026-10-01 05:17:10:605] INFO 🔗 Sync is at 69/69 [0.17 blocks/s]
+[2026-10-01 05:17:10:778] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 70 was not found. Current pre-confirmed block number is 71." }), retrying
+[2026-10-01 05:17:10:879] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 70 was not found. Current pre-confirmed block number is 71." }), retrying
+[2026-10-01 05:17:11:081] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 70 was not found. Current pre-confirmed block number is 71." }), retrying
+[2026-10-01 05:17:14:671] INFO 📥 Blocks: 70 [0] | Classes: 70 [0] | State: 70 [0]
+[2026-10-01 05:17:14:671] INFO 🔗 Sync is at 70/70 [0.17 blocks/s]
+[2026-10-01 05:17:17:671] INFO 📥 Blocks: 70 [0] | Classes: 70 [0] | State: 70 [0]
+[2026-10-01 05:17:17:671] INFO 🔗 Sync is at 70/70 [0.17 blocks/s]
+[2026-10-01 05:17:17:847] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 71 was not found. Current pre-confirmed block number is 72." }), retrying
+[2026-10-01 05:17:17:949] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 71 was not found. Current pre-confirmed block number is 72." }), retrying
+[2026-10-01 05:17:18:150] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 71 was not found. Current pre-confirmed block number is 72." }), retrying
+[2026-10-01 05:17:20:670] INFO 📥 Blocks: 71 [0] | Classes: 71 [0] | State: 71 [0]
+[2026-10-01 05:17:20:670] INFO 🔗 Sync is at 71/71 [0.17 blocks/s]
+[2026-10-01 05:17:23:670] INFO 📥 Blocks: 71 [0] | Classes: 71 [0] | State: 71 [0]
+[2026-10-01 05:17:23:670] INFO 🔗 Sync is at 71/71 [0.17 blocks/s]
+[2026-10-01 05:17:23:860] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 72 was not found. Current pre-confirmed block number is 73." }), retrying
+[2026-10-01 05:17:23:961] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 72 was not found. Current pre-confirmed block number is 73." }), retrying
+[2026-10-01 05:17:24:162] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 72 was not found. Current pre-confirmed block number is 73." }), retrying
+[2026-10-01 05:17:26:670] INFO 📥 Blocks: 72 [0] | Classes: 72 [0] | State: 72 [0]
+[2026-10-01 05:17:26:670] INFO 🔗 Sync is at 72/72 [0.17 blocks/s]
+[2026-10-01 05:17:29:671] INFO 📥 Blocks: 72 [0] | Classes: 72 [0] | State: 72 [0]
+[2026-10-01 05:17:29:671] INFO 🔗 Sync is at 72/72 [0.17 blocks/s]
+[2026-10-01 05:17:29:872] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 73 was not found. Current pre-confirmed block number is 74." }), retrying
+[2026-10-01 05:17:29:973] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 73 was not found. Current pre-confirmed block number is 74." }), retrying
+[2026-10-01 05:17:30:174] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 73 was not found. Current pre-confirmed block number is 74." }), retrying
+[2026-10-01 05:17:32:671] INFO 📥 Blocks: 73 [0] | Classes: 73 [0] | State: 73 [0]
+[2026-10-01 05:17:32:671] INFO 🔗 Sync is at 73/73 [0.17 blocks/s]
+[2026-10-01 05:17:35:671] INFO 📥 Blocks: 73 [0] | Classes: 73 [0] | State: 73 [0]
+[2026-10-01 05:17:35:671] INFO 🔗 Sync is at 73/73 [0.17 blocks/s]
+[2026-10-01 05:17:35:890] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 74 was not found. Current pre-confirmed block number is 75." }), retrying
+[2026-10-01 05:17:35:991] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 74 was not found. Current pre-confirmed block number is 75." }), retrying
+[2026-10-01 05:17:36:192] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 74 was not found. Current pre-confirmed block number is 75." }), retrying
+[2026-10-01 05:17:38:670] INFO 📥 Blocks: 74 [0] | Classes: 74 [0] | State: 74 [0]
+[2026-10-01 05:17:38:670] INFO 🔗 Sync is at 74/74 [0.17 blocks/s]
+[2026-10-01 05:17:41:671] INFO 📥 Blocks: 74 [0] | Classes: 74 [0] | State: 74 [0]
+[2026-10-01 05:17:41:671] INFO 🔗 Sync is at 74/74 [0.17 blocks/s]
+[2026-10-01 05:17:41:885] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 75 was not found. Current pre-confirmed block number is 76." }), retrying
+[2026-10-01 05:17:41:986] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 75 was not found. Current pre-confirmed block number is 76." }), retrying
+[2026-10-01 05:17:42:188] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 75 was not found. Current pre-confirmed block number is 76." }), retrying
+[2026-10-01 05:17:45:740] INFO 📥 Blocks: 75 [0] | Classes: 75 [0] | State: 75 [0]
+[2026-10-01 05:17:45:740] INFO 🔗 Sync is at 75/75 [0.17 blocks/s]
+[2026-10-01 05:17:48:741] INFO 📥 Blocks: 75 [0] | Classes: 75 [0] | State: 75 [0]
+[2026-10-01 05:17:48:741] INFO 🔗 Sync is at 75/75 [0.17 blocks/s]
+[2026-10-01 05:17:48:968] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 76 was not found. Current pre-confirmed block number is 77." }), retrying
+[2026-10-01 05:17:49:070] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 76 was not found. Current pre-confirmed block number is 77." }), retrying
+[2026-10-01 05:17:49:270] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 76 was not found. Current pre-confirmed block number is 77." }), retrying
+[2026-10-01 05:17:51:740] INFO 📥 Blocks: 76 [0] | Classes: 76 [0] | State: 76 [0]
+[2026-10-01 05:17:51:740] INFO 🔗 Sync is at 76/76 [0.17 blocks/s]
+[2026-10-01 05:17:54:740] INFO 📥 Blocks: 76 [0] | Classes: 76 [0] | State: 76 [0]
+[2026-10-01 05:17:54:740] INFO 🔗 Sync is at 76/76 [0.17 blocks/s]
+[2026-10-01 05:17:54:988] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 77 was not found. Current pre-confirmed block number is 78." }), retrying
+[2026-10-01 05:17:55:090] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 77 was not found. Current pre-confirmed block number is 78." }), retrying
+[2026-10-01 05:17:55:291] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 77 was not found. Current pre-confirmed block number is 78." }), retrying
+[2026-10-01 05:17:57:741] INFO 📥 Blocks: 77 [0] | Classes: 77 [0] | State: 77 [0]
+[2026-10-01 05:17:57:741] INFO 🔗 Sync is at 77/77 [0.17 blocks/s]
+[2026-10-01 05:18:00:740] INFO 📥 Blocks: 77 [0] | Classes: 77 [0] | State: 77 [0]
+[2026-10-01 05:18:00:740] INFO 🔗 Sync is at 77/77 [0.17 blocks/s]
+[2026-10-01 05:18:00:989] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 78 was not found. Current pre-confirmed block number is 79." }), retrying
+[2026-10-01 05:18:01:091] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 78 was not found. Current pre-confirmed block number is 79." }), retrying
+[2026-10-01 05:18:01:293] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 78 was not found. Current pre-confirmed block number is 79." }), retrying
+[2026-10-01 05:18:03:740] INFO 📥 Blocks: 78 [0] | Classes: 78 [0] | State: 78 [0]
+[2026-10-01 05:18:03:740] INFO 🔗 Sync is at 78/78 [0.17 blocks/s]
+[2026-10-01 05:18:06:740] INFO 📥 Blocks: 78 [0] | Classes: 78 [0] | State: 78 [0]
+[2026-10-01 05:18:06:740] INFO 🔗 Sync is at 78/78 [0.17 blocks/s]
+[2026-10-01 05:18:07:005] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 79 was not found. Current pre-confirmed block number is 80." }), retrying
+[2026-10-01 05:18:07:106] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 79 was not found. Current pre-confirmed block number is 80." }), retrying
+[2026-10-01 05:18:07:308] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 79 was not found. Current pre-confirmed block number is 80." }), retrying
+[2026-10-01 05:18:09:741] INFO 📥 Blocks: 79 [0] | Classes: 79 [0] | State: 79 [0]
+[2026-10-01 05:18:09:741] INFO 🔗 Sync is at 79/79 [0.17 blocks/s]
+[2026-10-01 05:18:12:740] INFO 📥 Blocks: 79 [0] | Classes: 79 [0] | State: 79 [0]
+[2026-10-01 05:18:12:741] INFO 🔗 Sync is at 79/79 [0.17 blocks/s]
+[2026-10-01 05:18:13:015] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 80 was not found. Current pre-confirmed block number is 81." }), retrying
+[2026-10-01 05:18:13:117] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 80 was not found. Current pre-confirmed block number is 81." }), retrying
+[2026-10-01 05:18:13:319] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 80 was not found. Current pre-confirmed block number is 81." }), retrying
+[2026-10-01 05:18:16:823] INFO 📥 Blocks: 80 [0] | Classes: 80 [0] | State: 80 [0]
+[2026-10-01 05:18:16:823] INFO 🔗 Sync is at 80/80 [0.17 blocks/s]
+[2026-10-01 05:18:19:823] INFO 📥 Blocks: 80 [0] | Classes: 80 [0] | State: 80 [0]
+[2026-10-01 05:18:19:823] INFO 🔗 Sync is at 80/80 [0.17 blocks/s]
+[2026-10-01 05:18:20:104] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 81 was not found. Current pre-confirmed block number is 82." }), retrying
+[2026-10-01 05:18:20:205] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 81 was not found. Current pre-confirmed block number is 82." }), retrying
+[2026-10-01 05:18:20:407] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 81 was not found. Current pre-confirmed block number is 82." }), retrying
+[2026-10-01 05:18:22:823] INFO 📥 Blocks: 81 [0] | Classes: 81 [0] | State: 81 [0]
+[2026-10-01 05:18:22:823] INFO 🔗 Sync is at 81/81 [0.17 blocks/s]
+[2026-10-01 05:18:25:823] INFO 📥 Blocks: 81 [0] | Classes: 81 [0] | State: 81 [0]
+[2026-10-01 05:18:25:823] INFO 🔗 Sync is at 81/81 [0.17 blocks/s]
+[2026-10-01 05:18:26:116] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 82 was not found. Current pre-confirmed block number is 83." }), retrying
+[2026-10-01 05:18:26:217] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 82 was not found. Current pre-confirmed block number is 83." }), retrying
+[2026-10-01 05:18:26:419] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 82 was not found. Current pre-confirmed block number is 83." }), retrying
+[2026-10-01 05:18:28:823] INFO 📥 Blocks: 82 [0] | Classes: 82 [0] | State: 82 [0]
+[2026-10-01 05:18:28:823] INFO 🔗 Sync is at 82/82 [0.17 blocks/s]
+[2026-10-01 05:18:31:824] INFO 📥 Blocks: 82 [0] | Classes: 82 [0] | State: 82 [0]
+[2026-10-01 05:18:31:824] INFO 🔗 Sync is at 82/82 [0.17 blocks/s]
+[2026-10-01 05:18:32:125] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 83 was not found. Current pre-confirmed block number is 84." }), retrying
+[2026-10-01 05:18:32:227] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 83 was not found. Current pre-confirmed block number is 84." }), retrying
+[2026-10-01 05:18:32:429] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 83 was not found. Current pre-confirmed block number is 84." }), retrying
+[2026-10-01 05:18:34:823] INFO 📥 Blocks: 83 [0] | Classes: 83 [0] | State: 83 [0]
+[2026-10-01 05:18:34:823] INFO 🔗 Sync is at 83/83 [0.17 blocks/s]
+[2026-10-01 05:18:37:823] INFO 📥 Blocks: 83 [0] | Classes: 83 [0] | State: 83 [0]
+[2026-10-01 05:18:37:823] INFO 🔗 Sync is at 83/83 [0.17 blocks/s]
+[2026-10-01 05:18:38:131] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 84 was not found. Current pre-confirmed block number is 85." }), retrying
+[2026-10-01 05:18:38:233] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 84 was not found. Current pre-confirmed block number is 85." }), retrying
+[2026-10-01 05:18:38:435] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 84 was not found. Current pre-confirmed block number is 85." }), retrying
+[2026-10-01 05:18:40:823] INFO 📥 Blocks: 84 [0] | Classes: 84 [0] | State: 84 [0]
+[2026-10-01 05:18:40:823] INFO 🔗 Sync is at 84/84 [0.17 blocks/s]
+[2026-10-01 05:18:43:823] INFO 📥 Blocks: 84 [0] | Classes: 84 [0] | State: 84 [0]
+[2026-10-01 05:18:43:823] INFO 🔗 Sync is at 84/84 [0.17 blocks/s]
+[2026-10-01 05:18:44:143] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 85 was not found. Current pre-confirmed block number is 86." }), retrying
+[2026-10-01 05:18:44:245] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 85 was not found. Current pre-confirmed block number is 86." }), retrying
+[2026-10-01 05:18:44:446] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 85 was not found. Current pre-confirmed block number is 86." }), retrying
+[2026-10-01 05:18:47:918] INFO 📥 Blocks: 85 [0] | Classes: 85 [0] | State: 85 [0]
+[2026-10-01 05:18:47:918] INFO 🔗 Sync is at 85/85 [0.17 blocks/s]
+[2026-10-01 05:18:50:918] INFO 📥 Blocks: 85 [0] | Classes: 85 [0] | State: 85 [0]
+[2026-10-01 05:18:50:918] INFO 🔗 Sync is at 85/85 [0.17 blocks/s]
+[2026-10-01 05:18:51:249] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 86 was not found. Current pre-confirmed block number is 87." }), retrying
+[2026-10-01 05:18:51:350] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 86 was not found. Current pre-confirmed block number is 87." }), retrying
+[2026-10-01 05:18:51:552] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 86 was not found. Current pre-confirmed block number is 87." }), retrying
+[2026-10-01 05:18:53:918] INFO 📥 Blocks: 86 [0] | Classes: 86 [0] | State: 86 [0]
+[2026-10-01 05:18:53:918] INFO 🔗 Sync is at 86/86 [0.17 blocks/s]
+[2026-10-01 05:18:56:918] INFO 📥 Blocks: 86 [0] | Classes: 86 [0] | State: 86 [0]
+[2026-10-01 05:18:56:918] INFO 🔗 Sync is at 86/86 [0.17 blocks/s]
+[2026-10-01 05:18:57:256] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 87 was not found. Current pre-confirmed block number is 88." }), retrying
+[2026-10-01 05:18:57:358] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 87 was not found. Current pre-confirmed block number is 88." }), retrying
+[2026-10-01 05:18:57:559] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 87 was not found. Current pre-confirmed block number is 88." }), retrying
+[2026-10-01 05:18:59:918] INFO 📥 Blocks: 87 [0] | Classes: 87 [0] | State: 87 [0]
+[2026-10-01 05:18:59:918] INFO 🔗 Sync is at 87/87 [0.17 blocks/s]
+[2026-10-01 05:19:02:918] INFO 📥 Blocks: 87 [0] | Classes: 87 [0] | State: 87 [0]
+[2026-10-01 05:19:02:918] INFO 🔗 Sync is at 87/87 [0.17 blocks/s]
+[2026-10-01 05:19:03:265] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 88 was not found. Current pre-confirmed block number is 89." }), retrying
+[2026-10-01 05:19:03:368] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 88 was not found. Current pre-confirmed block number is 89." }), retrying
+[2026-10-01 05:19:03:573] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 88 was not found. Current pre-confirmed block number is 89." }), retrying
+[2026-10-01 05:19:05:918] INFO 📥 Blocks: 88 [0] | Classes: 88 [0] | State: 88 [0]
+[2026-10-01 05:19:05:918] INFO 🔗 Sync is at 88/88 [0.17 blocks/s]
+[2026-10-01 05:19:08:918] INFO 📥 Blocks: 88 [0] | Classes: 88 [0] | State: 88 [0]
+[2026-10-01 05:19:08:918] INFO 🔗 Sync is at 88/88 [0.17 blocks/s]
+[2026-10-01 05:19:09:281] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 89 was not found. Current pre-confirmed block number is 90." }), retrying
+[2026-10-01 05:19:09:383] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 89 was not found. Current pre-confirmed block number is 90." }), retrying
+[2026-10-01 05:19:09:584] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 89 was not found. Current pre-confirmed block number is 90." }), retrying
+[2026-10-01 05:19:11:918] INFO 📥 Blocks: 89 [0] | Classes: 89 [0] | State: 89 [0]
+[2026-10-01 05:19:11:918] INFO 🔗 Sync is at 89/89 [0.17 blocks/s]
+[2026-10-01 05:19:14:918] INFO 📥 Blocks: 89 [0] | Classes: 89 [0] | State: 89 [0]
+[2026-10-01 05:19:14:918] INFO 🔗 Sync is at 89/89 [0.17 blocks/s]
+[2026-10-01 05:19:15:286] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 90 was not found. Current pre-confirmed block number is 91." }), retrying
+[2026-10-01 05:19:15:387] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 90 was not found. Current pre-confirmed block number is 91." }), retrying
+[2026-10-01 05:19:15:590] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 90 was not found. Current pre-confirmed block number is 91." }), retrying
+[2026-10-01 05:19:18:992] INFO 📥 Blocks: 90 [0] | Classes: 90 [0] | State: 90 [0]
+[2026-10-01 05:19:18:992] INFO 🔗 Sync is at 90/90 [0.17 blocks/s]
+[2026-10-01 05:19:21:992] INFO 📥 Blocks: 90 [0] | Classes: 90 [0] | State: 90 [0]
+[2026-10-01 05:19:21:992] INFO 🔗 Sync is at 90/90 [0.17 blocks/s]
+[2026-10-01 05:19:22:368] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 91 was not found. Current pre-confirmed block number is 92." }), retrying
+[2026-10-01 05:19:22:469] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 91 was not found. Current pre-confirmed block number is 92." }), retrying
+[2026-10-01 05:19:22:671] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 91 was not found. Current pre-confirmed block number is 92." }), retrying
+[2026-10-01 05:19:24:992] INFO 📥 Blocks: 91 [0] | Classes: 91 [0] | State: 91 [0]
+[2026-10-01 05:19:24:993] INFO 🔗 Sync is at 91/91 [0.17 blocks/s]
+[2026-10-01 05:19:27:992] INFO 📥 Blocks: 91 [0] | Classes: 91 [0] | State: 91 [0]
+[2026-10-01 05:19:27:992] INFO 🔗 Sync is at 91/91 [0.17 blocks/s]
+[2026-10-01 05:19:28:377] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 92 was not found. Current pre-confirmed block number is 93." }), retrying
+[2026-10-01 05:19:28:478] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 92 was not found. Current pre-confirmed block number is 93." }), retrying
+[2026-10-01 05:19:28:680] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 92 was not found. Current pre-confirmed block number is 93." }), retrying
+[2026-10-01 05:19:30:992] INFO 📥 Blocks: 92 [0] | Classes: 92 [0] | State: 92 [0]
+[2026-10-01 05:19:30:992] INFO 🔗 Sync is at 92/92 [0.17 blocks/s]
+[2026-10-01 05:19:33:992] INFO 📥 Blocks: 92 [0] | Classes: 92 [0] | State: 92 [0]
+[2026-10-01 05:19:33:992] INFO 🔗 Sync is at 92/92 [0.17 blocks/s]
+[2026-10-01 05:19:34:390] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 93 was not found. Current pre-confirmed block number is 94." }), retrying
+[2026-10-01 05:19:34:491] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 93 was not found. Current pre-confirmed block number is 94." }), retrying
+[2026-10-01 05:19:34:692] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 93 was not found. Current pre-confirmed block number is 94." }), retrying
+[2026-10-01 05:19:36:992] INFO 📥 Blocks: 93 [0] | Classes: 93 [0] | State: 93 [0]
+[2026-10-01 05:19:36:992] INFO 🔗 Sync is at 93/93 [0.17 blocks/s]
+[2026-10-01 05:19:39:992] INFO 📥 Blocks: 93 [0] | Classes: 93 [0] | State: 93 [0]
+[2026-10-01 05:19:39:992] INFO 🔗 Sync is at 93/93 [0.17 blocks/s]
+[2026-10-01 05:19:40:397] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 94 was not found. Current pre-confirmed block number is 95." }), retrying
+[2026-10-01 05:19:40:499] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 94 was not found. Current pre-confirmed block number is 95." }), retrying
+[2026-10-01 05:19:40:700] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 94 was not found. Current pre-confirmed block number is 95." }), retrying
+[2026-10-01 05:19:42:992] INFO 📥 Blocks: 94 [0] | Classes: 94 [0] | State: 94 [0]
+[2026-10-01 05:19:42:992] INFO 🔗 Sync is at 94/94 [0.17 blocks/s]
+[2026-10-01 05:19:45:992] INFO 📥 Blocks: 94 [0] | Classes: 94 [0] | State: 94 [0]
+[2026-10-01 05:19:45:992] INFO 🔗 Sync is at 94/94 [0.17 blocks/s]
+[2026-10-01 05:19:46:408] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 95 was not found. Current pre-confirmed block number is 96." }), retrying
+[2026-10-01 05:19:46:510] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 95 was not found. Current pre-confirmed block number is 96." }), retrying
+[2026-10-01 05:19:46:712] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 95 was not found. Current pre-confirmed block number is 96." }), retrying
+[2026-10-01 05:19:50:070] INFO 📥 Blocks: 95 [0] | Classes: 95 [0] | State: 95 [0]
+[2026-10-01 05:19:50:070] INFO 🔗 Sync is at 95/95 [0.17 blocks/s]
+[2026-10-01 05:19:53:070] INFO 📥 Blocks: 95 [0] | Classes: 95 [0] | State: 95 [0]
+[2026-10-01 05:19:53:070] INFO 🔗 Sync is at 95/95 [0.17 blocks/s]
+[2026-10-01 05:19:53:496] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 96 was not found. Current pre-confirmed block number is 97." }), retrying
+[2026-10-01 05:19:53:598] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 96 was not found. Current pre-confirmed block number is 97." }), retrying
+[2026-10-01 05:19:53:800] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 96 was not found. Current pre-confirmed block number is 97." }), retrying
+[2026-10-01 05:19:56:070] INFO 📥 Blocks: 96 [0] | Classes: 96 [0] | State: 96 [0]
+[2026-10-01 05:19:56:070] INFO 🔗 Sync is at 96/96 [0.17 blocks/s]
+[2026-10-01 05:19:59:070] INFO 📥 Blocks: 96 [0] | Classes: 96 [0] | State: 96 [0]
+[2026-10-01 05:19:59:070] INFO 🔗 Sync is at 96/96 [0.17 blocks/s]
+[2026-10-01 05:19:59:506] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 97 was not found. Current pre-confirmed block number is 98." }), retrying
+[2026-10-01 05:19:59:607] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 97 was not found. Current pre-confirmed block number is 98." }), retrying
+[2026-10-01 05:19:59:808] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 97 was not found. Current pre-confirmed block number is 98." }), retrying
+[2026-10-01 05:20:02:070] INFO 📥 Blocks: 97 [0] | Classes: 97 [0] | State: 97 [0]
+[2026-10-01 05:20:02:070] INFO 🔗 Sync is at 97/97 [0.17 blocks/s]
+[2026-10-01 05:20:05:070] INFO 📥 Blocks: 97 [0] | Classes: 97 [0] | State: 97 [0]
+[2026-10-01 05:20:05:070] INFO 🔗 Sync is at 97/97 [0.17 blocks/s]
+[2026-10-01 05:20:05:518] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 98 was not found. Current pre-confirmed block number is 99." }), retrying
+[2026-10-01 05:20:05:620] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 98 was not found. Current pre-confirmed block number is 99." }), retrying
+[2026-10-01 05:20:05:821] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 98 was not found. Current pre-confirmed block number is 99." }), retrying
+[2026-10-01 05:20:08:071] INFO 📥 Blocks: 98 [0] | Classes: 98 [0] | State: 98 [0]
+[2026-10-01 05:20:08:071] INFO 🔗 Sync is at 98/98 [0.17 blocks/s]
+[2026-10-01 05:20:11:070] INFO 📥 Blocks: 98 [0] | Classes: 98 [0] | State: 98 [0]
+[2026-10-01 05:20:11:070] INFO 🔗 Sync is at 98/98 [0.17 blocks/s]
+[2026-10-01 05:20:11:530] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 99 was not found. Current pre-confirmed block number is 100." }), retrying
+[2026-10-01 05:20:11:632] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 99 was not found. Current pre-confirmed block number is 100." }), retrying
+[2026-10-01 05:20:11:833] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 99 was not found. Current pre-confirmed block number is 100." }), retrying
+[2026-10-01 05:20:14:070] INFO 📥 Blocks: 99 [0] | Classes: 99 [0] | State: 99 [0]
+[2026-10-01 05:20:14:070] INFO 🔗 Sync is at 99/99 [0.17 blocks/s]
+[2026-10-01 05:20:17:039] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 100 was not found. Current pre-confirmed block number is 101." }), retrying
+[2026-10-01 05:20:17:070] INFO 📥 Blocks: 99 [0] | Classes: 99 [0] | State: 99 [0]
+[2026-10-01 05:20:17:070] INFO 🔗 Sync is at 99/99 [0.17 blocks/s]
+[2026-10-01 05:20:17:141] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 100 was not found. Current pre-confirmed block number is 101." }), retrying
+[2026-10-01 05:20:17:343] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 100 was not found. Current pre-confirmed block number is 101." }), retrying
+[2026-10-01 05:20:17:744] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 100 was not found. Current pre-confirmed block number is 101." }), retrying
+[2026-10-01 05:20:21:156] INFO 📥 Blocks: 100 [0] | Classes: 100 [0] | State: 100 [0]
+[2026-10-01 05:20:21:156] INFO 🔗 Sync is at 100/100 [0.17 blocks/s]
+[2026-10-01 05:20:24:157] INFO 📥 Blocks: 101 [0] | Classes: 101 [0] | State: 101 [0]
+[2026-10-01 05:20:24:157] INFO 🔗 Sync is at 101/101 [0.17 blocks/s]
+[2026-10-01 05:20:27:156] INFO 📥 Blocks: 101 [0] | Classes: 101 [0] | State: 101 [0]
+[2026-10-01 05:20:27:156] INFO 🔗 Sync is at 101/101 [0.17 blocks/s]
+[2026-10-01 05:20:30:156] INFO 📥 Blocks: 102 [0] | Classes: 102 [0] | State: 102 [0]
+[2026-10-01 05:20:30:156] INFO 🔗 Sync is at 102/102 [0.17 blocks/s]
+[2026-10-01 05:20:33:156] INFO 📥 Blocks: 102 [0] | Classes: 102 [0] | State: 102 [0]
+[2026-10-01 05:20:33:157] INFO 🔗 Sync is at 102/102 [0.17 blocks/s]
+[2026-10-01 05:20:36:156] INFO 📥 Blocks: 103 [0] | Classes: 103 [0] | State: 103 [0]
+[2026-10-01 05:20:36:156] INFO 🔗 Sync is at 103/103 [0.17 blocks/s]
+[2026-10-01 05:20:39:156] INFO 📥 Blocks: 103 [0] | Classes: 103 [0] | State: 103 [0]
+[2026-10-01 05:20:39:156] INFO 🔗 Sync is at 103/103 [0.17 blocks/s]
+[2026-10-01 05:20:42:156] INFO 📥 Blocks: 104 [0] | Classes: 104 [0] | State: 104 [0]
+[2026-10-01 05:20:42:156] INFO 🔗 Sync is at 104/104 [0.17 blocks/s]
+[2026-10-01 05:20:45:156] INFO 📥 Blocks: 104 [0] | Classes: 104 [0] | State: 104 [0]
+[2026-10-01 05:20:45:156] INFO 🔗 Sync is at 104/104 [0.17 blocks/s]
+[2026-10-01 05:20:48:156] INFO 📥 Blocks: 104 [0] | Classes: 104 [0] | State: 104 [0]
+[2026-10-01 05:20:48:156] INFO 🔗 Sync is at 104/104 [0.17 blocks/s]
+[2026-10-01 05:20:52:266] INFO 📥 Blocks: 105 [0] | Classes: 105 [0] | State: 105 [0]
+[2026-10-01 05:20:52:266] INFO 🔗 Sync is at 105/105 [0.17 blocks/s]
+[2026-10-01 05:20:55:265] INFO 📥 Blocks: 105 [0] | Classes: 105 [0] | State: 105 [0]
+[2026-10-01 05:20:55:265] INFO 🔗 Sync is at 105/105 [0.17 blocks/s]
+[2026-10-01 05:20:58:265] INFO 📥 Blocks: 106 [0] | Classes: 106 [0] | State: 106 [0]
+[2026-10-01 05:20:58:265] INFO 🔗 Sync is at 106/106 [0.17 blocks/s]
+[2026-10-01 05:21:01:265] INFO 📥 Blocks: 106 [0] | Classes: 106 [0] | State: 106 [0]
+[2026-10-01 05:21:01:265] INFO 🔗 Sync is at 106/106 [0.17 blocks/s]
+[2026-10-01 05:21:04:265] INFO 📥 Blocks: 107 [0] | Classes: 107 [0] | State: 107 [0]
+[2026-10-01 05:21:04:265] INFO 🔗 Sync is at 107/107 [0.17 blocks/s]
+[2026-10-01 05:21:07:265] INFO 📥 Blocks: 107 [0] | Classes: 107 [0] | State: 107 [0]
+[2026-10-01 05:21:07:265] INFO 🔗 Sync is at 107/107 [0.17 blocks/s]
+[2026-10-01 05:21:10:266] INFO 📥 Blocks: 108 [0] | Classes: 108 [0] | State: 108 [0]
+[2026-10-01 05:21:10:266] INFO 🔗 Sync is at 108/108 [0.17 blocks/s]
+[2026-10-01 05:21:13:266] INFO 📥 Blocks: 108 [0] | Classes: 108 [0] | State: 108 [0]
+[2026-10-01 05:21:13:266] INFO 🔗 Sync is at 108/108 [0.17 blocks/s]
+[2026-10-01 05:21:16:265] INFO 📥 Blocks: 109 [0] | Classes: 109 [0] | State: 109 [0]
+[2026-10-01 05:21:16:265] INFO 🔗 Sync is at 109/109 [0.17 blocks/s]
+[2026-10-01 05:21:19:265] INFO 📥 Blocks: 109 [0] | Classes: 109 [0] | State: 109 [0]
+[2026-10-01 05:21:19:265] INFO 🔗 Sync is at 109/109 [0.17 blocks/s]
+[2026-10-01 05:21:23:339] INFO 📥 Blocks: 110 [0] | Classes: 110 [0] | State: 110 [0]
+[2026-10-01 05:21:23:339] INFO 🔗 Sync is at 110/110 [0.17 blocks/s]
+[2026-10-01 05:21:26:340] INFO 📥 Blocks: 110 [0] | Classes: 110 [0] | State: 110 [0]
+[2026-10-01 05:21:26:340] INFO 🔗 Sync is at 110/110 [0.17 blocks/s]
+[2026-10-01 05:21:29:340] INFO 📥 Blocks: 111 [0] | Classes: 111 [0] | State: 111 [0]
+[2026-10-01 05:21:29:340] INFO 🔗 Sync is at 111/111 [0.17 blocks/s]
+[2026-10-01 05:21:32:339] INFO 📥 Blocks: 111 [0] | Classes: 111 [0] | State: 111 [0]
+[2026-10-01 05:21:32:339] INFO 🔗 Sync is at 111/111 [0.17 blocks/s]
+[2026-10-01 05:21:35:339] INFO 📥 Blocks: 112 [0] | Classes: 112 [0] | State: 112 [0]
+[2026-10-01 05:21:35:339] INFO 🔗 Sync is at 112/112 [0.17 blocks/s]
+[2026-10-01 05:21:38:340] INFO 📥 Blocks: 112 [0] | Classes: 112 [0] | State: 112 [0]
+[2026-10-01 05:21:38:340] INFO 🔗 Sync is at 112/112 [0.17 blocks/s]
+[2026-10-01 05:21:41:340] INFO 📥 Blocks: 113 [0] | Classes: 113 [0] | State: 113 [0]
+[2026-10-01 05:21:41:340] INFO 🔗 Sync is at 113/113 [0.17 blocks/s]
+[2026-10-01 05:21:44:339] INFO 📥 Blocks: 113 [0] | Classes: 113 [0] | State: 113 [0]
+[2026-10-01 05:21:44:339] INFO 🔗 Sync is at 113/113 [0.17 blocks/s]
+[2026-10-01 05:21:47:339] INFO 📥 Blocks: 114 [0] | Classes: 114 [0] | State: 114 [0]
+[2026-10-01 05:21:47:339] INFO 🔗 Sync is at 114/114 [0.17 blocks/s]
+[2026-10-01 05:21:50:339] INFO 📥 Blocks: 114 [0] | Classes: 114 [0] | State: 114 [0]
+[2026-10-01 05:21:50:339] INFO 🔗 Sync is at 114/114 [0.17 blocks/s]
+[2026-10-01 05:21:54:417] INFO 📥 Blocks: 115 [0] | Classes: 115 [0] | State: 115 [0]
+[2026-10-01 05:21:54:417] INFO 🔗 Sync is at 115/115 [0.17 blocks/s]
+[2026-10-01 05:21:57:418] INFO 📥 Blocks: 115 [0] | Classes: 115 [0] | State: 115 [0]
+[2026-10-01 05:21:57:418] INFO 🔗 Sync is at 115/115 [0.17 blocks/s]
+[2026-10-01 05:22:00:418] INFO 📥 Blocks: 116 [0] | Classes: 116 [0] | State: 116 [0]
+[2026-10-01 05:22:00:418] INFO 🔗 Sync is at 116/116 [0.17 blocks/s]
+[2026-10-01 05:22:03:417] INFO 📥 Blocks: 116 [0] | Classes: 116 [0] | State: 116 [0]
+[2026-10-01 05:22:03:418] INFO 🔗 Sync is at 116/116 [0.17 blocks/s]
+[2026-10-01 05:22:06:418] INFO 📥 Blocks: 117 [0] | Classes: 117 [0] | State: 117 [0]
+[2026-10-01 05:22:06:418] INFO 🔗 Sync is at 117/117 [0.17 blocks/s]
+[2026-10-01 05:22:09:417] INFO 📥 Blocks: 117 [0] | Classes: 117 [0] | State: 117 [0]
+[2026-10-01 05:22:09:417] INFO 🔗 Sync is at 117/117 [0.17 blocks/s]
+[2026-10-01 05:22:12:418] INFO 📥 Blocks: 118 [0] | Classes: 118 [0] | State: 118 [0]
+[2026-10-01 05:22:12:418] INFO 🔗 Sync is at 118/118 [0.17 blocks/s]
+[2026-10-01 05:22:15:418] INFO 📥 Blocks: 118 [0] | Classes: 118 [0] | State: 118 [0]
+[2026-10-01 05:22:15:418] INFO 🔗 Sync is at 118/118 [0.17 blocks/s]
+[2026-10-01 05:22:18:418] INFO 📥 Blocks: 119 [0] | Classes: 119 [0] | State: 119 [0]
+[2026-10-01 05:22:18:418] INFO 🔗 Sync is at 119/119 [0.17 blocks/s]
+[2026-10-01 05:22:21:418] INFO 📥 Blocks: 119 [0] | Classes: 119 [0] | State: 119 [0]
+[2026-10-01 05:22:21:418] INFO 🔗 Sync is at 119/119 [0.17 blocks/s]
+[2026-10-01 05:22:25:506] INFO 📥 Blocks: 120 [0] | Classes: 120 [0] | State: 120 [0]
+[2026-10-01 05:22:25:506] INFO 🔗 Sync is at 120/120 [0.17 blocks/s]
+[2026-10-01 05:22:28:506] INFO 📥 Blocks: 120 [0] | Classes: 120 [0] | State: 120 [0]
+[2026-10-01 05:22:28:506] INFO 🔗 Sync is at 120/120 [0.17 blocks/s]
+[2026-10-01 05:22:31:506] INFO 📥 Blocks: 121 [0] | Classes: 121 [0] | State: 121 [0]
+[2026-10-01 05:22:31:506] INFO 🔗 Sync is at 121/121 [0.17 blocks/s]
+[2026-10-01 05:22:34:506] INFO 📥 Blocks: 121 [0] | Classes: 121 [0] | State: 121 [0]
+[2026-10-01 05:22:34:506] INFO 🔗 Sync is at 121/121 [0.17 blocks/s]
+[2026-10-01 05:22:37:506] INFO 📥 Blocks: 122 [0] | Classes: 122 [0] | State: 122 [0]
+[2026-10-01 05:22:37:506] INFO 🔗 Sync is at 122/122 [0.17 blocks/s]
+[2026-10-01 05:22:40:506] INFO 📥 Blocks: 122 [0] | Classes: 122 [0] | State: 122 [0]
+[2026-10-01 05:22:40:506] INFO 🔗 Sync is at 122/122 [0.17 blocks/s]
+[2026-10-01 05:22:43:506] INFO 📥 Blocks: 123 [0] | Classes: 123 [0] | State: 123 [0]
+[2026-10-01 05:22:43:506] INFO 🔗 Sync is at 123/123 [0.17 blocks/s]
+[2026-10-01 05:22:46:506] INFO 📥 Blocks: 123 [0] | Classes: 123 [0] | State: 123 [0]
+[2026-10-01 05:22:46:506] INFO 🔗 Sync is at 123/123 [0.17 blocks/s]
+[2026-10-01 05:22:49:506] INFO 📥 Blocks: 124 [0] | Classes: 124 [0] | State: 124 [0]
+[2026-10-01 05:22:49:506] INFO 🔗 Sync is at 124/124 [0.17 blocks/s]
+[2026-10-01 05:22:52:506] INFO 📥 Blocks: 124 [0] | Classes: 124 [0] | State: 124 [0]
+[2026-10-01 05:22:52:506] INFO 🔗 Sync is at 124/124 [0.17 blocks/s]
+[2026-10-01 05:22:52:520] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 125 was not found. Current pre-confirmed block number is 126." }), retrying
+[2026-10-01 05:22:52:621] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 125 was not found. Current pre-confirmed block number is 126." }), retrying
+[2026-10-01 05:22:56:616] INFO 📥 Blocks: 125 [0] | Classes: 125 [0] | State: 125 [0]
+[2026-10-01 05:22:56:616] INFO 🔗 Sync is at 125/125 [0.17 blocks/s]
+[2026-10-01 05:22:59:617] INFO 📥 Blocks: 125 [0] | Classes: 125 [0] | State: 125 [0]
+[2026-10-01 05:22:59:617] INFO 🔗 Sync is at 125/125 [0.17 blocks/s]
+[2026-10-01 05:23:02:617] INFO 📥 Blocks: 126 [0] | Classes: 126 [0] | State: 126 [0]
+[2026-10-01 05:23:02:617] INFO 🔗 Sync is at 126/126 [0.17 blocks/s]
+[2026-10-01 05:23:05:617] INFO 📥 Blocks: 126 [0] | Classes: 126 [0] | State: 126 [0]
+[2026-10-01 05:23:05:617] INFO 🔗 Sync is at 126/126 [0.17 blocks/s]
+[2026-10-01 05:23:08:617] INFO 📥 Blocks: 127 [0] | Classes: 127 [0] | State: 127 [0]
+[2026-10-01 05:23:08:617] INFO 🔗 Sync is at 127/127 [0.17 blocks/s]
+[2026-10-01 05:23:11:617] INFO 📥 Blocks: 127 [0] | Classes: 127 [0] | State: 127 [0]
+[2026-10-01 05:23:11:617] INFO 🔗 Sync is at 127/127 [0.17 blocks/s]
+[2026-10-01 05:23:14:616] INFO 📥 Blocks: 128 [0] | Classes: 128 [0] | State: 128 [0]
+[2026-10-01 05:23:14:617] INFO 🔗 Sync is at 128/128 [0.17 blocks/s]
+[2026-10-01 05:23:17:616] INFO 📥 Blocks: 128 [0] | Classes: 128 [0] | State: 128 [0]
+[2026-10-01 05:23:17:616] INFO 🔗 Sync is at 128/128 [0.17 blocks/s]
+[2026-10-01 05:23:20:617] INFO 📥 Blocks: 129 [0] | Classes: 129 [0] | State: 129 [0]
+[2026-10-01 05:23:20:617] INFO 🔗 Sync is at 129/129 [0.17 blocks/s]
+[2026-10-01 05:23:23:617] INFO 📥 Blocks: 129 [0] | Classes: 129 [0] | State: 129 [0]
+[2026-10-01 05:23:23:617] INFO 🔗 Sync is at 129/129 [0.17 blocks/s]
+[2026-10-01 05:23:27:695] INFO 📥 Blocks: 130 [0] | Classes: 130 [0] | State: 130 [0]
+[2026-10-01 05:23:27:695] INFO 🔗 Sync is at 130/130 [0.17 blocks/s]
+[2026-10-01 05:23:30:694] INFO 📥 Blocks: 130 [0] | Classes: 130 [0] | State: 130 [0]
+[2026-10-01 05:23:30:694] INFO 🔗 Sync is at 130/130 [0.17 blocks/s]
+[2026-10-01 05:23:33:695] INFO 📥 Blocks: 131 [0] | Classes: 131 [0] | State: 131 [0]
+[2026-10-01 05:23:33:695] INFO 🔗 Sync is at 131/131 [0.17 blocks/s]
+[2026-10-01 05:23:36:695] INFO 📥 Blocks: 131 [0] | Classes: 131 [0] | State: 131 [0]
+[2026-10-01 05:23:36:695] INFO 🔗 Sync is at 131/131 [0.17 blocks/s]
+[2026-10-01 05:23:39:695] INFO 📥 Blocks: 132 [0] | Classes: 132 [0] | State: 132 [0]
+[2026-10-01 05:23:39:695] INFO 🔗 Sync is at 132/132 [0.17 blocks/s]
+[2026-10-01 05:23:42:694] INFO 📥 Blocks: 132 [0] | Classes: 132 [0] | State: 132 [0]
+[2026-10-01 05:23:42:694] INFO 🔗 Sync is at 132/132 [0.17 blocks/s]
+[2026-10-01 05:23:45:695] INFO 📥 Blocks: 133 [0] | Classes: 133 [0] | State: 133 [0]
+[2026-10-01 05:23:45:695] INFO 🔗 Sync is at 133/133 [0.17 blocks/s]
+[2026-10-01 05:23:48:694] INFO 📥 Blocks: 133 [0] | Classes: 133 [0] | State: 133 [0]
+[2026-10-01 05:23:48:694] INFO 🔗 Sync is at 133/133 [0.17 blocks/s]
+[2026-10-01 05:23:51:694] INFO 📥 Blocks: 134 [0] | Classes: 134 [0] | State: 134 [0]
+[2026-10-01 05:23:51:694] INFO 🔗 Sync is at 134/134 [0.17 blocks/s]
+[2026-10-01 05:23:54:694] INFO 📥 Blocks: 134 [0] | Classes: 134 [0] | State: 134 [0]
+[2026-10-01 05:23:54:695] INFO 🔗 Sync is at 134/134 [0.17 blocks/s]
+[2026-10-01 05:23:58:775] INFO 📥 Blocks: 135 [0] | Classes: 135 [0] | State: 135 [0]
+[2026-10-01 05:23:58:775] INFO 🔗 Sync is at 135/135 [0.17 blocks/s]
+[2026-10-01 05:24:01:775] INFO 📥 Blocks: 135 [0] | Classes: 135 [0] | State: 135 [0]
+[2026-10-01 05:24:01:775] INFO 🔗 Sync is at 135/135 [0.17 blocks/s]
+[2026-10-01 05:24:04:775] INFO 📥 Blocks: 136 [0] | Classes: 136 [0] | State: 136 [0]
+[2026-10-01 05:24:04:775] INFO 🔗 Sync is at 136/136 [0.17 blocks/s]
+[2026-10-01 05:24:07:775] INFO 📥 Blocks: 136 [0] | Classes: 136 [0] | State: 136 [0]
+[2026-10-01 05:24:07:775] INFO 🔗 Sync is at 136/136 [0.17 blocks/s]
+[2026-10-01 05:24:10:775] INFO 📥 Blocks: 137 [0] | Classes: 137 [0] | State: 137 [0]
+[2026-10-01 05:24:10:775] INFO 🔗 Sync is at 137/137 [0.17 blocks/s]
+[2026-10-01 05:24:13:775] INFO 📥 Blocks: 137 [0] | Classes: 137 [0] | State: 137 [0]
+[2026-10-01 05:24:13:775] INFO 🔗 Sync is at 137/137 [0.17 blocks/s]
+[2026-10-01 05:24:16:775] INFO 📥 Blocks: 138 [0] | Classes: 138 [0] | State: 138 [0]
+[2026-10-01 05:24:16:775] INFO 🔗 Sync is at 138/138 [0.17 blocks/s]
+[2026-10-01 05:24:19:776] INFO 📥 Blocks: 138 [0] | Classes: 138 [0] | State: 138 [0]
+[2026-10-01 05:24:19:776] INFO 🔗 Sync is at 138/138 [0.17 blocks/s]
+[2026-10-01 05:24:22:775] INFO 📥 Blocks: 139 [0] | Classes: 139 [0] | State: 139 [0]
+[2026-10-01 05:24:22:775] INFO 🔗 Sync is at 139/139 [0.17 blocks/s]
+[2026-10-01 05:24:25:775] INFO 📥 Blocks: 139 [0] | Classes: 139 [0] | State: 139 [0]
+[2026-10-01 05:24:25:775] INFO 🔗 Sync is at 139/139 [0.17 blocks/s]
+[2026-10-01 05:24:25:802] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 140 was not found. Current pre-confirmed block number is 141." }), retrying
+[2026-10-01 05:24:25:903] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 140 was not found. Current pre-confirmed block number is 141." }), retrying
+[2026-10-01 05:24:26:104] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 140 was not found. Current pre-confirmed block number is 141." }), retrying
+[2026-10-01 05:24:29:866] INFO 📥 Blocks: 140 [0] | Classes: 140 [0] | State: 140 [0]
+[2026-10-01 05:24:29:866] INFO 🔗 Sync is at 140/140 [0.17 blocks/s]
+[2026-10-01 05:24:32:867] INFO 📥 Blocks: 140 [0] | Classes: 140 [0] | State: 140 [0]
+[2026-10-01 05:24:32:867] INFO 🔗 Sync is at 140/140 [0.17 blocks/s]
+[2026-10-01 05:24:35:875] INFO 📥 Blocks: 141 [0] | Classes: 141 [0] | State: 141 [0]
+[2026-10-01 05:24:35:875] INFO 🔗 Sync is at 141/141 [0.17 blocks/s]
+[2026-10-01 05:24:38:867] INFO 📥 Blocks: 141 [0] | Classes: 141 [0] | State: 141 [0]
+[2026-10-01 05:24:38:867] INFO 🔗 Sync is at 141/141 [0.17 blocks/s]
+[2026-10-01 05:24:39:015] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 142 was not found. Current pre-confirmed block number is 143." }), retrying
+[2026-10-01 05:24:39:117] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 142 was not found. Current pre-confirmed block number is 143." }), retrying
+[2026-10-01 05:24:41:872] INFO 📥 Blocks: 142 [0] | Classes: 142 [0] | State: 142 [0]
+[2026-10-01 05:24:41:872] INFO 🔗 Sync is at 142/142 [0.17 blocks/s]
+[2026-10-01 05:24:44:867] INFO 📥 Blocks: 142 [0] | Classes: 142 [0] | State: 142 [0]
+[2026-10-01 05:24:44:867] INFO 🔗 Sync is at 142/142 [0.17 blocks/s]
+[2026-10-01 05:24:47:867] INFO 📥 Blocks: 143 [0] | Classes: 143 [0] | State: 143 [0]
+[2026-10-01 05:24:47:867] INFO 🔗 Sync is at 143/143 [0.17 blocks/s]
+[2026-10-01 05:24:50:870] INFO 📥 Blocks: 143 [0] | Classes: 143 [0] | State: 143 [0]
+[2026-10-01 05:24:50:870] INFO 🔗 Sync is at 143/143 [0.17 blocks/s]
+[2026-10-01 05:24:53:873] INFO 📥 Blocks: 144 [0] | Classes: 144 [0] | State: 144 [0]
+[2026-10-01 05:24:53:873] INFO 🔗 Sync is at 144/144 [0.17 blocks/s]
+[2026-10-01 05:24:56:867] INFO 📥 Blocks: 144 [0] | Classes: 144 [0] | State: 144 [0]
+[2026-10-01 05:24:56:867] INFO 🔗 Sync is at 144/144 [0.17 blocks/s]
+[2026-10-01 05:24:56:973] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 145 was not found. Current pre-confirmed block number is 146." }), retrying
+[2026-10-01 05:24:57:091] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 145 was not found. Current pre-confirmed block number is 146." }), retrying
+[2026-10-01 05:24:57:293] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 145 was not found. Current pre-confirmed block number is 146." }), retrying
+[2026-10-01 05:25:00:372] INFO 📥 Blocks: 145 [0] | Classes: 145 [0] | State: 145 [0]
+[2026-10-01 05:25:00:373] INFO 🔗 Sync is at 145/145 [0.17 blocks/s]
+[2026-10-01 05:25:03:977] INFO 📥 Blocks: 145 [0] | Classes: 145 [0] | State: 145 [0]
+[2026-10-01 05:25:03:977] INFO 🔗 Sync is at 145/145 [0.17 blocks/s]
+[2026-10-01 05:25:06:976] INFO 📥 Blocks: 146 [0] | Classes: 146 [0] | State: 146 [0]
+[2026-10-01 05:25:06:976] INFO 🔗 Sync is at 146/146 [0.17 blocks/s]
+[2026-10-01 05:25:09:976] INFO 📥 Blocks: 146 [0] | Classes: 146 [0] | State: 146 [0]
+[2026-10-01 05:25:09:976] INFO 🔗 Sync is at 146/146 [0.17 blocks/s]
+[2026-10-01 05:25:10:043] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 147 was not found. Current pre-confirmed block number is 148." }), retrying
+[2026-10-01 05:25:10:145] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 147 was not found. Current pre-confirmed block number is 148." }), retrying
+[2026-10-01 05:25:10:347] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 147 was not found. Current pre-confirmed block number is 148." }), retrying
+[2026-10-01 05:25:12:976] INFO 📥 Blocks: 147 [0] | Classes: 147 [0] | State: 147 [0]
+[2026-10-01 05:25:12:976] INFO 🔗 Sync is at 147/147 [0.17 blocks/s]
+[2026-10-01 05:25:15:976] INFO 📥 Blocks: 147 [0] | Classes: 147 [0] | State: 147 [0]
+[2026-10-01 05:25:15:976] INFO 🔗 Sync is at 147/147 [0.17 blocks/s]
+[2026-10-01 05:25:16:049] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 148 was not found. Current pre-confirmed block number is 149." }), retrying
+[2026-10-01 05:25:16:151] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 148 was not found. Current pre-confirmed block number is 149." }), retrying
+[2026-10-01 05:25:16:353] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 148 was not found. Current pre-confirmed block number is 149." }), retrying
+[2026-10-01 05:25:18:977] INFO 📥 Blocks: 148 [0] | Classes: 148 [0] | State: 148 [0]
+[2026-10-01 05:25:18:977] INFO 🔗 Sync is at 148/148 [0.17 blocks/s]
+[2026-10-01 05:25:21:977] INFO 📥 Blocks: 148 [0] | Classes: 148 [0] | State: 148 [0]
+[2026-10-01 05:25:21:977] INFO 🔗 Sync is at 148/148 [0.17 blocks/s]
+[2026-10-01 05:25:22:120] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 149 was not found. Current pre-confirmed block number is 150." }), retrying
+[2026-10-01 05:25:22:230] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 149 was not found. Current pre-confirmed block number is 150." }), retrying
+[2026-10-01 05:25:22:443] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 149 was not found. Current pre-confirmed block number is 150." }), retrying
+[2026-10-01 05:25:24:982] INFO 📥 Blocks: 149 [0] | Classes: 149 [0] | State: 149 [0]
+[2026-10-01 05:25:24:982] INFO 🔗 Sync is at 149/149 [0.17 blocks/s]
+[2026-10-01 05:25:27:976] INFO 📥 Blocks: 149 [0] | Classes: 149 [0] | State: 149 [0]
+[2026-10-01 05:25:27:976] INFO 🔗 Sync is at 149/149 [0.17 blocks/s]
+[2026-10-01 05:25:28:100] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 150 was not found. Current pre-confirmed block number is 151." }), retrying
+[2026-10-01 05:25:28:204] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 150 was not found. Current pre-confirmed block number is 151." }), retrying
+[2026-10-01 05:25:28:408] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 150 was not found. Current pre-confirmed block number is 151." }), retrying
+[2026-10-01 05:25:32:060] INFO 📥 Blocks: 150 [0] | Classes: 150 [0] | State: 150 [0]
+[2026-10-01 05:25:32:061] INFO 🔗 Sync is at 150/150 [0.17 blocks/s]
+[2026-10-01 05:25:35:060] INFO 📥 Blocks: 150 [0] | Classes: 150 [0] | State: 150 [0]
+[2026-10-01 05:25:35:060] INFO 🔗 Sync is at 150/150 [0.16 blocks/s]
+[2026-10-01 05:25:35:212] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 151 was not found. Current pre-confirmed block number is 152." }), retrying
+[2026-10-01 05:25:35:314] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 151 was not found. Current pre-confirmed block number is 152." }), retrying
+[2026-10-01 05:25:35:517] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 151 was not found. Current pre-confirmed block number is 152." }), retrying
+[2026-10-01 05:25:38:071] INFO 📥 Blocks: 151 [0] | Classes: 151 [0] | State: 151 [0]
+[2026-10-01 05:25:38:071] INFO 🔗 Sync is at 151/151 [0.17 blocks/s]
+[2026-10-01 05:25:41:061] INFO 📥 Blocks: 151 [0] | Classes: 151 [0] | State: 151 [0]
+[2026-10-01 05:25:41:061] INFO 🔗 Sync is at 151/151 [0.16 blocks/s]
+[2026-10-01 05:25:41:217] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 152 was not found. Current pre-confirmed block number is 153." }), retrying
+[2026-10-01 05:25:41:319] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 152 was not found. Current pre-confirmed block number is 153." }), retrying
+[2026-10-01 05:25:41:521] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 152 was not found. Current pre-confirmed block number is 153." }), retrying
+[2026-10-01 05:25:44:062] INFO 📥 Blocks: 152 [0] | Classes: 152 [0] | State: 152 [0]
+[2026-10-01 05:25:44:062] INFO 🔗 Sync is at 152/152 [0.17 blocks/s]
+[2026-10-01 05:25:47:061] INFO 📥 Blocks: 152 [0] | Classes: 152 [0] | State: 152 [0]
+[2026-10-01 05:25:47:061] INFO 🔗 Sync is at 152/152 [0.16 blocks/s]
+[2026-10-01 05:25:47:269] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 153 was not found. Current pre-confirmed block number is 154." }), retrying
+[2026-10-01 05:25:47:371] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 153 was not found. Current pre-confirmed block number is 154." }), retrying
+[2026-10-01 05:25:47:575] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 153 was not found. Current pre-confirmed block number is 154." }), retrying
+[2026-10-01 05:25:50:060] INFO 📥 Blocks: 153 [0] | Classes: 153 [0] | State: 153 [0]
+[2026-10-01 05:25:50:060] INFO 🔗 Sync is at 153/153 [0.17 blocks/s]
+[2026-10-01 05:25:53:061] INFO 📥 Blocks: 153 [0] | Classes: 153 [0] | State: 153 [0]
+[2026-10-01 05:25:53:061] INFO 🔗 Sync is at 153/153 [0.16 blocks/s]
+[2026-10-01 05:25:53:282] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 154 was not found. Current pre-confirmed block number is 155." }), retrying
+[2026-10-01 05:25:53:388] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 154 was not found. Current pre-confirmed block number is 155." }), retrying
+[2026-10-01 05:25:53:590] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 154 was not found. Current pre-confirmed block number is 155." }), retrying
+[2026-10-01 05:25:56:060] INFO 📥 Blocks: 154 [0] | Classes: 154 [0] | State: 154 [0]
+[2026-10-01 05:25:56:060] INFO 🔗 Sync is at 154/154 [0.17 blocks/s]
+[2026-10-01 05:25:59:060] INFO 📥 Blocks: 154 [0] | Classes: 154 [0] | State: 154 [0]
+[2026-10-01 05:25:59:060] INFO 🔗 Sync is at 154/154 [0.17 blocks/s]
+[2026-10-01 05:25:59:333] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 155 was not found. Current pre-confirmed block number is 156." }), retrying
+[2026-10-01 05:25:59:439] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 155 was not found. Current pre-confirmed block number is 156." }), retrying
+[2026-10-01 05:25:59:641] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 155 was not found. Current pre-confirmed block number is 156." }), retrying
+[2026-10-01 05:26:03:142] INFO 📥 Blocks: 155 [0] | Classes: 155 [0] | State: 155 [0]
+[2026-10-01 05:26:03:142] INFO 🔗 Sync is at 155/155 [0.17 blocks/s]
+[2026-10-01 05:26:06:142] INFO 📥 Blocks: 155 [0] | Classes: 155 [0] | State: 155 [0]
+[2026-10-01 05:26:06:142] INFO 🔗 Sync is at 155/155 [0.17 blocks/s]
+[2026-10-01 05:26:06:450] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 156 was not found. Current pre-confirmed block number is 157." }), retrying
+[2026-10-01 05:26:06:552] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 156 was not found. Current pre-confirmed block number is 157." }), retrying
+[2026-10-01 05:26:06:754] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 156 was not found. Current pre-confirmed block number is 157." }), retrying
+[2026-10-01 05:26:09:144] INFO 📥 Blocks: 156 [0] | Classes: 156 [0] | State: 156 [0]
+[2026-10-01 05:26:09:144] INFO 🔗 Sync is at 156/156 [0.17 blocks/s]
+[2026-10-01 05:26:12:147] INFO 📥 Blocks: 156 [0] | Classes: 156 [0] | State: 156 [0]
+[2026-10-01 05:26:12:147] INFO 🔗 Sync is at 156/156 [0.17 blocks/s]
+[2026-10-01 05:26:12:451] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 157 was not found. Current pre-confirmed block number is 158." }), retrying
+[2026-10-01 05:26:12:557] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 157 was not found. Current pre-confirmed block number is 158." }), retrying
+[2026-10-01 05:26:12:766] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 157 was not found. Current pre-confirmed block number is 158." }), retrying
+[2026-10-01 05:26:15:142] INFO 📥 Blocks: 157 [0] | Classes: 157 [0] | State: 157 [0]
+[2026-10-01 05:26:15:142] INFO 🔗 Sync is at 157/157 [0.17 blocks/s]
+[2026-10-01 05:26:18:143] INFO 📥 Blocks: 157 [0] | Classes: 157 [0] | State: 157 [0]
+[2026-10-01 05:26:18:143] INFO 🔗 Sync is at 157/157 [0.17 blocks/s]
+[2026-10-01 05:26:18:743] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 158 was not found. Current pre-confirmed block number is 159." }), retrying
+[2026-10-01 05:26:18:851] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 158 was not found. Current pre-confirmed block number is 159." }), retrying
+[2026-10-01 05:26:19:055] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 158 was not found. Current pre-confirmed block number is 159." }), retrying
+[2026-10-01 05:26:21:142] INFO 📥 Blocks: 158 [0] | Classes: 158 [0] | State: 158 [0]
+[2026-10-01 05:26:21:142] INFO 🔗 Sync is at 158/158 [0.17 blocks/s]
+[2026-10-01 05:26:24:142] INFO 📥 Blocks: 158 [0] | Classes: 158 [0] | State: 158 [0]
+[2026-10-01 05:26:24:142] INFO 🔗 Sync is at 158/158 [0.17 blocks/s]
+[2026-10-01 05:26:24:713] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 159 was not found. Current pre-confirmed block number is 160." }), retrying
+[2026-10-01 05:26:24:815] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 159 was not found. Current pre-confirmed block number is 160." }), retrying
+[2026-10-01 05:26:25:034] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 159 was not found. Current pre-confirmed block number is 160." }), retrying
+[2026-10-01 05:26:27:142] INFO 📥 Blocks: 159 [0] | Classes: 159 [0] | State: 159 [0]
+[2026-10-01 05:26:27:142] INFO 🔗 Sync is at 159/159 [0.17 blocks/s]
+[2026-10-01 05:26:30:142] INFO 📥 Blocks: 159 [0] | Classes: 159 [0] | State: 159 [0]
+[2026-10-01 05:26:30:142] INFO 🔗 Sync is at 159/159 [0.17 blocks/s]
+[2026-10-01 05:26:30:231] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 160 was not found. Current pre-confirmed block number is 161." }), retrying
+[2026-10-01 05:26:30:338] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 160 was not found. Current pre-confirmed block number is 161." }), retrying
+[2026-10-01 05:26:30:549] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 160 was not found. Current pre-confirmed block number is 161." }), retrying
+[2026-10-01 05:26:30:952] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 160 was not found. Current pre-confirmed block number is 161." }), retrying
+[2026-10-01 05:26:33:621] INFO 📥 Blocks: 160 [0] | Classes: 160 [0] | State: 160 [0]
+[2026-10-01 05:26:33:621] INFO 🔗 Sync is at 160/160 [0.17 blocks/s]
+[2026-10-01 05:26:37:231] INFO 📥 Blocks: 160 [0] | Classes: 160 [0] | State: 160 [0]
+[2026-10-01 05:26:37:231] INFO 🔗 Sync is at 160/160 [0.17 blocks/s]
+[2026-10-01 05:26:40:234] INFO 📥 Blocks: 161 [0] | Classes: 161 [0] | State: 161 [0]
+[2026-10-01 05:26:40:235] INFO 🔗 Sync is at 161/161 [0.17 blocks/s]
+[2026-10-01 05:26:43:234] INFO 📥 Blocks: 161 [0] | Classes: 161 [0] | State: 161 [0]
+[2026-10-01 05:26:43:234] INFO 🔗 Sync is at 161/161 [0.17 blocks/s]
+[2026-10-01 05:26:46:230] INFO 📥 Blocks: 162 [0] | Classes: 162 [0] | State: 162 [0]
+[2026-10-01 05:26:46:230] INFO 🔗 Sync is at 162/162 [0.17 blocks/s]
+[2026-10-01 05:26:49:231] INFO 📥 Blocks: 162 [0] | Classes: 162 [0] | State: 162 [0]
+[2026-10-01 05:26:49:231] INFO 🔗 Sync is at 162/162 [0.17 blocks/s]
+[2026-10-01 05:26:52:231] INFO 📥 Blocks: 163 [0] | Classes: 163 [0] | State: 163 [0]
+[2026-10-01 05:26:52:231] INFO 🔗 Sync is at 163/163 [0.17 blocks/s]
+[2026-10-01 05:26:55:231] INFO 📥 Blocks: 163 [0] | Classes: 163 [0] | State: 163 [0]
+[2026-10-01 05:26:55:231] INFO 🔗 Sync is at 163/163 [0.17 blocks/s]
+[2026-10-01 05:26:58:233] INFO 📥 Blocks: 164 [0] | Classes: 164 [0] | State: 164 [0]
+[2026-10-01 05:26:58:233] INFO 🔗 Sync is at 164/164 [0.17 blocks/s]
+[2026-10-01 05:27:01:231] INFO 📥 Blocks: 164 [0] | Classes: 164 [0] | State: 164 [0]
+[2026-10-01 05:27:01:231] INFO 🔗 Sync is at 164/164 [0.17 blocks/s]
+[2026-10-01 05:27:05:323] INFO 📥 Blocks: 165 [0] | Classes: 165 [0] | State: 165 [0]
+[2026-10-01 05:27:05:323] INFO 🔗 Sync is at 165/165 [0.17 blocks/s]
+[2026-10-01 05:27:08:322] INFO 📥 Blocks: 165 [0] | Classes: 165 [0] | State: 165 [0]
+[2026-10-01 05:27:08:322] INFO 🔗 Sync is at 165/165 [0.17 blocks/s]
+[2026-10-01 05:27:11:322] INFO 📥 Blocks: 166 [0] | Classes: 166 [0] | State: 166 [0]
+[2026-10-01 05:27:11:322] INFO 🔗 Sync is at 166/166 [0.17 blocks/s]
+[2026-10-01 05:27:14:322] INFO 📥 Blocks: 166 [0] | Classes: 166 [0] | State: 166 [0]
+[2026-10-01 05:27:14:322] INFO 🔗 Sync is at 166/166 [0.17 blocks/s]
+[2026-10-01 05:27:17:322] INFO 📥 Blocks: 167 [0] | Classes: 167 [0] | State: 167 [0]
+[2026-10-01 05:27:17:323] INFO 🔗 Sync is at 167/167 [0.17 blocks/s]
+[2026-10-01 05:27:20:322] INFO 📥 Blocks: 167 [0] | Classes: 167 [0] | State: 167 [0]
+[2026-10-01 05:27:20:322] INFO 🔗 Sync is at 167/167 [0.17 blocks/s]
+[2026-10-01 05:27:23:323] INFO 📥 Blocks: 168 [0] | Classes: 168 [0] | State: 168 [0]
+[2026-10-01 05:27:23:323] INFO 🔗 Sync is at 168/168 [0.17 blocks/s]
+[2026-10-01 05:27:26:323] INFO 📥 Blocks: 168 [0] | Classes: 168 [0] | State: 168 [0]
+[2026-10-01 05:27:26:323] INFO 🔗 Sync is at 168/168 [0.17 blocks/s]
+[2026-10-01 05:27:29:322] INFO 📥 Blocks: 169 [0] | Classes: 169 [0] | State: 169 [0]
+[2026-10-01 05:27:29:322] INFO 🔗 Sync is at 169/169 [0.17 blocks/s]
+[2026-10-01 05:27:32:323] INFO 📥 Blocks: 169 [0] | Classes: 169 [0] | State: 169 [0]
+[2026-10-01 05:27:32:323] INFO 🔗 Sync is at 169/169 [0.17 blocks/s]
+[2026-10-01 05:27:36:433] INFO 📥 Blocks: 170 [0] | Classes: 170 [0] | State: 170 [0]
+[2026-10-01 05:27:36:433] INFO 🔗 Sync is at 170/170 [0.17 blocks/s]
+[2026-10-01 05:27:39:433] INFO 📥 Blocks: 170 [0] | Classes: 170 [0] | State: 170 [0]
+[2026-10-01 05:27:39:433] INFO 🔗 Sync is at 170/170 [0.17 blocks/s]
+[2026-10-01 05:27:42:432] INFO 📥 Blocks: 171 [0] | Classes: 171 [0] | State: 171 [0]
+[2026-10-01 05:27:42:432] INFO 🔗 Sync is at 171/171 [0.17 blocks/s]
+[2026-10-01 05:27:45:432] INFO 📥 Blocks: 171 [0] | Classes: 171 [0] | State: 171 [0]
+[2026-10-01 05:27:45:432] INFO 🔗 Sync is at 171/171 [0.17 blocks/s]
+[2026-10-01 05:27:48:432] INFO 📥 Blocks: 172 [0] | Classes: 172 [0] | State: 172 [0]
+[2026-10-01 05:27:48:432] INFO 🔗 Sync is at 172/172 [0.17 blocks/s]
+[2026-10-01 05:27:51:432] INFO 📥 Blocks: 172 [0] | Classes: 172 [0] | State: 172 [0]
+[2026-10-01 05:27:51:432] INFO 🔗 Sync is at 172/172 [0.17 blocks/s]
+[2026-10-01 05:27:54:432] INFO 📥 Blocks: 173 [0] | Classes: 173 [0] | State: 173 [0]
+[2026-10-01 05:27:54:432] INFO 🔗 Sync is at 173/173 [0.17 blocks/s]
+[2026-10-01 05:27:57:432] INFO 📥 Blocks: 173 [0] | Classes: 173 [0] | State: 173 [0]
+[2026-10-01 05:27:57:432] INFO 🔗 Sync is at 173/173 [0.17 blocks/s]
+[2026-10-01 05:28:00:432] INFO 📥 Blocks: 174 [0] | Classes: 174 [0] | State: 174 [0]
+[2026-10-01 05:28:00:432] INFO 🔗 Sync is at 174/174 [0.17 blocks/s]
+[2026-10-01 05:28:03:432] INFO 📥 Blocks: 174 [0] | Classes: 174 [0] | State: 174 [0]
+[2026-10-01 05:28:03:432] INFO 🔗 Sync is at 174/174 [0.17 blocks/s]
+[2026-10-01 05:28:07:515] INFO 📥 Blocks: 175 [0] | Classes: 175 [0] | State: 175 [0]
+[2026-10-01 05:28:07:515] INFO 🔗 Sync is at 175/175 [0.17 blocks/s]
+[2026-10-01 05:28:10:515] INFO 📥 Blocks: 175 [0] | Classes: 175 [0] | State: 175 [0]
+[2026-10-01 05:28:10:515] INFO 🔗 Sync is at 175/175 [0.17 blocks/s]
+[2026-10-01 05:28:13:515] INFO 📥 Blocks: 176 [0] | Classes: 176 [0] | State: 176 [0]
+[2026-10-01 05:28:13:515] INFO 🔗 Sync is at 176/176 [0.17 blocks/s]
+[2026-10-01 05:28:16:515] INFO 📥 Blocks: 176 [0] | Classes: 176 [0] | State: 176 [0]
+[2026-10-01 05:28:16:515] INFO 🔗 Sync is at 176/176 [0.17 blocks/s]
+[2026-10-01 05:28:19:515] INFO 📥 Blocks: 177 [0] | Classes: 177 [0] | State: 177 [0]
+[2026-10-01 05:28:19:515] INFO 🔗 Sync is at 177/177 [0.17 blocks/s]
+[2026-10-01 05:28:22:515] INFO 📥 Blocks: 177 [0] | Classes: 177 [0] | State: 177 [0]
+[2026-10-01 05:28:22:515] INFO 🔗 Sync is at 177/177 [0.17 blocks/s]
+[2026-10-01 05:28:22:629] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 178 was not found. Current pre-confirmed block number is 179." }), retrying
+[2026-10-01 05:28:22:731] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 178 was not found. Current pre-confirmed block number is 179." }), retrying
+[2026-10-01 05:28:25:515] INFO 📥 Blocks: 178 [0] | Classes: 178 [0] | State: 178 [0]
+[2026-10-01 05:28:25:515] INFO 🔗 Sync is at 178/178 [0.17 blocks/s]
+[2026-10-01 05:28:28:515] INFO 📥 Blocks: 178 [0] | Classes: 178 [0] | State: 178 [0]
+[2026-10-01 05:28:28:515] INFO 🔗 Sync is at 178/178 [0.17 blocks/s]
+[2026-10-01 05:28:31:515] INFO 📥 Blocks: 179 [0] | Classes: 179 [0] | State: 179 [0]
+[2026-10-01 05:28:31:515] INFO 🔗 Sync is at 179/179 [0.17 blocks/s]
+[2026-10-01 05:28:34:515] INFO 📥 Blocks: 179 [0] | Classes: 179 [0] | State: 179 [0]
+[2026-10-01 05:28:34:515] INFO 🔗 Sync is at 179/179 [0.17 blocks/s]
+[2026-10-01 05:28:38:608] INFO 📥 Blocks: 180 [0] | Classes: 180 [0] | State: 180 [0]
+[2026-10-01 05:28:38:608] INFO 🔗 Sync is at 180/180 [0.17 blocks/s]
+[2026-10-01 05:28:41:608] INFO 📥 Blocks: 180 [0] | Classes: 180 [0] | State: 180 [0]
+[2026-10-01 05:28:41:608] INFO 🔗 Sync is at 180/180 [0.17 blocks/s]
+[2026-10-01 05:28:44:608] INFO 📥 Blocks: 181 [0] | Classes: 181 [0] | State: 181 [0]
+[2026-10-01 05:28:44:608] INFO 🔗 Sync is at 181/181 [0.17 blocks/s]
+[2026-10-01 05:28:47:608] INFO 📥 Blocks: 181 [0] | Classes: 181 [0] | State: 181 [0]
+[2026-10-01 05:28:47:608] INFO 🔗 Sync is at 181/181 [0.17 blocks/s]
+[2026-10-01 05:28:50:608] INFO 📥 Blocks: 182 [0] | Classes: 182 [0] | State: 182 [0]
+[2026-10-01 05:28:50:608] INFO 🔗 Sync is at 182/182 [0.17 blocks/s]
+[2026-10-01 05:28:53:607] INFO 📥 Blocks: 182 [0] | Classes: 182 [0] | State: 182 [0]
+[2026-10-01 05:28:53:607] INFO 🔗 Sync is at 182/182 [0.17 blocks/s]
+[2026-10-01 05:28:56:608] INFO 📥 Blocks: 183 [0] | Classes: 183 [0] | State: 183 [0]
+[2026-10-01 05:28:56:608] INFO 🔗 Sync is at 183/183 [0.17 blocks/s]
+[2026-10-01 05:28:59:608] INFO 📥 Blocks: 183 [0] | Classes: 183 [0] | State: 183 [0]
+[2026-10-01 05:28:59:608] INFO 🔗 Sync is at 183/183 [0.17 blocks/s]
+[2026-10-01 05:29:02:608] INFO 📥 Blocks: 184 [0] | Classes: 184 [0] | State: 184 [0]
+[2026-10-01 05:29:02:608] INFO 🔗 Sync is at 184/184 [0.17 blocks/s]
+[2026-10-01 05:29:05:608] INFO 📥 Blocks: 184 [0] | Classes: 184 [0] | State: 184 [0]
+[2026-10-01 05:29:05:608] INFO 🔗 Sync is at 184/184 [0.17 blocks/s]
+[2026-10-01 05:29:09:095] INFO 📥 Blocks: 185 [0] | Classes: 185 [0] | State: 185 [0]
+[2026-10-01 05:29:09:095] INFO 🔗 Sync is at 185/185 [0.17 blocks/s]
+[2026-10-01 05:29:12:705] INFO 📥 Blocks: 185 [0] | Classes: 185 [0] | State: 185 [0]
+[2026-10-01 05:29:12:705] INFO 🔗 Sync is at 185/185 [0.17 blocks/s]
+[2026-10-01 05:29:15:705] INFO 📥 Blocks: 186 [0] | Classes: 186 [0] | State: 186 [0]
+[2026-10-01 05:29:15:705] INFO 🔗 Sync is at 186/186 [0.17 blocks/s]
+[2026-10-01 05:29:18:705] INFO 📥 Blocks: 186 [0] | Classes: 186 [0] | State: 186 [0]
+[2026-10-01 05:29:18:705] INFO 🔗 Sync is at 186/186 [0.17 blocks/s]
+[2026-10-01 05:29:21:705] INFO 📥 Blocks: 187 [0] | Classes: 187 [0] | State: 187 [0]
+[2026-10-01 05:29:21:705] INFO 🔗 Sync is at 187/187 [0.17 blocks/s]
+[2026-10-01 05:29:24:705] INFO 📥 Blocks: 187 [0] | Classes: 187 [0] | State: 187 [0]
+[2026-10-01 05:29:24:705] INFO 🔗 Sync is at 187/187 [0.17 blocks/s]
+[2026-10-01 05:29:27:704] INFO 📥 Blocks: 188 [0] | Classes: 188 [0] | State: 188 [0]
+[2026-10-01 05:29:27:704] INFO 🔗 Sync is at 188/188 [0.17 blocks/s]
+[2026-10-01 05:29:30:705] INFO 📥 Blocks: 188 [0] | Classes: 188 [0] | State: 188 [0]
+[2026-10-01 05:29:30:705] INFO 🔗 Sync is at 188/188 [0.17 blocks/s]
+[2026-10-01 05:29:33:705] INFO 📥 Blocks: 189 [0] | Classes: 189 [0] | State: 189 [0]
+[2026-10-01 05:29:33:705] INFO 🔗 Sync is at 189/189 [0.17 blocks/s]
+[2026-10-01 05:29:36:705] INFO 📥 Blocks: 189 [0] | Classes: 189 [0] | State: 189 [0]
+[2026-10-01 05:29:36:705] INFO 🔗 Sync is at 189/189 [0.17 blocks/s]
+[2026-10-01 05:29:40:216] INFO 📥 Blocks: 190 [0] | Classes: 190 [0] | State: 190 [0]
+[2026-10-01 05:29:40:216] INFO 🔗 Sync is at 190/190 [0.17 blocks/s]
+[2026-10-01 05:29:43:826] INFO 📥 Blocks: 190 [0] | Classes: 190 [0] | State: 190 [0]
+[2026-10-01 05:29:43:826] INFO 🔗 Sync is at 190/190 [0.17 blocks/s]
+[2026-10-01 05:29:46:826] INFO 📥 Blocks: 191 [0] | Classes: 191 [0] | State: 191 [0]
+[2026-10-01 05:29:46:826] INFO 🔗 Sync is at 191/191 [0.17 blocks/s]
+[2026-10-01 05:29:49:825] INFO 📥 Blocks: 191 [0] | Classes: 191 [0] | State: 191 [0]
+[2026-10-01 05:29:49:825] INFO 🔗 Sync is at 191/191 [0.17 blocks/s]
+[2026-10-01 05:29:52:826] INFO 📥 Blocks: 192 [0] | Classes: 192 [0] | State: 192 [0]
+[2026-10-01 05:29:52:826] INFO 🔗 Sync is at 192/192 [0.17 blocks/s]
+[2026-10-01 05:29:55:826] INFO 📥 Blocks: 192 [0] | Classes: 192 [0] | State: 192 [0]
+[2026-10-01 05:29:55:826] INFO 🔗 Sync is at 192/192 [0.17 blocks/s]
+[2026-10-01 05:29:55:961] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 193 was not found. Current pre-confirmed block number is 194." }), retrying
+[2026-10-01 05:29:56:063] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 193 was not found. Current pre-confirmed block number is 194." }), retrying
+[2026-10-01 05:29:56:265] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 193 was not found. Current pre-confirmed block number is 194." }), retrying
+[2026-10-01 05:29:58:826] INFO 📥 Blocks: 193 [0] | Classes: 193 [0] | State: 193 [0]
+[2026-10-01 05:29:58:826] INFO 🔗 Sync is at 193/193 [0.17 blocks/s]
+[2026-10-01 05:30:01:827] INFO 📥 Blocks: 193 [0] | Classes: 193 [0] | State: 193 [0]
+[2026-10-01 05:30:01:827] INFO 🔗 Sync is at 193/193 [0.17 blocks/s]
+[2026-10-01 05:30:04:826] INFO 📥 Blocks: 194 [0] | Classes: 194 [0] | State: 194 [0]
+[2026-10-01 05:30:04:826] INFO 🔗 Sync is at 194/194 [0.17 blocks/s]
+[2026-10-01 05:30:07:826] INFO 📥 Blocks: 194 [0] | Classes: 194 [0] | State: 194 [0]
+[2026-10-01 05:30:07:826] INFO 🔗 Sync is at 194/194 [0.17 blocks/s]
+[2026-10-01 05:30:11:295] INFO 📥 Blocks: 195 [0] | Classes: 195 [0] | State: 195 [0]
+[2026-10-01 05:30:11:295] INFO 🔗 Sync is at 195/195 [0.17 blocks/s]
+[2026-10-01 05:30:14:908] INFO 📥 Blocks: 195 [0] | Classes: 195 [0] | State: 195 [0]
+[2026-10-01 05:30:14:908] INFO 🔗 Sync is at 195/195 [0.17 blocks/s]
+[2026-10-01 05:30:17:908] INFO 📥 Blocks: 196 [0] | Classes: 196 [0] | State: 196 [0]
+[2026-10-01 05:30:17:908] INFO 🔗 Sync is at 196/196 [0.17 blocks/s]
+[2026-10-01 05:30:20:907] INFO 📥 Blocks: 196 [0] | Classes: 196 [0] | State: 196 [0]
+[2026-10-01 05:30:20:907] INFO 🔗 Sync is at 196/196 [0.17 blocks/s]
+[2026-10-01 05:30:23:907] INFO 📥 Blocks: 197 [0] | Classes: 197 [0] | State: 197 [0]
+[2026-10-01 05:30:23:907] INFO 🔗 Sync is at 197/197 [0.17 blocks/s]
+[2026-10-01 05:30:26:907] INFO 📥 Blocks: 197 [0] | Classes: 197 [0] | State: 197 [0]
+[2026-10-01 05:30:26:907] INFO 🔗 Sync is at 197/197 [0.17 blocks/s]
+[2026-10-01 05:30:29:907] INFO 📥 Blocks: 198 [0] | Classes: 198 [0] | State: 198 [0]
+[2026-10-01 05:30:29:907] INFO 🔗 Sync is at 198/198 [0.17 blocks/s]
+[2026-10-01 05:30:32:908] INFO 📥 Blocks: 198 [0] | Classes: 198 [0] | State: 198 [0]
+[2026-10-01 05:30:32:908] INFO 🔗 Sync is at 198/198 [0.17 blocks/s]
+[2026-10-01 05:30:35:907] INFO 📥 Blocks: 199 [0] | Classes: 199 [0] | State: 199 [0]
+[2026-10-01 05:30:35:908] INFO 🔗 Sync is at 199/199 [0.17 blocks/s]
+[2026-10-01 05:30:38:908] INFO 📥 Blocks: 199 [0] | Classes: 199 [0] | State: 199 [0]
+[2026-10-01 05:30:38:908] INFO 🔗 Sync is at 199/199 [0.17 blocks/s]
+[2026-10-01 05:30:42:389] INFO 📥 Blocks: 200 [0] | Classes: 200 [0] | State: 200 [0]
+[2026-10-01 05:30:42:389] INFO 🔗 Sync is at 200/200 [0.17 blocks/s]
+[2026-10-01 05:30:46:002] INFO 📥 Blocks: 200 [0] | Classes: 200 [0] | State: 200 [0]
+[2026-10-01 05:30:46:002] INFO 🔗 Sync is at 200/200 [0.17 blocks/s]
+[2026-10-01 05:30:46:141] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 201 was not found. Current pre-confirmed block number is 202." }), retrying
+[2026-10-01 05:30:46:241] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 201 was not found. Current pre-confirmed block number is 202." }), retrying
+[2026-10-01 05:30:46:443] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 201 was not found. Current pre-confirmed block number is 202." }), retrying
+[2026-10-01 05:30:49:002] INFO 📥 Blocks: 201 [0] | Classes: 201 [0] | State: 201 [0]
+[2026-10-01 05:30:49:002] INFO 🔗 Sync is at 201/201 [0.17 blocks/s]
+[2026-10-01 05:30:52:002] INFO 📥 Blocks: 201 [0] | Classes: 201 [0] | State: 201 [0]
+[2026-10-01 05:30:52:002] INFO 🔗 Sync is at 201/201 [0.17 blocks/s]
+[2026-10-01 05:30:55:003] INFO 📥 Blocks: 202 [0] | Classes: 202 [0] | State: 202 [0]
+[2026-10-01 05:30:55:003] INFO 🔗 Sync is at 202/202 [0.17 blocks/s]
+[2026-10-01 05:30:58:003] INFO 📥 Blocks: 202 [0] | Classes: 202 [0] | State: 202 [0]
+[2026-10-01 05:30:58:003] INFO 🔗 Sync is at 202/202 [0.17 blocks/s]
+[2026-10-01 05:31:01:003] INFO 📥 Blocks: 203 [0] | Classes: 203 [0] | State: 203 [0]
+[2026-10-01 05:31:01:003] INFO 🔗 Sync is at 203/203 [0.17 blocks/s]
+[2026-10-01 05:31:04:002] INFO 📥 Blocks: 203 [0] | Classes: 203 [0] | State: 203 [0]
+[2026-10-01 05:31:04:002] INFO 🔗 Sync is at 203/203 [0.17 blocks/s]
+[2026-10-01 05:31:07:002] INFO 📥 Blocks: 204 [0] | Classes: 204 [0] | State: 204 [0]
+[2026-10-01 05:31:07:002] INFO 🔗 Sync is at 204/204 [0.17 blocks/s]
+[2026-10-01 05:31:10:002] INFO 📥 Blocks: 204 [0] | Classes: 204 [0] | State: 204 [0]
+[2026-10-01 05:31:10:002] INFO 🔗 Sync is at 204/204 [0.17 blocks/s]
+[2026-10-01 05:31:13:494] INFO 📥 Blocks: 205 [0] | Classes: 205 [0] | State: 205 [0]
+[2026-10-01 05:31:13:494] INFO 🔗 Sync is at 205/205 [0.17 blocks/s]
+[2026-10-01 05:31:17:110] INFO 📥 Blocks: 205 [0] | Classes: 205 [0] | State: 205 [0]
+[2026-10-01 05:31:17:110] INFO 🔗 Sync is at 205/205 [0.17 blocks/s]
+[2026-10-01 05:31:17:257] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 206 was not found. Current pre-confirmed block number is 207." }), retrying
+[2026-10-01 05:31:17:359] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 206 was not found. Current pre-confirmed block number is 207." }), retrying
+[2026-10-01 05:31:17:561] WARN mc_gateway_client::methods Failed to get with StarknetError(StarknetError { code: BlockNotFound, message: "Pre-confirmed block with number 206 was not found. Current pre-confirmed block number is 207." }), retrying

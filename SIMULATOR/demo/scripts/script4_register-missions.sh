@@ -73,10 +73,6 @@ fi
 # (which sends the same spec to L2) — if they drift, good sweeps fail the
 # predicates or L1 and L2 disagree on the mission.
 
-# Operational-area identifier (ASCII "areareare…a1" packed into a felt).
-# Placeholder in dev; in prod this would commit to the real zone definition.
-AREA_HASH="0x6172656172656172656172656172656172656172656172656172656172656131"
-
 declare -A SPEC_ZONE_X=( [alpha]=150000000 [bravo]=130000000 )   # E7 |lon|·1e7: 15°W / 13°W
 declare -A SPEC_ZONE_W=( [alpha]=10000000 [bravo]=20000000 )     # E7 width: 1° / 2°
 declare -A SPEC_STRIP_WIDTH=( [alpha]=2000000 [bravo]=4000000 )  # E7 = zone_w / 5
@@ -176,6 +172,23 @@ register_swarm() {
     local strip_width="${SPEC_STRIP_WIDTH[$swarm]}"
     local zone_x="${SPEC_ZONE_X[$swarm]}"
 
+    # ── Compute the expected SWARM AREA hash = Pedersen chain of the 5 drone
+    #    areas (A_d = Pedersen(x_start,y_start,width,height,cover_map)). This IS
+    #    spec.areaHash — the value Verifier.registerSwarmProof checks the proof's
+    #    swarm_hash against. Run in the prover image (has cairo-lang's pedersen);
+    #    MUST match safe_area_verify_${swarm}.cairo's fold.
+    local area_hash
+    area_hash=$(MSYS_NO_PATHCONV=1 docker run --rm --entrypoint python3 \
+        convoy-prover-api:latest /app/compute_area_hash.py \
+            --swarm       "${swarm}" \
+            --zone-x      "${zone_x}" \
+            --zone-y      "${SHARED_ZONE_Y}" \
+            --strip-width "${strip_width}" \
+            --zone-h      "${SHARED_ZONE_H}" \
+            --n-drones    "${SHARED_N_DRONES}")
+    [ -z "${area_hash}" ] && { echo "[register/${swarm}] failed to compute area hash"; return 1; }
+    echo "[register/${swarm}]   area hash: ${area_hash}"
+
     echo
     echo "[register/${swarm}] mission ${mid} on Registry ${REGISTRY_ADDR}"
     echo "[register/${swarm}]   convoy_protocol L2 addr: ${conv_addr}"
@@ -210,7 +223,7 @@ register_swarm() {
     # Mixes per-swarm values (zone_w, strip_width) with the SHARED_* constants.
     # The parens + commas are why CAST() uses --entrypoint cast (no shell to
     # mangle them).
-    local spec="(${AREA_HASH},${zone_x},${SHARED_ZONE_Y},${zone_w},${SHARED_ZONE_H},${SHARED_N_DRONES},${strip_width},${SHARED_COVERAGE_MIN},${SHARED_P_MIN},${SHARED_TIME_WINDOW})"
+    local spec="(${area_hash},${zone_x},${SHARED_ZONE_Y},${zone_w},${SHARED_ZONE_H},${SHARED_N_DRONES},${strip_width},${SHARED_COVERAGE_MIN},${SHARED_P_MIN},${SHARED_TIME_WINDOW})"
 
     # ── Build the uint256[5] drone-addresses literal ───────────────────────
     # The 5 drone addresses as a fixed-size Solidity array: [0x…, 0x…, …].
@@ -246,6 +259,20 @@ register_swarm() {
         --rpc-url "${L1_RPC}" \
         --legacy \
         2>&1 | tail -3
+
+    # ── Step 2b: read back the 5 registered per-drone areas (verification log) ──
+    # Pulls each drone's on-chain area record and prints it, so every run shows the
+    # rectangles the Verifier will check the proof against. Read-only → CAST (no key).
+    echo "[register/${swarm}] step 2b: registered per-drone areas (droneAreas):"
+    for did in 1 2 3 4 5; do
+        local idx=$((did - 1))
+        local rec
+        rec=$(CAST call "${REGISTRY_ADDR}" \
+            "droneAreas(uint256,uint256)(uint32,uint32,uint32,uint32,uint256)" \
+            "${mid}" "${idx}" \
+            --rpc-url "${L1_RPC}" 2>&1 | tr '\n' ' ')
+        echo "[register/${swarm}]   drone ${did}: [xStart yStart width height coverTarget] = ${rec}"
+    done
 
     # ── Step 3: register each drone's STARK-curve pubkey on the convoy Verifier
     #    so registerSafeProof binds the proof's drone_pubkey (9th output) to an

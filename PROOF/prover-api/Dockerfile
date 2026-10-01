@@ -111,6 +111,7 @@ COPY --from=convoy-submitter-builder /usr/local/bin/convoy-submitter /usr/local/
 WORKDIR /app
 COPY PROOF/prover-api/safe_area_verify_alpha.cairo /app/safe_area_verify_alpha.cairo
 COPY PROOF/prover-api/safe_area_verify_bravo.cairo /app/safe_area_verify_bravo.cairo
+COPY PROOF/prover-api/compute_area_hash.py   /app/compute_area_hash.py
 COPY PROOF/prover-api/fetch_l2_swarm.py      /app/fetch_l2_swarm.py
 COPY PROOF/prover-api/entrypoint.sh          /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

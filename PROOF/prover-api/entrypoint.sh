@@ -93,6 +93,7 @@ prove_one() {
         --print_output \
         --cairo_pie_output="${OUTPUT_DIR}/safe_area_verify.pie"
 
+
     # 2b. stone-cli prove-bootloader — zksecurity's canonical user-facing CLI.
     #     Internally wraps the PIE in the canonical simple bootloader (no
     #     custom hash to track — stone-cli ships with the bootloader whose

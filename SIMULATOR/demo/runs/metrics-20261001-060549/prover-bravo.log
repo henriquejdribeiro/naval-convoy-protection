@@ -1,0 +1,104 @@
+============================================
+  naval-convoy Phase 3 Stone prover
+  cairo-compile + cairo-run + stone-cli prove-bootloader
+  + stone-cli serialize-proof + convoy-submitter L1 submission
+============================================
+[*] Checking tools...
+    stone-cli         : OK
+    cast              : OK
+    cairo-lang        : 0.14.0.1
+
+[*] Step 1/6: compile safe_area_verify_bravo.cairo (proof mode)
+    builtins: ['output', 'pedersen', 'range_check', 'ecdsa', 'bitwise']
+    code size: 607 felts
+
+
+[*] Container alive. Re-prove with:
+      docker exec convoy-prover-api sh -c 'echo TAG > /proofs/prove_trigger'
+
+
+============================================
+  Proving — tag=bravo
+  input: /proofs/program_input.json
+============================================
+[*] Step 2a/6: cairo-run --cairo_pie_output (input baked in)
+Program output:
+  2
+  2
+  130000000
+  370000000
+  20000000
+  10000000
+  1
+  546822031954829256043946354505214508513403339579901340024023413350910944669
+  533484555239906689128551713945263883493955327495272944900092366667836263677
+  1666641110186227485219673132505054036037249575134225038652472381022491984139
+  900431471014503875992024231193050233564677819223589530171231730496188896361
+  -1087411689697093074619053349037591496826489807538316605422222588797998195834
+  -1251019914285594347286589414934277978070984461605510073114838295468313062622
+
+[*] Step 2b/6: stone-cli prove-bootloader
+Bootloader program output:
+382450030162484995497251732956824096484321811411123989415157331925872358847
+-1105634678291810840495795743566225907562315655840952488182375710141777272881
+1
+15
+1037593063440947415102958058446175244669068804162634389832028327018285608920
+2
+2
+130000000
+370000000
+20000000
+10000000
+1
+546822031954829256043946354505214508513403339579901340024023413350910944669
+533484555239906689128551713945263883493955327495272944900092366667836263677
+1666641110186227485219673132505054036037249575134225038652472381022491984139
+900431471014503875992024231193050233564677819223589530171231730496188896361
+-1087411689697093074619053349037591496826489807538316605422222588797998195834
+-1251019914285594347286589414934277978070984461605510073114838295468313062622
+Created proof at "proof.json"
+    proof bytes: 1066967
+[*] Step 4/6: stone-cli verify (off-chain gate + annotation extraction)
+Running stone verifier...
+Verification successful!
+    verification: PASSED
+[*] Step 5/7: stone-cli serialize-proof --network ethereum
+    Ethereum-serialized proof written: evm_proof.json
+[*] Step 5b/6: convoy-submitter — phases 1-4b (GPS verify + registerSafeProof)
+[submitter] relay wallet: 0x70997970c51812dc3a010c7d01b50e0d17dc79c8
+[submitter] Phase 1: trace Merkle commits → 0xdc64a140aa3e981100a9beca4e685f962f0cf6c9
+[submitter]   ✓ Trace 0: tx 0xc5e583e71480bab1bf9d2de6e57ded7dac579ffca2984f6f3973827160651a02
+[submitter]   ✓ Trace 1: tx 0xed66a08a6b7b2bce1dafa7093fc42eb6f1ffeb45efe3e8454b80337aced868e7
+[submitter]   ✓ Trace 2: tx 0x99b5e9db96f944822bc588fdc650c8b2de1b827360459a14043068c8e600b0e5
+[submitter] Phase 2: FRI commits → 0x5fc8d32690cc91d4c39d9d3abcbd16989f875707
+[submitter]   ✓ FRI 0: tx 0xdc0961ac59c160c53511be413f4d50b2aaeff317bd1efb0556b7ea092342be1c
+[submitter]   ✓ FRI 1: tx 0x2a1780cdc7970e3920eccf058571f2e8766082a2f5756dc560282d73bde89db5
+[submitter]   ✓ FRI 2: tx 0x5034279f340958dcbefcd6291bfe08601142724dabd0c65848255690cd00e799
+[submitter]   ✓ FRI 3: tx 0xcb288de21cf775dcbae2bb7e22ada6f99fb2a888183bf33da24000b9dc5b536f
+[submitter]   ✓ FRI 4: tx 0xf13ddc7528a8f48933c7dd2750fccc8df99c1258524de25efea5f055b8b598ee
+[submitter]   ✓ FRI 5: tx 0xfdcb6941b1a25c6a17b692bdaeb669ee3b8639c53e38346bb1df4049bf4a7e86
+[submitter]   ✓ FRI 6: tx 0x57364e8f382c6bd093b299fefe24ada27dc8872199d62978031408ea4529b6c9
+[submitter]   ✓ FRI 7: tx 0x83de60c5c570e5f35c2ddd0fce99223848582c07a4f93e82898a598c0c3aa8db
+[submitter] Phase 3: memory page registrations → 0x0165878a594ca255338adfa4d48449f69242eb8f
+[submitter]   ✓ memory page 0: tx 0xb856ac15d2aebffd73a7be7a828c6d81310e6a2f367009b42121d6533273df9d
+[submitter] Phase 4a: GpsStatementVerifier.verifyProofAndRegister → 0xc6e7df5e7b4f2a278906862b61205850344d4e7d
+[submitter]   ✓ verifyProofAndRegister: tx 0x8a82fd7861852fcb98e367f0527243df7d535000d8b9eb4da35b5944bd80f835
+[submitter] Phase 4b: Verifier.registerSwarmProof → 0xe7f1725e7734ce288f8367e1bb143e90bb3f0512
+[submitter]   programHash: 0x024b41c1ba6f180fb4b5e81bc5f5b29508ec8ec39deb76014cc04105be95afd8
+[submitter]   outputHash:  0xe2749e89fffa71359f1fa38865a5bfa2dc14afe791dde0d5066aa81eda281c24
+[submitter]   mission 2 swarm 2 verdict 1
+[submitter]   zone x=130000000 y=370000000 w=20000000 h=10000000
+[submitter]   swarm_hash 0x01357d84714d1596d85d4a968b8d24081e7de9f6f210529288e75f0e0aec659d
+[submitter]   ✓ registerSwarmProof: tx 0x759e9cf0c8cba86830688c2b0bf68198d624f7e21eb61bb5899b308f430a6df1
+[submitter] DONE.
+    ✓ phases 1-4b OK — proof verified + verdict recorded on L1
+[+] proof_meta.json written
+
+================================================
+  PIPELINE COMPLETE
+  proof:     /proofs/proof.json
+  evm_proof: /proofs/evm_proof.json
+  meta:      /proofs/proof_meta.json
+  submit:    /proofs/submit_log.txt
+================================================
