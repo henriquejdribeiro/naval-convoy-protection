@@ -1,0 +1,71 @@
+name: bft-soak-test
+on:
+  workflow_dispatch:
+    inputs:
+      consensus-type:
+        description: 'Consensus type to test'
+        required: false
+        default: 'qbft'
+        type: choice
+        options:
+          - all
+          - qbft
+          - ibft2
+      soak-time-mins:
+        description: 'Duration of soak test in minutes (minimum 70)'
+        required: false
+        default: '70'
+        type: string
+      besu_ref:
+        required: true
+        type: string
+        default: main
+        description: Branch to test
+      besu_repo:
+        required: false
+        type: string
+        description: 'Custom git repository to checkout branch from. Expected format: owner/repo (e.g., besu-eth/besu)'
+
+env:
+  GRADLE_OPTS: "-Xmx6g -Dorg.gradle.daemon=false -Dorg.gradle.parallel=true"
+  BESU_REF: ${{ inputs.besu_ref  || 'main' }}
+  BESU_REPO: ${{ inputs.besu_repo  || github.repository }}
+
+jobs:
+  bft-soak-test:
+    name: "BFT Soak Test (${{ inputs.consensus-type }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      statuses: write
+      checks: write
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ env.BESU_REF }}
+          repository: ${{ env.BESU_REPO }}
+      - name: Set up Java
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: temurin
+          java-version: 25
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@39e147cb9de83bb9910b8ef8bd7fff0ee20fcd6f # v6.0.1
+        with:
+          cache-disabled: true
+      - name: run BFT soak test
+        run: ./gradlew :acceptance-tests:tests:acceptanceTestBftSoak -Dacctests.soakTimeMins=${{ inputs['soak-time-mins'] }} -Dacctests.consensusType=${{ inputs.consensus-type }}
+      - name: Upload BFT Soak Test HTML Reports
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        if: always()
+        with:
+          name: bft-soak-test-html-reports-${{ inputs.consensus-type }}
+          path: 'acceptance-tests/tests/build/reports/tests/**'
+      - name: Upload BFT Soak Test Results
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        if: always()
+        with:
+          name: bft-soak-test-results-${{ inputs.consensus-type }}
+          path: 'acceptance-tests/tests/build/test-results/**/TEST-*.xml'
