@@ -55,7 +55,7 @@ COPY PROOF/vendor/stark-evm-adapter/  /build/PROOF/vendor/stark-evm-adapter/
 COPY PROOF/submitter/  /build/PROOF/submitter/
 
 WORKDIR /build/PROOF/submitter
-RUN cargo build --release
+RUN cargo build --release --offline
 RUN cp target/release/convoy-submitter /usr/local/bin/convoy-submitter
 RUN ls -la /usr/local/bin/convoy-submitter
 
