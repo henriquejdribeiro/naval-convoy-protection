@@ -1,0 +1,328 @@
+[workspace]
+members = [
+  # "madara",
+  "orchestrator",
+  "e2e",
+  "e2e-tests",
+  # "bootstrapper",  # Temporarily disabled due to zaun dependency issues
+  "build-artifacts",
+  "test_utils/crates/mock-atlantic-server",
+]
+# Everything except test-related packages, so that they are not compiled when doing `cargo build`.
+default-members = [
+  # "madara",
+  "orchestrator",
+  # "bootstrapper",  # Temporarily disabled due to zaun dependency issues
+]
+resolver = "2"
+exclude = ["bootstrapper-v2"]
+
+[workspace.package]
+authors = ["Madara <https://github.com/madara-alliance>"]
+homepage = "https://madara.build"
+edition = "2021"
+repository = "https://github.com/madara-alliance/madara/"
+version = "0.8.0"
+license = "Apache-2.0"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+print_stdout = "warn"
+print_stderr = "warn"
+# todo: uncomment these & fix them
+# unwrap_used = "warn"
+# missing_docs = "warn"
+
+[workspace.metadata.build]
+rustflags = ["-C", "symbol-mangling-version=v0"]
+
+[profile.dev]
+incremental = true
+
+[profile.release]
+panic = "unwind"
+
+[profile.profiling]
+inherits = "release"
+debug = 1
+
+[profile.production]
+codegen-units = 1    # Setting this to 1 allows for more optimizations at the cost of slower compile time
+inherits = "release"
+lto = "fat"          # Enables Link Time Optimization, enabling more aggressive optimizations across the entire codebase
+opt-level = 3        # Optimize for speed regardless of binary size or compile time
+rpath = false        # Disables adding rpath to the binary
+strip = "symbols"    # Removes debug info and symbold from final binary
+
+[workspace.dependencies]
+rocksdb = "0.22"
+librocksdb-sys = "0.17.0"
+
+# Bonsai trie dependencies
+bonsai-trie = { default-features = false, git = "https://github.com/madara-alliance/bonsai-trie", branch = "oss", features = [
+  "std",
+] }
+
+# Build
+build-version = { path = "build-artifacts" }
+
+# Madara proc macros
+m-proc-macros = { path = "madara/crates/proc-macros", default-features = false }
+
+# Madara primtitives
+mp-block = { path = "madara/crates/primitives/block", default-features = false }
+mp-bloom-filter = { path = "madara/crates/primitives/bloom_filter", default-features = false }
+mp-convert = { path = "madara/crates/primitives/convert", default-features = false }
+mp-transactions = { path = "madara/crates/primitives/transactions", default-features = false }
+mp-class = { path = "madara/crates/primitives/class", default-features = false }
+mp-gateway = { path = "madara/crates/primitives/gateway", default-features = false }
+mp-rpc = { path = "madara/crates/primitives/rpc", default-features = false }
+mp-receipt = { path = "madara/crates/primitives/receipt", default-features = false }
+mp-state-update = { path = "madara/crates/primitives/state_update", default-features = false }
+mp-utils = { path = "madara/crates/primitives/utils", default-features = false }
+mp-chain-config = { path = "madara/crates/primitives/chain_config", default-features = false }
+mp-oracle = { path = "madara/crates/primitives/oracle", default-features = false }
+
+# Madara client
+mc-analytics = { path = "madara/crates/client/analytics" }
+mc-telemetry = { path = "madara/crates/client/telemetry" }
+mc-db = { path = "madara/crates/client/db" }
+mc-exec = { path = "madara/crates/client/exec" }
+mc-rpc = { path = "madara/crates/client/rpc" }
+mc-gateway-client = { path = "madara/crates/client/gateway/client" }
+mc-gateway-server = { path = "madara/crates/client/gateway/server" }
+mc-sync = { path = "madara/crates/client/sync" }
+mc-settlement-client = { path = "madara/crates/client/settlement_client" }
+mc-mempool = { path = "madara/crates/client/mempool" }
+mc-block-production = { path = "madara/crates/client/block_production" }
+mc-devnet = { path = "madara/crates/client/devnet" }
+mc-submit-tx = { path = "madara/crates/client/submit_tx" }
+
+# Madara misc
+m-cairo-test-contracts = { path = "madara/crates/cairo-test-contracts" }
+mc-e2e-tests = { path = "madara/crates/tests" }
+
+# Starknet dependencies
+cairo-vm = "=2.5.0"
+starknet-accounts = { package = "starknet-rust-accounts", version = "0.16.0" }
+starknet-contract = { package = "starknet-rust-contract", version = "0.16.0" }
+starknet-core = { package = "starknet-rust-core", version = "0.16" }
+starknet-crypto = { package = "starknet-rust-crypto", version = "0.8.1" }
+starknet-providers = { package = "starknet-rust-providers", version = "0.16" }
+starknet-signers = { package = "starknet-rust-signers", version = "0.14" }
+starknet = { package = "starknet-rust", version = "0.17.0" }
+
+starknet-types-core = { version = "0.2.1", default-features = false, features = [
+  "hash",
+] }
+
+blockifier = { git = "https://github.com/karnotxyz/sequencer", rev = "57052466290163f95ec085fc5ad877c4e04d5e2d", features = [
+  "testing",
+] }
+starknet_api = { git = "https://github.com/karnotxyz/sequencer", rev = "57052466290163f95ec085fc5ad877c4e04d5e2d", features = [
+  "testing",
+] }
+cairo-lang-starknet-classes = "=2.12.3"
+cairo-lang-utils = "=2.12.3"
+
+alloy = { version = "1.1.0", features = [
+  "node-bindings",
+  "eips",
+  "rpc-types",
+  "provider-http",
+  "contract",
+  "signers",
+  "signer-local",
+] }
+
+# Instrumentation
+opentelemetry = { version = "0.30.0", features = ["metrics", "logs"] }
+opentelemetry_sdk = { version = "0.30.0", features = ["rt-tokio", "logs"] }
+opentelemetry-stdout = { version = "0.30.0" }
+opentelemetry-otlp = { version = "0.30.0", features = [
+  "grpc-tonic",
+  "metrics",
+  "logs",
+] }
+opentelemetry-semantic-conventions = { version = "0.30.0" }
+opentelemetry-appender-tracing = { version = "0.30.0", default-features = false }
+tracing = { version = "0.1.40", default-features = false }
+tracing-core = { version = "0.1.32", default-features = false }
+tracing-subscriber = { version = "0.3.18", features = [
+  "env-filter",
+  "registry",
+  "std",
+] }
+tracing-test = "0.2.5"
+tracing-opentelemetry = "0.31.0"
+
+# Networking
+jsonrpsee = { version = "0.22", default-features = false, features = [
+  "server",
+  "client",
+] }
+tower = { version = "0.4", features = ["util"] }
+tower-http = { version = "0.4", features = ["cors"] }
+governor = "0.6"
+hyper = { version = "1.5.0", features = ["full"] }
+hyper-tls = "0.6"
+hyper-util = "0.1.9"
+http = "1.1.0"
+http-body-util = "0.1.2"
+ip_network = "0.4"
+reqwest = { version = "0.12.7", features = [
+  "blocking",
+  "rustls-tls",
+  "native-tls",
+  "json",
+  "multipart",
+  "stream",
+] }
+url = { version = "2.4", features = ["serde"] }
+
+# Async
+tokio = { version = "1.47", features = ["signal", "rt"] }
+tokio-util = "0.7.12"
+rayon = "1.10"
+futures = { version = "0.3", default-features = false, features = ["std"] }
+async-trait = "0.1"
+
+# Serialization
+serde = { version = "1.0", default-features = false, features = ["std"] }
+serde_with = { version = "3.11", default-features = false, features = [
+  "alloc",
+  "macros",
+] }
+serde_json = { version = "1.0", default-features = false, features = ["std"] }
+serde_yaml = { version = "0.9.34" }
+bincode = "1.3"
+parity-scale-codec = { version = "3.2.2", default-features = false, features = [
+  "std",
+] }
+scale-info = { version = "2.10.0", default-features = false, features = [
+  "std",
+] }
+
+# Numbers
+base64 = "0.22"
+bigdecimal = "0.4.5"
+num-traits = "0.2"
+num-bigint = "0.4"
+primitive-types = "0.12"
+rand = "0.8"
+crypto-bigint = "0.5.5"
+zeroize = "1.8"
+ahash = "0.8"
+twox-hash = "2.1"
+rustc-hash = "2.1"
+highway = "1.3"
+siphasher = "1.0"
+smallvec = "1.15.1"
+
+# Std extensions
+lazy_static = { version = "1.4", default-features = false }
+once_cell = "1.21.3"
+itertools = "0.13.0"
+bitvec = { version = "1.0", default-features = false, features = ["std"] }
+bytes = "1.6.0"
+derive_more = { version = "2.0.1", features = ["from_str"] }
+indexmap = "2.2.6"
+
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Testing
+rstest = "0.18"
+proptest = "1.5.0"
+proptest-derive = "0.5.0"
+proptest-state-machine = "0.3.1"
+tempfile = "3.10.1"
+httpmock = "0.7.0"
+mockall = "0.13.0"
+fdlimit = "0.3.0"
+assert_matches = "1.5"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+# Macros
+indoc = "2"
+proc-macro2 = "1.0.86"
+quote = "1.0.26"
+syn = { version = "2.0.39", features = ["full"] }
+paste = "1.0.15"
+
+# Setup
+clap = { version = "4.4", features = ["derive", "env"] }
+dotenv = "0.15.0"
+figment = "0.10.19"
+
+# Misc
+flate2 = "1.0"
+regex = "1.10.5"
+sha3 = "0.10"
+tar = "0.4.44"
+inline_colorization = "0.1.6"
+subxt-lightclient = { version = "0.35.3", default-features = false }
+
+# Orchestrator
+num = { version = "0.4.1" }
+alloy-primitives = { version = "0.8.3", default-features = false }
+alloy-sol-types = "0.8.3"
+aws-config = { version = "1.1.7", features = ["behavior-version-latest"] }
+aws-sdk-s3 = { version = "1.38.0", features = ["behavior-version-latest"] }
+aws-sdk-eventbridge = { version = "1.41.0", features = [
+  "behavior-version-latest",
+] }
+aws-sdk-iam = "1.52.0"
+aws-sdk-scheduler = "1.49.0"
+aws-sdk-sns = { version = "1.40.0", features = ["behavior-version-latest"] }
+aws-credential-types = { version = "1.2.1", features = [
+  "hardcoded-credentials",
+] }
+aws-sdk-sqs = "1.36.0"
+axum = { version = "0.7.4" }
+color-eyre = "0.6.3"
+chrono = { version = "0.4", features = ["serde"] }
+c-kzg = "2.1.5"
+dotenvy = "0.15.7"
+log = "0.4.21"
+mongodb = { version = "2.8.1", features = ["bson-chrono-0_4"] }
+omniqueue = { git = "https://github.com/itsparser/omniqueue-rs", branch = "branch-from-0.2.0" }
+tokio-stream = "0.1.15"
+uuid = { version = "1.7.0", features = ["v4", "serde"] }
+swiftness_proof_parser = "0.1.0"
+hex = "0.4"
+mockall_double = "0.3.1"
+testcontainers = "0.18.0"
+env_logger = "0.11.5"
+strum_macros = "0.26.4"
+strum = "0.26.3"
+async-std = { version = "1.13.0", features = ["attributes"] }
+majin-blob-core = { git = "https://github.com/AbdelStark/majin-blob", branch = "main" }
+majin-blob-types = { git = "https://github.com/AbdelStark/majin-blob", branch = "main" }
+generate-pie = { git = "https://github.com/keep-starknet-strange/snos", tag = "v0.14.0-alpha.4" }
+
+orchestrator-da-client-interface = { path = "orchestrator/crates/da-clients/da-client-interface" }
+orchestrator-ethereum-da-client = { path = "orchestrator/crates/da-clients/ethereum" }
+orchestrator-starknet-da-client = { path = "orchestrator/crates/da-clients/starknet" }
+orchestrator-settlement-client-interface = { path = "orchestrator/crates/settlement-clients/settlement-client-interface" }
+orchestrator-ethereum-settlement-client = { path = "orchestrator/crates/settlement-clients/ethereum" }
+orchestrator-starknet-settlement-client = { path = "orchestrator/crates/settlement-clients/starknet" }
+orchestrator-utils = { path = "orchestrator/crates/utils" }
+orchestrator-prover-client-interface = { path = "orchestrator/crates/prover-clients/prover-client-interface" }
+orchestrator-gps-fact-checker = { path = "orchestrator/crates/prover-clients/gps-fact-checker" }
+orchestrator-sharp-service = { path = "orchestrator/crates/prover-clients/sharp-service" }
+orchestrator-atlantic-service = { path = "orchestrator/crates/prover-clients/atlantic-service" }
+orchestrator = { path = "orchestrator" }
+
+utils-mock-atlantic-server = { path = "test_utils/crates/mock-atlantic-server" }
+
+base64ct = "=1.6.0"
+zip = "4.3.0"
+
+[patch.crates-io]
+rocksdb = { git = "https://github.com/madara-alliance/rust-rocksdb", branch = "read-options-set-raw-snapshot" }
+librocksdb-sys = { git = "https://github.com/madara-alliance/rust-rocksdb", branch = "read-options-set-raw-snapshot" }

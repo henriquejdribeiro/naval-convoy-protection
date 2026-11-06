@@ -1,0 +1,76 @@
+[package]
+name = "bootstrapper"
+version = "0.1.0"
+edition = "2021"
+
+# Make this package explicitly standalone (not part of the parent workspace)
+[workspace]
+
+[dependencies]
+anyhow = "1.0.80"
+base64 = "0.22"
+ethers = { git = "https://github.com/gakonst/ethers-rs", rev = "6e2ff0ef8af8c0ee3c21b7e1960f8c025bcd5588" }
+futures = { version = "0.3", default-features = false, features = ["std"] }
+hex = { version = "0.4.3", default-features = false, features = ["std"] }
+reqwest = { version = "0.12.24", default-features = false }
+serde = { version = "1.0.192", default-features = false, features = ["std"] }
+serde_json = { version = "1.0.108", default-features = false, features = [
+  "std",
+] }
+serde_with = { version = "2.3.3", default-features = false }
+url = "2.4.1"
+
+
+# Zaun Deps
+# commit taken from the v3-tx branch (mohit 27/10/2025)
+ethereum-instance = { git = "https://github.com/karnotxyz/zaun", rev = "1dfe1a158b744332139893e0d8a49b83b4ab60f2" }
+starkgate-manager-client = { git = "https://github.com/karnotxyz/zaun", rev = "1dfe1a158b744332139893e0d8a49b83b4ab60f2" }
+starkgate-registry-client = { git = "https://github.com/karnotxyz/zaun", rev = "1dfe1a158b744332139893e0d8a49b83b4ab60f2" }
+starknet-core-contract-client = { git = "https://github.com/karnotxyz/zaun", rev = "1dfe1a158b744332139893e0d8a49b83b4ab60f2" }
+starknet-erc20-client = { git = "https://github.com/karnotxyz/zaun", rev = "1dfe1a158b744332139893e0d8a49b83b4ab60f2" }
+starknet-eth-bridge-client = { git = "https://github.com/karnotxyz/zaun", rev = "1dfe1a158b744332139893e0d8a49b83b4ab60f2" }
+starknet-proxy-client = { git = "https://github.com/karnotxyz/zaun", rev = "1dfe1a158b744332139893e0d8a49b83b4ab60f2" }
+starknet-token-bridge-client = { git = "https://github.com/karnotxyz/zaun", rev = "1dfe1a158b744332139893e0d8a49b83b4ab60f2" }
+zaun-utils = { package = "utils", git = "https://github.com/karnotxyz/zaun", rev = "1dfe1a158b744332139893e0d8a49b83b4ab60f2" }
+# Starknet Deps
+starknet = { package = "starknet-rust", version = "0.17.0" }
+starknet-accounts = { package = "starknet-rust-accounts", version = "0.16.0" }
+starknet-core = { package = "starknet-rust-core", version = "0.16.0" }
+starknet-crypto = { package = "starknet-rust-crypto", version = "0.8.1" }
+starknet-providers = { package = "starknet-rust-providers", version = "0.16.0" }
+starknet-signers = { package = "starknet-rust-signers", version = "0.14.0" }
+starknet-types-core = { version = "0.1.5", default-features = false, features = [
+  "hash",
+] }
+starknet_api = { git = "https://github.com/bidzyyys/starknet-api.git", branch = "feature/scale-codec" }
+
+# Third Party
+assert_matches = "1.5.0"
+async-trait = "0.1.74"
+clap = { version = "4.4.11", features = ["derive", "env"] }
+color-eyre = "0.6.2"
+dotenv = "0.15.0"
+env_logger = "0.11.3"
+log = "0.4.21"
+num-bigint = "0.4"
+parity-scale-codec = { version = "3.2.2", default-features = false, features = [
+  "std",
+] }
+rstest = "0.18.1"
+scale-info = { version = "2.10.0", default-features = false, features = [
+  "std",
+] }
+thiserror = "1.0.50"
+tokio = { version = "1.36.0", features = ["macros", "rt-multi-thread"] }
+
+# Subxt Dependencies
+bytes = "1.6.0"
+flate2 = "1.0.30"
+indexmap = "2.2.6"
+inline_colorization = "0.1.6"
+lazy_static = "1.4.0"
+subxt-lightclient = { version = "0.35.3", optional = true, default-features = false }
+tempfile = "3.10.1"
+
+[build-dependencies]
+build-version = { path = "../build-artifacts" }

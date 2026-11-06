@@ -1,0 +1,80 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/SchemaStore/schemastore/refs/heads/master/src/schemas/json/github-action.json
+name: Action - Setup Python Cairo
+description: Sets up Python virtual environment with cairo0 tools for apollo_starknet_os_program
+
+inputs:
+  python-version:
+    description: Python version to set up
+    required: false
+    default: "3.9"
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    #    - name: Cache Python dependencies
+    #      uses: actions/cache@v4
+    #      with:
+    #        path: |
+    #          sequencer_venv
+    #          ~/.cache/pip
+    #        key: python-cairo-${{ runner.os }}-${{ inputs.python-version }}-v3
+    #        restore-keys: |
+    #          python-cairo-${{ runner.os }}-${{ inputs.python-version }}-
+
+    - name: Setup Python virtual environment with cairo-lang
+      shell: bash
+      run: |
+        # Create virtual environment
+        python3 -m venv sequencer_venv
+        source sequencer_venv/bin/activate
+
+        # Install Cairo dependencies from the single source of truth
+        echo "Installing Cairo dependencies from cairo_requirements.txt..."
+        pip install --upgrade pip
+        pip install -r cairo_requirements.txt
+
+        # Verify cairo-compile is available and get its version
+        if command -v cairo-compile >/dev/null 2>&1; then
+          CAIRO_VERSION=$(cairo-compile --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?' || echo "unknown")
+          echo "✓ cairo-compile is available at: $(which cairo-compile)"
+          echo "✓ cairo-compile version: $CAIRO_VERSION"
+        else
+          echo "❌ cairo-compile not found in PATH after installing requirements"
+          echo "Installed Python packages:"
+          pip list
+          exit 1
+        fi
+
+        echo "✓ Python virtual environment setup complete"
+
+    - name: Activate virtual environment for subsequent steps
+      shell: bash
+      run: |
+        # Get the absolute path to the virtual environment
+        VENV_PATH="$(pwd)/sequencer_venv"
+
+        # Add virtual environment to PATH for subsequent steps
+        echo "$VENV_PATH/bin" >> $GITHUB_PATH
+
+        # Set environment variables that indicate we're in a virtual environment
+        echo "VIRTUAL_ENV=$VENV_PATH" >> $GITHUB_ENV
+        echo "PATH=$VENV_PATH/bin:$PATH" >> $GITHUB_ENV
+
+        # Also set Python-specific environment variables
+        echo "PYTHONPATH=$VENV_PATH/lib/python${{ inputs.python-version }}/site-packages" >> $GITHUB_ENV
+
+        # Verify the setup
+        echo "✓ Virtual environment activated for subsequent workflow steps"
+        echo "VENV_PATH: $VENV_PATH"
+        echo "Python executable will be: $VENV_PATH/bin/python"
+        echo "Cairo-compile will be: $VENV_PATH/bin/cairo-compile"

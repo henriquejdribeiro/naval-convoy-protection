@@ -1,0 +1,16 @@
+target
+madara/crates/resources/*
+madara/crates/primitives/class/resources/*
+infra/Signoz
+build-artifacts/
+dashboards
+docs/
+
+orchestrator/cairo-lang/
+orchestrator/madara-bootstrapper/
+orchestrator/pathfinder/
+orchestrator/orchestrator_venv/
+orchestrator/build/
+orchestrator/node_modules/
+lib/
+s3/

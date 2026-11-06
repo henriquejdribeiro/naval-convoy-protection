@@ -1,0 +1,42 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/SchemaStore/schemastore/refs/heads/master/src/schemas/json/github-workflow.json
+name: Task - Build Orchestrator
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  check-binaries:
+    permissions:
+      pull-requests: write
+    runs-on: blacksmith-8vcpu-ubuntu-2204
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Load env
+        uses: ./.github/actions/load-env
+
+      - name: Rust setup
+        uses: ./.github/actions/setup-rust
+        with:
+          rust-version: ${{ env.BUILD_RUST_VERSION }}
+          extra-cache: false
+
+      - name: Compile artifacts
+        run: make artifacts
+
+      - name: Python Cairo setup (before orchestrator check)
+        uses: ./.github/actions/setup-python-cairo
+        with:
+          python-version: ${{ env.BUILD_PYTHON_VERSION }}
+
+      # Check Orchestrator
+      - name: Cargo check
+        run: |
+          cargo check -p orchestrator --release

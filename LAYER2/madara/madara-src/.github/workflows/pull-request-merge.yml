@@ -1,0 +1,63 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/SchemaStore/schemastore/refs/heads/master/src/schemas/json/github-workflow.json
+name: Workflow - Pull Request Main (merge)
+
+on:
+  workflow_dispatch:
+  merge_group:
+
+jobs:
+  # ========================================================================= #
+  #                              NIGHTLY RELEASE                              #
+  # ========================================================================= #
+
+  build-nightly-and-publish-madara:
+    if: github.event.pull_request.draft == false
+    uses: ./.github/workflows/task-do-nothing-build-nightly-and-publish.yml
+
+  # test-hive:
+  #   uses: ./.github/workflows/task-do-nothing-test-hive.yml
+
+  build-nightly-and-publish-orchestrator:
+    if: github.event.pull_request.draft == false
+    uses: ./.github/workflows/task-do-nothing-build-nightly-and-publish.yml
+
+  build-nightly-and-publish-bootstrapper:
+    if: github.event.pull_request.draft == false
+    uses: ./.github/workflows/task-do-nothing-build-nightly-and-publish.yml
+
+  # ========================================================================= #
+  #                                MERGE QUEUE                                #
+  # ========================================================================= #
+
+  # Run coverage tests (Madara)
+  test-madara:
+    uses: ./.github/workflows/task-do-nothing-test-madara.yml
+
+  # Run migration tests
+  test-migration:
+    uses: ./.github/workflows/task-do-nothing-test-migration.yml
+
+  # Run coverage tests (Orchestrator)
+  test-orchestrator:
+    uses: ./.github/workflows/task-do-nothing-test-orchestrator.yml
+
+  # Run coverage tests (Bootstrapper)
+  test-bootstrapper:
+    uses: ./.github/workflows/task-do-nothing-test-bootstrapper.yml
+
+  # Run JavaScript tests
+  test-js:
+    uses: ./.github/workflows/task-do-nothing-test-js.yml
+
+  # Run CLI tests
+  test-cli:
+    uses: ./.github/workflows/task-do-nothing-test-cli.yml
+
+  # ========================================================================= #
+  #                                E2E Test                                   #
+  # ========================================================================= #
+
+  test-end-to-end:
+    if: github.event.pull_request.draft == false
+    uses: ./.github/workflows/task-do-nothing-test-end-to-end.yml

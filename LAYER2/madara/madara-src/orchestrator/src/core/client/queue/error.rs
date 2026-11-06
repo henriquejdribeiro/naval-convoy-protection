@@ -1,0 +1,44 @@
+use aws_sdk_sqs::error::SdkError;
+use aws_sdk_sqs::operation::delete_message::DeleteMessageError;
+use aws_sdk_sqs::operation::get_queue_attributes::GetQueueAttributesError;
+use aws_sdk_sqs::operation::get_queue_url::GetQueueUrlError;
+use aws_sdk_sqs::operation::receive_message::ReceiveMessageError;
+use aws_sdk_sqs::operation::send_message::SendMessageError;
+use omniqueue::QueueError as OmniQueueError;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum QueueError {
+    #[error("Missing parameter: {0}")]
+    MissingRootParameter(String),
+
+    #[error("Invalid ARN: {0}")]
+    InvalidArn(String),
+
+    #[error("Failed to get queue url: {0}")]
+    GetQueueUrlError(#[from] SdkError<GetQueueUrlError>),
+
+    #[error("Failed to get queue attributes: {0}")]
+    GetQueueAttributesError(#[from] SdkError<GetQueueAttributesError>),
+
+    #[error("Failed to send message: {0}")]
+    SendMessageError(#[from] SdkError<SendMessageError>),
+
+    #[error("Failed to receive message: {0}")]
+    ReceiveMessageError(#[from] SdkError<ReceiveMessageError>),
+
+    #[error("Failed to delete message: {0}")]
+    DeleteMessageError(#[from] SdkError<DeleteMessageError>),
+
+    #[error("Failed to get queue url: {0}")]
+    ErrorFromQueueError(#[from] OmniQueueError),
+
+    #[error("Failed to get queue url for queue name : {0}")]
+    FailedToGetQueueUrl(String),
+
+    #[error("Failed to get queue attributes for queue name : {0}")]
+    FailedToGetQueueArn(String),
+
+    #[error("Message attribute error: {0}")]
+    MessageAttributeError(String),
+}

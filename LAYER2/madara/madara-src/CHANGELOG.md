@@ -1,0 +1,626 @@
+# Madara Changelog
+
+## Next release
+
+- cli: removed `--n-blocks-to-sync <number of blocks>`, replaced by `--sync-stop-at <height>`
+- refactor: refactor mc-sync crate, and remove mc-block-import crate
+- feat: settlement client introduced instead of just ethereum, starknet client added for settlement
+- fix(gateway-client): fix v0.13.4 gateway deserialization
+- chore: Merge entire madara-orchestrator project into this one
+- fix(primitives): limit legacy class sizes
+- fix(block_production): dynamic block closing now adds special address with prev block hash
+- fix(rpc): call, simulate, estimate rpcs executed on top of the block, not at the start of it
+- fix(compilation): crate-level compilation
+- chore: Move crates under a madara subdir
+- chore(nix): resolve flake and direnv compatibility issues
+- fix: Gateway path fix
+- fix: instrumentation code
+- feat: block resource cap removed from the pending tick
+- fix: replace class hash issue resolved + gas fees issue resolved
+- fix: trim hash of eth state was failing with 0x0
+- fix: devnet accounts getting deployed in sequencer mode
+- fix(rpc): fix BroadcastedDeclareTxn V3 in starknet-types-rpc
+- fix: oracle need condition
+- fix(block_production): continue pending block now reexecutes the previous transactions
+- feat(services): reworked Madara services for better cancellation control
+- feat: fetch eth/strk price and sync strk gas price
+- feat(block_production): continue pending block on restart
+- feat(mempool): mempool transaction saving on db
+- feat(mempool): mempool transaction limits
+- feat(cli): madaraup quickfix
+- feat(cli): added madaraup for v0.7.0
+- refactor(rpc): replace starknet-rs by starknet-types-rpc
+- fix(fgw): include `l1_to_l2_consumed_message` in L1 handler receipt
+- feat(v0.8.0-rc0): storage proofs for rpc version v0.8.0
+- feat(warp): added warp update to madara
+- docs(readme): updated README.md docs and added Docker Compose support
+- fix(log): define RUST_LOG=info by default
+- fix(tracing): RUST_LOG filtering support
+- fix(fgw): fetch class
+- feat: possibility of starting madara & kakarot-rpc in docker
+- feat(debug): service cancelling and profiling build
+- feat(endpoint): added extra admin rpc endpoint for sensitive rpc calls
+- fix(db): fix number of files in db, startup hang, ram issues and flushing issues
+- fix: FeePayment conversion
+- fix(block_production): get l2-to-l1 messages recursively from the call tree
+- refactor: replace starknet-rs BlockId with types-rs BlockId and remove redundant mp_block::BlockId
+- feat(fgw): added `add_transaction` for gateway client
+- fix(fgw): include `l1_to_l2_consumed_message` in L1 handler receipt
+- build: up starknet-rs, starknet-types, blockifier(v0.8.0), cairo
+- feat(rpc): added `getCompiledCasm` method
+- fix(error): Added a comment for non archive node L1 keys
+- feat(confg): added chain config template and fgw example
+- feat(v0.8.0-rc0): starknet_subscribeNewHeads
+- fix(rocksdb): update max open files opt
+- code: refactor to use otel tracing instead of prometheus (removed mc-metrics, added mc-analytics)
+- fix(version constants): 0.13.2 was mapped to wrong constants
+- fix(compilation): devnet contract artifacts are not compiled by `cargo build` anymore
+- feat: add fgw get_block_traces
+- refactor: use `hyper` & `tower` instead of `reqwest` for feeder client
+- fix(namespace): versioning now works for methods without `starknet` namesapce
+- fix(compile): wrong struct field being used in state map conversion
+- fix: contract 0 state diff fixed
+- refactor(rpc): re-worked rpc tower server and added proper websocket support
+- fix(network): added the FGW and gateway url to the chain config
+- fix(block_hash): block hash mismatch on transaction with an empty signature
+- feat: declare v0, l1 handler support added
+- feat: strk gas price cli param added
+- fix(snos): added special address while closing block for SNOS
+- fix(mempool): validator errors were ignored in `mempool/rsc/lib.rs`
+- fix(primitives): fixed storage entries not being sorted in state commitment
+- fix(devnet): devnet predeployed contracts stable address across systems (re)
+- chore: Fixed README table format
+- fix(cli): fixed devnet cli arguments
+- fix(db): max rocksdb LOG files count and size and add more memory metrics
+- fix(devnet): devnet predeployed contracts stable address across systems
+- feat: gas fee flag added
+- fix(mempool): fixed proptesting of the inner mempool
+- fix(clippy): disallow printlns in workspace
+- fix(db): storing a block needs to clear the current pending block
+- fix(sync): Fixed pipeline stalling on machines with few cpu cores
+- fix(rpc): handle batched requests in middleware
+- chore: padded devnet address display with 64 chars
+- feat(script): added more capabilities to the launcher script
+- fix(fgw): sync from other nodes and block signature
+- fix: added more launcher capabilities
+- fix(cleanup): Updated EditorConfig to 4-space indents
+- fix(tests): Fixed local testing scripts
+- fix: override chain config
+- fix: estimate_fee should through an error if any txn fails
+- fix: rejected transaction block production panic
+- fix(sync): pending block retrying mechanism
+- feat(clean): dc_db: rename `DbBlockId::BlockN` to `DbBlockId::Number`
+- feat(cli): Environment variables can be used to specify Madara parameters
+- fix:(tests): Add testing feature to mc-db dev dependency (#294)
+- feat: new crate gateway client & server
+- test: Starknet-js basic tests added
+- test: add block conversion task test
+- fix(docs): updated readme and fixed launcher
+- fix(ci): added gateway key to fix rate limit on tests
+- feat(cli): launcher script and release workflows
+- fix: cleaned cli settings for sequencer, devnet and full
+- feat: move to karnot runner
+- fix: docker file fixes for devnet
+- fix(block-production): fix bouncer calculation and declared classes
+- fix: Fix pending block sync and add real FGW tests
+- test: tests added for verify and apply task in l2 sync
+- fix: UDC cairo 0 migration & events logic fix
+- fix: response of spec version rpc call fixed
+- tests: integration test for l2 fetch task added
+- refactor: calculate class hashes in devnet
+- feat: add config file and preset configure chain
+- refactor: change default chain id and add custom flag to override
+- fix: generate a fixed set of public and private keys for devnet
+- fix: defaulted l1 gas price in devnet mode
+- fix: fixed anvil port value in tests
+- fix: flaky tests in gas price worker fixed
+- ci: add coveralls report
+- test: added tests for declare and deploy transactions
+- fix: pending block must always be returned in rpc even if none is in db
+- fix: fixed the starting block arg with an ignore_block_order argument
+- docs: fixed Docker Compose instructions
+- fix: removed unused dependencies with udeps and machete
+- feat: add devnet via `--devnet` cli argument
+- refactor: class import from FGW
+- code docs: documented how get_storage_at is implemented
+- fix: L1 rpc <=> network mismatch
+- feat: rpc versioning
+- feat: bumping Starknet version from v0.13.2 to Starknet v0.13.2.1
+- fix: replaced old namings with adapted namings
+- refactor: block import is now centrally done in a single crate
+- tests: add e2e tests for rpc read methods
+- tests: add e2e tests for the node
+- fix: fixed some readme stuff
+- feat: gas price provider added for block production
+- feat: l1 sync service
+- feat: gas price worker for l1
+- test: tests added for eth client and event subscription
+- feat: Added l1->l2 messaging
+- test: add unitests primitives
+- tests: add e2e tests for the node
+- tests: add tests for the rpcs endpoints
+- fix: pending contract storage not stored properly
+- test: add tests crate `db`
+- fix: --sync-l1-disabled cli option (#225)
+- feat: experimental block production and mempool
+- refactor: L1BlockMetric is intialized inside the EthereumClient new function
+- refactor: BlockMetrics divided in L1BlockMetrics and BlockMetrics
+- test: tests added for eth client and event subscription
+- feat: add support for Starknet version 0.13.2
+- fix(l1): removed free l1 endpoint list
+- removed l1.rs from the sync crate and refactored it with alloy inside eth crate
+- refactor: removed l1.rs from the sync crate and refactored it with alloy inside eth crate
+- refactor: eth client (l1 crate) refactored with alloy
+- feat: added l1 crate (eth crate)
+- fix(metrics): removed influx and added l2_state_size data
+- fix: command to start the Madara client
+- refactor: database error unification
+- feat: raise file-descriptor limit
+- fix: docker
+- fix: pending storage & sequencer_provider
+- refactor: support pending blocks & db crate
+- refactor: new crate exec
+- fix(issue): Removed unrelated link from issue template
+- feat: adding new readme and github issue templates for codebase reorg
+- fix: trace, execution state_diff
+- refactor: store compiled contract class
+- fix: rate limit on classes
+- refactor: use Felt in DB
+- fix: fix sepolia by updating bonsai-trie
+- feat(class): change class definition storage
+- fix: pending block sync
+- fix: transaction traces
+- feat: store tx receipts
+- refactor: new type StarknetVersion
+- refactor: update starknet-rs with Felt
+- fix(rpc): fixed block not found error on get_class method
+- fix (rpc): get_transaction_status
+- fix(cleanup): clean up around the Cargo.toml files, error handling and cli arguments
+- fix(db): fault tolerance (database is not corrupted when the node is unexpectedly shut down / killed)
+- fix(rpc): fixed state update deserialization
+- fix(hashes): fixed tx by hash retrieval
+- fix(logs): fixed logs and get_state_update
+- refactor: remove primitives/felt
+- refactor: move convert.rs to felt_wrapper.rs
+- fix(decode): fix mapping db decoding
+- feat: store reverted txs hashes
+- feat(l1): added l1 free rpc url if none is provided
+- cleanup: clean DB statics
+- refactor: improve compatibility without forks
+- fix(metrics): fixed some metrics endpoints
+- fix(metrics): fix prometheus endpoint port
+- fix(hashes): Fix invoke tx hashes for version v3
+- fix: re-add prometheus, doc cli args, log format
+- fix(program): Changed visibility of program serializer + archived
+- fix(classes): remove the classes ordenation to allow fork rebasements
+- fix(felt): enforce Felt type as much as possible into compute_hash.rs
+- fix(logs): fixed some logs and others
+- fix(rpc): fixed block storage column
+- chore: update dependencies
+- fix(hashers): cleaned hashers using types core hashers and Felt
+- refactor: remove substrate block storage
+- feat(infra): Added boilerplate to deploy a grafana/prometheus dashboard
+- refacor: use db hash
+- refactor: l2-sync
+- refactor: remove crate mp-mapping-sync
+- fix(rpc): get_nonce
+- fix(rpc): get_class
+- refactor: mapping db
+- perf(db): contract key history now using rocksdb iterators for history
+- fix(root): Cleaned state root commitments crate
+- fix(hash): declare tx v0 hash computation
+- perf(db): db contract history parallel fetching and batching
+- remove RuntimeApi on RPC
+- feat(metrics): Added sync time metrics
+- refactor: using const and OnceCell instead of lazy_static
+- refactor: remove crate mp-storage
+- feat(infra): corrected dockerfile + docker-compose
+- fix(rpc): error handling
+- fix(lib): updated core libs to match oss
+- fix: state root - replaced_classes commit
+- feat: fetch block and state update in only one request
+- feat: added madara launcher script
+- fix: creation of the block context
+- fix: is_missing_class
+- fix: state root - replaced_classes
+- feat(db): backups
+- fix: state root for nonce
+- fix: store the first history in storage ket
+- perf: improved perfs with parallelized iteration over tx hashes cache
+- fix: graceful shutdown of rocksdb on ctrl+c
+- fix: better error handling around l1 and l2 sync
+- perf: compile with target_cpu=skylake by default
+- perf: storage key with encode
+- fix: bloc context blockifier
+- feat: up blockifier to v0.6.0-rc.2
+- fix: change bonsai-trie fork location
+- refactor: remove L1HandlerTxFee
+- feat: up blockifier to v0.6.0-rc.2
+- refactor: remove L1HandlerTxFee
+- refactor: remove blockifier dependencie
+- perf: convert blocks in parallel
+- feat(commitments): Joined hash computation in event and tx commitments
+- feat(l2 sync): polling to get new blocks once sync has caught up with the chain
+- perf: store key
+- fix: sync, remove `unwrap` in storage
+- fix(classes): Fixed classes on the RPC level by adding ordering and complete deserialisation
+- fix: class update
+- feat: store key/value in `--disble-root` mode
+- fix: storage nonce and key/value
+- fix: class and store updates and block desync after ctrl+c
+- fix: compile without libm
+- fix: genesis state_update
+- refactor: optimize get_class_at
+- fix: crash build genesis on restart
+- fix(classes): Fixed sierra exception on block 31625 and added --starting-block arg
+- fix(db): with new implementation ContractStorage
+- fix: fee_type for `simulate_transactions` rpc call
+- feat(rocksdb): replaced most async database operations iwth multigets and batched inserts
+- fix: get_state_update with new storage
+- up: starknet-rs
+- fix: exec on receipt
+- feat(RPC): refacto `trace_transaction` and `trace_block_transaction`
+- fix(proposer_factory): Removed and clean a lot of stuff on Client side, mostly node crate
+- feat(storage): removed the use of `BonsaiStorage` logs
+- feat(storage): removed dependance on `StateUpdateWrapper`
+- feat(storage): state diff are now stored for each block
+- CI: fix toolchain
+- CI: add `cargo test` on PR
+- refactor: remove dead code on `Struct Starknet<..>`
+- fix: verify_l2
+- feat(rpc): remove duplicated code, add mod 'utils'
+- feat(storage): started migrating storage to the bonsai-lib
+- fix: fix crashing cases on `get_block_with_receipts`
+- fix: fix get_events minor issues
+- fix: l1HandlerTx computed for commit
+- refactor: optimise get_events RPC
+- fix(root): fixed state commitments broken due to genesis loader
+- feat(docker): add dockerfile and docker-compose
+- fix: fix implementation `get_storage_at()` for `BlockifierStateAdapter`
+- fix(sync): Fix end condition of the l2 sync
+- fix(rpc): fix chain id method for mainnet
+- fix(class): Fix Sierra classes conversion (missing abis)
+- fix(compute): Fixed prepare_data_availability_modes computation
+- feat(rpc): add pending block to `get_block_with_receipts` rpc call
+- chore: update bonsai-trie (benefit from perf boost)
+- feat(rpc): add `get_block_with_receipts` rpc call
+- refactor: remove crate mp-state, mp-fee, mp-messages
+- fix(class): Fix class conversions to support legacy Sierra versions
+- feat: rebase blockifier
+- feat(check): Added a state root check to ensure synced compatibility
+- feat(metrics): Add prometheus metrics for mapping worker
+- feat(storage): finished migrating contract storage to our backend bonsai trie dbs
+- feat(storage): set up type-safe bonsai storage abstractions for usage in RPC
+- fix(root): fix state root computation
+- refactor: refactor mc-db crate
+- feat(api_key): api key passed to FetchConfig correctly
+- feat(api_key): Added support for --gateway-api to avoid rate limit from the gateway
+- fix(latest): Retrieve latest synced block via internal client
+- perf(l2 sync): parallelize commitment computation and refactor part of l2 io sync
+- refactor: rpc methods and removed rpc-core
+- feat: add an optional TUI dashboard
+- feat(bonsai): Bumped bonsai lib to latest opti
+- refactor(generic): reduced runtime dependence on generics
+- fix(sync): Cleaned mc-sync isolating fetch process + added shared SyncStatus
+- feat(self-hosted): host our own runner
+- fix(deps): Removed unused dependencies
+- feat(multi-trie): Added support for persistent storage tries
+- feat(pending): added support for pending blocks in RPC requests
+- perf(l2 sync): parallel fetching of blocks, classes, state updates
+- fix l1 thread to reflect correct state_root, block_number, block_hash
+- fix: remove gas_price and update starknet-rs from fork (temporary fix)
+- fix(root): got state root to work (does not support class root yet)
+- refactor(substrate_hash): Substrate hash is now retrieved via rpc client in
+  `l2.rs`
+- fix(worflows): fix toolchain and cache issue
+- feat: Removal of the hardcoded mainnet configuration
+- refactor: pass new CI
+- fix(workflows): Fix madara CI
+- feat(rpc): add_invoke_tx, add_deploy_account_tx, add_declare_tx
+- feat(rpc): tx_receipt, re-execute tx
+- feat(script): added CI scripts for starting Madara and comparing JSON RPC
+  calls
+- perf(verify_l2): parallelized l2 state root update
+- perf(state_commitment): parallelized state commitment hash computations
+- fix(L1): fix l1 thread with battle tested implementation + removed l1-l2
+- fix: update and store ConfigFetch in l2 sync(), chainId rpc call
+- fix: get_events paging with continuation_token
+- fix(class): #125
+- fix(getStorageAt): #28
+- fix(genesis): #107
+- fix(class): #32 #33 #34
+- fix(class): #116
+- feat(class): download classes from sequencer
+- feat: update and store highest block hash and number from sequencer
+- feat: store events in block, return events in call get_transaction_receipt
+- fix: updating outdated links to external resources in documentation
+- feat(client/data-availability): implement custom error handling
+- fix: get_block_by_block_hash then default rather than error
+- feat(rpc): added `get_state_update` real values from DA db
+- feat: add transparent representation to `Felt252Wrapper`
+- feat(rpc/trace_api): add `trace_block_transaction`
+- chore(db): changed the way hashes are encoded
+- feat(rpc/trace_api): add `trace_transaction`
+
+## v0.7.0
+
+- chore: release v0.7.0
+- refacto: remove abusive `TryInto` impl
+- dev: optimize tx trace creation
+- dev: make Madara std compatible
+- CI: fix taplo version
+- chore: add cache usage for `getEvents` and `getTransactionReceipt`
+- fix: cairo1 contracts should be identified by their sierra class hash
+- fix(cli): repair broken cli for da conf
+- feat(client): on `add_declare_transaction` store sierra contract classes in
+  the madara backend
+- chore: use struct error in client/db
+- fix: don't ignore Sierra to CASM mapping in genesis config
+- refacto: early exit txs fee estimation when one fails
+- dev: fix linter warning in README.md
+- fix: remove waiting loop from `getTxReceipt`
+- feat: types in `mp-transactions` impl a method to get their version
+- feat: make L1 gas price a `const` of the `RuntimeConfig`
+- fix: broken class hashes and contracts in genesis
+- refactor: rename LAST_SYNCED_L1_BLOCK to be more clear
+- chore: add headers to da calldata, fix eth da in sovereign mode
+- refacto(simulate_tx): move logic to the client
+- chore: added ca-certificate in DockerFile for SSL related issues
+- chore(primitives/commitment): remove crate
+- chore(primitives/block/header): remove starknet-trie dependent fields
+- refacto(primitives/db): add a temporary way to get a fake global state root
+- feat(rpc): add starknet_version and eth_l1_gas_fee on block header
+- fix(spec_version): spec version now returning 0.5.1
+- chore: feature flags for avail and celestia DA
+- feat(rpc): added support for v0.5.1 JSON-RPC specs
+- feat(rpc): added ordered messages/events in trace fields
+- feat(rpc): support for starknet.rs v0.5.1 version
+- feat(rpc): added execution resources in trace fields
+- feat(rpc): added state diff field in trace fields
+- refactor: removed benchmarking folder and traces of CI pipeline
+- fix: decouple is_query into is_query and offset_version
+- feat: add sierra to casm class hash mapping to genesis assets
+- chore: remove ArgentMulticall from genesis assets
+- feat: remove `seq_addr_updated` from `GenesisData`
+- chore: added prometheus metrics for da layer
+- chore: bump celestia rpc crate version
+- fix(DA): run the proof first then the state update
+- fix: `prove_current_block` is called after `update_state`
+- ci: add foundry ci task to push workflow
+- fix: first tx for non deployed account is valid
+- fix: incorrect base url for fetching config
+- feat: add predeployed accounts to genesis state
+- feat(rpc): Added starknet_simulateTransactions
+- fix: Change serialization of bitvec to &[u8] in merkle tree to avoid memory
+  uninitialized
+- chore: change SCARB config version for foundry CI
+- feat(da): update da calldata encoding to v0.11.0 spec, da conf examples, da
+  conf flag, da-tests in CI
+- refactor: use `map` in `estimate_fee` to stop computation on error
+- fix(node/commands): md5 are also checked when running setup --from-local
+- feat(data-availability): extend eth config with poll interval
+- fix(snos-output): expose snos codec, remove unused `get_starknet_messages`
+  runtime method, and unnecessary mp-snos-output dependencies
+- feat(program-hash): add new pallet constant for Starknet OS progam hash;
+  expose runtime getter method; add dedicated crate to manage versions
+- feat(runtime): expose fee token address getter method
+- feat(settlement): run client thread responsible for pushing state updates and
+  messaging on Ethereum
+- feat(settlement): starknet core contract tests with anvil sandbox
+- fix(rpc-test): incorrect node url
+- feat(settlement): e2e test with Madara node settling on Ethereum contract
+- refactor: use `map` in `estimate_fee` to stop computation on error
+- fix: `tempdir` crate has been deprecated; use `tempfile` instead
+- dev: add avail and celestia crates behind a feature flag
+- dev: replace md5 with sha3_256 hash function
+- feat: fixing getNonce Rpc Call and adding a new test
+- refactor: use Zaun crate for Starknet core contract bindings
+- refactor: use Anvil sandbox from Zaun crate
+- feat(rpc): estimateMessageFee RPC call implementation
+
+## v0.6.0
+
+- chore: release v0.6.0
+- refacto: substrate/starknet names in rpc library
+- feat(rpc): Added starknet_getTransactionStatus and removed
+  starknet_pendingTransactions
+- feat(rpc): add starknet_specVersion rpc + added test for future support
+- docs: Added v0.6.0-rc5 documentation above the rpc method functions
+- dev(deps): bump starknet rs, use Eq for EmmitedEvents comparaison
+- test(rust-rpc-test): use undeclared contracts for declare transactions testing
+- build: update blockifier, fix divergent substrat block hash
+- chore: remove tests that run in wasm and native, only wasm from now
+- chore: split StarknetRpcApi trait in two, like in openRPC specs
+- refacto: move starknet runtime api in it's own crate
+- chore: update README.md and getting-started.md
+- chore: remove crates that have been copy-pasted from plkdtSDK
+- feat(rpc): return deployed contract address and actual fee in transaction
+  receipt
+- fix: Wait for 1 minute for transaction to be processed in
+  get_transaction_receipt rpc
+- ci: Fix starknet foundry sncast not found
+- fix: Ensure transaction checks are compatible with starknet-rs
+- ci: Run Starknet Foundry tests against Madara RPC
+- fix: add name, symbol and decimals to fee token storage
+- fix: dependencies for dockerfile and binaries
+- docs: add translation of madara beast article to spanish
+- chore: update starknet-js version in faucet-setup docs
+- dev(compilation): add incremental compilation
+- feat(rpc): add support for bulk estimate fee
+- feat: add argent multicall contract to genesis
+- chore(data-availability): update avail-subxt to version 0.4.0
+- fix(ci): setup should fetch files from local config
+- chore: deprecate `madara-app` and `madara-dev-explorer` modules
+- chore(data-availability-avail): implement fire and forget, and add ws
+  reconnection logic
+- chore: update `polkadot-sdk` to `release-polkadot-v1.3.0`
+- feat: fallback default file for DA and Settlement configuration files
+
+## v0.5.0
+
+- chore: release v0.5.0
+- test: add transaction pool logic unit tests
+- feat(client): spawn a task that listen to storage changes and build the
+  resulting commiment state diff for each block
+- dev(StarknetRPC): log error received from node before mapping to
+  InternalServerError
+- fix: change 'nonce too high' to log in debug instead of info
+- chore: update deps, vm ressource fee cost are now FixedU128, and stored in an
+  hashmap
+- ci: change jobs order in the workflow
+- ci: run integrations tests in the same runner as build
+- ci: replace ci cache with rust-cache
+- fix(transactions): remove `nonce` field from InvokeV0 tx
+- feat(transactions): don't enforce ordering in validate_unsigned for invokeV0
+- test(pallet): add function to get braavos hash
+- fix: event commitment documentation typo
+- ci: added testing key generation in the ci
+- fix(starknet-rpc-test): init one request client per runtime
+- test: validate Nonce for unsigned user txs
+- fix: fixed declare V0 placeholder with the hash of an empty list of felts
+- feat(cli): `run` is the by default command when running the `madara` bin
+- refacto(cli): `run` and `setup` commands are defined in their own files
+- refacto(cli): `run.testnet` argument removed in favor of the substrate native
+  `chain` arg
+- feat(cli): `run.fetch_chain_spec` argument removed in favor of the substrate
+  native `chain` arg
+- feat(cli): `setup` require a source file, either from an url or a path on the
+  local filesystem
+- chore(cli): use `Url`, `Path` and `PathBuf` types rather than `String`
+- refacto(cli): moved the pallet/chain_spec/utils methods to the node crate
+- feat(cli): `madara_path` arg has been remove, we use the substrate native
+  `base_path` arg instead
+- feat(cli): sharingan chain specs are loaded during the compilation, not
+  downloaded from github
+- refacto(pallet/starknet): `GenesisLoader` refactored as `GenesisData` + a
+  `base_path` field
+- feat(cli): for `run` param `--dev` now imply `--tmp`, as it is in substrate
+- test(starknet-rpc-test): run all tests against a single madara node
+- fix(service): confusing message when node starts (output the actual sealing
+  method being used)
+- refactor(sealing): how the sealing mode is passed into runtime
+- feat(sealing): finalization for instant sealing
+- test(starknet-js-test): run basic starknetjs compatibility tests again the
+  madara node
+- feat(cache-option): add an option to enable aggressive caching in command-line
+  parameters
+
+## v0.4.0
+
+- chore: release v0.4.0
+- feat: better management of custom configurations for genesis assets
+- feat: use actual vm resource costs
+- fix: add setup and run for rpc tests
+- fix: fix clap for run command
+- fix: add `madara_path` flag for setup command
+- fix: add official references to configs files
+- fix: cargo update and `main` branch prettier fix
+- fix: fix sharingan chain spec
+- fix: update madara infra to main branch
+- fix: update `Cargo.lock`
+- fix: rpc test failing
+- refactor: exported chain id constant in mp-chain-id crate and added one for
+  SN_MAIN
+- ci: disable pr close workflow
+- ci: add ci verification for detecting genesis changes and config hashes
+- test: add e2e test for `estimate_fee`
+
+## v0.3.0
+
+- chore: release v0.3.0
+- chore: big transaction type refactoring
+- chore: split `primitives` crates into multiple smaller crates
+- chore: improve logging about transaction when nonce is too high
+- chore: add real class hash values for genesis config
+- fix: use specific commit for avail and celestia
+- fix: change dep of rustdoc on push
+- fix: initial_gas set to max_fee and fixed fee not being charged when max_fee=0
+- fix: correct value of compiled_class_hash in RPCTransaction
+- fix: std feature import in transactions crate
+- fix: replace all calls to `transmute` by calls `from_raw_parts`
+- fix: estimate_fee should make sure all transaction have a version being
+  2^128 + 1 or 2^128+2 depending on the tx type
+- feat: modify the hash_bytes functions in `poseidon` and `pedersen` for dynamic
+  data length
+- feat: print development accounts at node startup
+- feat: unification of the DA interface
+- feat: bump starknet-core to 0.6.0 and remove InvokeV0
+- feat: use resolver 2 for cargo in the workspace
+- feat: impl tx execution and verification as traits
+- perf: reduce the amount of data stored in the runtime and use the Substrate
+  block to as source of data in the client
+- perf: use perfect hash function in calculate_l1_gas_by_vm_usage
+- build: restructure code for rust latest version
+- build: bump rustc nightly version to 1.74 date
+- buid: add rust-analyzer to toolchain components
+- ci: scope cache by branch and add cache cleanup
+- ci: increase threshold for codecov to 1%
+- test: add `starknet-rpc-test` crate to the workspace
+- test: add test to check tx signed by OZ account can be signed with Argent pk
+- buid: add rust-analyzer to toolchain components
+- ci: increase threshold for codecov to 1%
+- replace all calls to `transmute` by calls `from_raw_parts`
+- big transaction type refactoring
+- impl tx execution and verification as traits
+- reduce the amount of data stored in the runtime and use the Substrate block to
+  as source of data in the client
+- perf: use perfect hash function in calculate_l1_gas_by_vm_usage
+- chore: add tests for tx hashing
+- split `primitives` crates into multiple smaller crates
+- fix: std feature import in transactions crate
+- chore: improve logging about transaction when nonce is too high
+- fix: rpc tests and background node run
+- test: add tests for simulate tx offset
+- test: add tests for tx hashing
+- fix: bring back messages in transaction receipts
+- feat: starknet os program output primitive
+
+## v0.2.0
+
+- add-contributors: `0xAsten`, `m-kus`, `joaopereira12`, `kasteph`
+- ci: add verification if build-spec is working
+- ci: added wasm to test
+- ci: disable benchmark for pushes and pr's
+- ci: fix docker and binaries build
+- ci: don't enforce changelog on PR's with label `dependencies`
+- doc: added translation of madara beast article.md to portuguese and russian
+- doc: app chain template added in README
+- fix: RPC getClassAt cairo legacy program code encoding
+- fix: build-spec not working by setting the madara-path always and fetching
+  relevant files
+- fix: events are emitted in correct sequential order
+- fix: expected event idx in continuation tokens in test responses
+- fix: update RPC URL to use localhost instead of 0.0.0.0 in hurl.config file
+- fix: update the default port for running Madara locally in getting-started.md
+  file from 9933 to 9944.
+- fix: replace the 0 initial gas value with u128::MAX because view call
+  entrypoints were failing
+- chore: remove global state root
+- chore: cairo-contracts compilation scripts & docs are updated, cairo_0
+  contracts recompiled
+- chore: rebase of core deps and 0.12.1
+
+## v0.1.0
+
+- ci: rm codespell task and rm .codespellignore
+- feat: refactor flags on tests
+- feat: fetch config files from gh repo
+- refactor: remove config files from the code
+- ci: stop closing stale issues
+- ci: reactivate changelog enforcement
+- cli: change dev flag behaviour and created alias for base and madara path
+- configs: fix genesis.json refs to link the config folder
+- ci: downgraded windows runner to windows-latest
+- ci: added windows binaries build and upload the binaries to the release page
+- ci: add `CHANGELOG.md` and enforce it is edited for each PR on `main`
+- fix: removed `madara_runtime` as a dependency in the client crates and make
+  errors more expressive
+- fix: state root bug fix where the tree was stored in runtime _before_ being
+  committed
+- feat: add a `genesis_loader` for the node and mocking
+- feat: add `madara_tsukuyomi` as a submodule
+- branding: use new logo in the README
+- dev: Get the block status from the actual block in get_block_with_tx_hashes
+- fix: l1-l2 messaging
+- dev : clean contracts and compiled files
+  [v0.8.7]: <https://github.com/crystalin/madara/compare/v0.8.0...v0.8.7>

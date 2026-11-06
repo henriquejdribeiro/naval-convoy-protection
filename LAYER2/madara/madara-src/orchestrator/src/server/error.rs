@@ -1,0 +1,195 @@
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use axum::Json;
+
+use super::types::ApiResponse;
+use crate::error::job::JobError;
+
+pub type ApiServiceError = JobRouteError;
+
+pub type ApiServiceResult<T> = Result<T, JobRouteError>;
+
+/// Represents errors that can occur during job route handling operations.
+///
+/// This enum implements both `Debug` and the custom `Error` trait from thiserror,
+/// providing formatted error messages for each variant.
+///
+/// # Error Variants
+/// Each variant maps to a specific HTTP status code when converted to a response:
+/// * `InvalidId` - 400 Bad Request
+/// * `NotFound` - 404 Not Found
+/// * `ProcessingError` - 400 Bad Request
+/// * `InvalidJobState` - 409 Conflict
+/// * `DatabaseError` - 500 Internal Server Error
+/// * `InvalidStatus` - 400 Bad Request
+///
+/// # Examples
+/// ```
+/// use orchestrator::server::error::JobRouteError;
+///
+/// // Creating an invalid ID error
+/// let error = JobRouteError::InvalidId("123-invalid".to_string());
+///
+/// // Creating a processing error
+/// let error = JobRouteError::ProcessingError("Failed to process job".to_string());
+/// ```
+#[derive(Debug, thiserror::Error)]
+pub enum JobRouteError {
+    /// Indicates that the provided job ID is not valid (e.g., not a valid UUID)
+    #[error("Invalid job ID: {0}")]
+    InvalidId(String),
+
+    /// Indicates that the requested job could not be found in the system
+    #[error("Job not found: {0}")]
+    NotFound(String),
+
+    /// Represents errors that occur during job processing
+    #[error("Job processing error: {0}")]
+    ProcessingError(String),
+
+    /// Indicates that the job is in an invalid state for the requested operation
+    #[error("Invalid job state: {0}")]
+    InvalidJobState(String),
+
+    /// Represents errors from database operations
+    #[error("Database error")]
+    DatabaseError,
+
+    /// Indicates that the job status is invalid for the requested operation
+    /// Contains both the job ID and the current status
+    #[error("Invalid status: {id}: {job_status}")]
+    InvalidStatus { id: String, job_status: String },
+
+    /// Indicates that the priority queue has reached capacity
+    #[error("Priority queue capacity exceeded: {0}")]
+    QueueCapacityExceeded(String),
+}
+
+/// Implementation of axum's `IntoResponse` trait for converting errors into HTTP responses.
+///
+/// This implementation ensures that each error variant is mapped to an appropriate
+/// HTTP status code and formatted response body.
+///
+/// # Response Format
+/// All responses are returned as JSON with the following structure:
+/// ```json
+/// {
+///     "success": false,
+///     "message": "Error message here"
+/// }
+/// ```
+///
+/// # Status Code Mapping
+/// * `InvalidId` -> 400 Bad Request
+/// * `NotFound` -> 404 Not Found
+/// * `ProcessingError` -> 400 Bad Request
+/// * `InvalidJobState` -> 409 Conflict
+/// * `DatabaseError` -> 500 Internal Server Error
+/// * `InvalidStatus` -> 400 Bad Request
+impl IntoResponse for JobRouteError {
+    fn into_response(self) -> Response {
+        match self {
+            JobRouteError::InvalidId(id) => {
+                (StatusCode::BAD_REQUEST, Json(ApiResponse::error(format!("Invalid job ID: {}", id)))).into_response()
+            }
+            JobRouteError::NotFound(id) => {
+                (StatusCode::NOT_FOUND, Json(ApiResponse::error(format!("Job not found: {}", id)))).into_response()
+            }
+            JobRouteError::ProcessingError(msg) => {
+                (StatusCode::BAD_REQUEST, Json(ApiResponse::error(format!("Processing error: {}", msg))))
+                    .into_response()
+            }
+            JobRouteError::InvalidJobState(msg) => {
+                (StatusCode::CONFLICT, Json(ApiResponse::error(format!("Invalid job state: {}", msg)))).into_response()
+            }
+            JobRouteError::DatabaseError => {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::error("Database error occurred".to_string())))
+                    .into_response()
+            }
+            JobRouteError::InvalidStatus { id, job_status } => (
+                StatusCode::BAD_REQUEST,
+                Json(ApiResponse::error(format!("Cannot retry job {id}: invalid status {job_status}"))),
+            )
+                .into_response(),
+            JobRouteError::QueueCapacityExceeded(msg) => {
+                (StatusCode::TOO_MANY_REQUESTS, Json(ApiResponse::error(msg))).into_response()
+            }
+        }
+    }
+}
+
+/// Implementation of conversion from JobError to JobRouteError.
+///
+/// This provides automatic error conversion for route handlers, allowing the use of
+/// the `?` operator or `.into()` instead of manual error mapping.
+///
+/// # Conversion Rules
+/// * `JobError::PriorityQueueFull` -> `JobRouteError::QueueCapacityExceeded` with formatted message
+/// * All other `JobError` variants -> `JobRouteError::ProcessingError` with the error string
+impl From<JobError> for JobRouteError {
+    fn from(err: JobError) -> Self {
+        match err {
+            JobError::PriorityQueueFull { current_size, max_size } => JobRouteError::QueueCapacityExceeded(format!(
+                "Priority queue is full (current: {}, max: {}). Please try again later or use normal queue.",
+                current_size, max_size
+            )),
+            _ => JobRouteError::ProcessingError(err.to_string()),
+        }
+    }
+}
+
+/// Represents errors related to block retrieval operations.
+///
+/// This enum provides a set of error variants that can occur during block retrieval operations.
+/// Each variant includes a descriptive error message that can be used to provide meaningful feedback
+/// to the client.
+#[derive(Debug, thiserror::Error)]
+pub enum BlockRouteError {
+    /// Indicates that the provided block number is not valid (e.g., not a valid number)
+    #[error("Invalid Block Number: {0}")]
+    InvalidBlockNumber(String),
+
+    /// Indicates that the requested block could not be found in the system
+    #[error("Batch not found: {0}")]
+    NotFound(String),
+
+    /// Represents errors from database operations
+    #[error("Database error: {0}")]
+    DatabaseError(String),
+}
+
+/// Implementation of axum's `IntoResponse` trait for converting errors into HTTP responses.
+///
+/// This implementation ensures that each error variant is mapped to an appropriate
+/// HTTP status code and formatted response body.
+///
+/// # Response Format
+/// All responses are returned as JSON with the following structure:
+/// ```json
+/// {
+///     "success": false,
+///     "message": "Error message here"
+/// }
+/// ```
+///
+/// # Status Code Mapping
+/// * `InvalidBlockNumber` -> 400 Bad Request
+/// * `NotFound` -> 404 Not Found
+/// * `DatabaseError` -> 500 Internal Server Error
+impl IntoResponse for BlockRouteError {
+    fn into_response(self) -> Response {
+        match self {
+            BlockRouteError::InvalidBlockNumber(id) => {
+                (StatusCode::BAD_REQUEST, Json(ApiResponse::error(format!("Invalid Block Number: {}", id))))
+                    .into_response()
+            }
+            BlockRouteError::NotFound(id) => {
+                (StatusCode::NOT_FOUND, Json(ApiResponse::error(format!("Block not found: {}", id)))).into_response()
+            }
+            BlockRouteError::DatabaseError(err) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::error(format!("Database error: {}", err))))
+                    .into_response()
+            }
+        }
+    }
+}

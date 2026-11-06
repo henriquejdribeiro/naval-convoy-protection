@@ -1,0 +1,46 @@
+[package]
+description = "Madara primitives for gateway"
+name = "mp-gateway"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+homepage.workspace = true
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[features]
+# TODO(v0.13.4): re-add this flag.
+# default = ["deny_unknown_fields"]
+default = []
+deny_unknown_fields = []
+
+[dependencies]
+
+# Madara
+mp-block.workspace = true
+mp-chain-config.workspace = true
+mp-class.workspace = true
+mp-convert.workspace = true
+mp-receipt.workspace = true
+mp-rpc.workspace = true
+mp-state-update.workspace = true
+mp-transactions.workspace = true
+
+# Starknet
+starknet-core.workspace = true
+starknet-types-core.workspace = true
+
+# Other
+hyper.workspace = true
+itertools.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+serde_with.workspace = true
+thiserror.workspace = true
+url.workspace = true

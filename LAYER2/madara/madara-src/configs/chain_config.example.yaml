@@ -1,0 +1,100 @@
+# Chain config version - REQUIRED field
+# This version number is used to track breaking changes to the chain config format.
+# Current version: 1
+config_version: 1
+
+# Human readable chain name, for displaying to the console.
+chain_name: "Starknet Mainnet"
+
+chain_id: "SN_MAIN"
+
+# The URL of the gateway and Feeder Gateway your nodes should sync from.
+feeder_gateway_url: "http://localhost:8080/feeder_gateway/"
+gateway_url: "http://localhost:8080/gateway/"
+
+# For starknet, this is the STRK ERC-20 contract on starknet.
+native_fee_token_address: "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d"
+
+# For starknet, this is the ETH ERC-20 contract on starknet.
+parent_fee_token_address: "0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7"
+
+# The Starknet core contract address for the L1 watcher.
+eth_core_contract_address: "0xc662c410C0ECf747543f5bA90660f6ABeBD9C8c4"
+
+# Most recent Starknet version supported
+latest_protocol_version: "0.13.2"
+
+# /!\ Only used for block production.
+# Target time interval between blocks, in seconds
+block_time: "30s"
+
+# /!\ Only used for block production.
+# Block time is divided into "ticks": everytime this duration elapses, the pending block is updated.
+pending_block_update_time: "2s"
+
+# /!\ Only used for block production.
+# Block production is handled in batches; each batch will pop this number of transactions from the mempool. This is
+# primarily useful for optimistic parallelization.
+# A value too high may have a performance impact - you will need some testing to find the best value for your network.
+execution_batch_size: 16
+
+# /!\ Only used for block production.
+# The bouncer is in charge of limiting block sizes. This is where the max number of step per block, gas etc are.
+bouncer_config:
+  block_max_capacity:
+    # Maximum gas limit per block
+    sierra_gas: 5000000000
+    # Maximum length of message segments
+    message_segment_length: 3700
+    # Maximum number of events per block
+    n_events: 5000
+    # Maximum size of state differences per block
+    state_diff_size: 4000
+    # Maximum L1 gas
+    l1_gas: 2500000
+    # Maximum number of transactions per block
+    n_txs: 600
+    # Maximum proving gas
+    proving_gas: 5500000000
+  blake_weight: 5263
+  builtin_weights:
+    gas_costs:
+      pedersen: 4769
+      range_check: 70
+      ecdsa: 1666666
+      ecop: 714875
+      bitwise: 583
+      keccak: 510707
+      poseidon: 10000
+      add_mod: 312
+      mul_mod: 604
+      range_check96: 56
+
+# /!\ Only used for block production.
+# Address of the sequencer (0x0 for a full node).
+sequencer_address: "0x0"
+
+# Transaction limit in the mempool.
+mempool_max_transactions: 10000
+# Transaction limit in the mempool, additional limit for declare transactions.
+mempool_max_declare_transactions: 20
+# Max age of a transaction in the mempool. Null for no age limit.
+# mempool_tx_max_age: "5h"
+mempool_ttl: null
+
+# L2 gas price configuration - choose either 'fixed' or 'eip1559'.
+# To override this through CLI, you need to override both the type and the values, or it will panic or lead to unexpected results!
+#
+# Option 1: Fixed gas price
+# l2_gas_price:
+#   type: fixed
+#   price: 2500
+# For overriding through CLI, use `--chain-config-override=l2_gas_price.type=fixed,l2_gas_price.price=25000`
+#
+# Option 2: EIP-1559 dynamic gas pricing
+# For overriding through CLI, use `--chain-config-override=l2_gas_price.type=eip1559,l2_gas_price.target=2000000000,l2_gas_price.min_price=100000,l2_gas_price.max_change_denominator=48`
+l2_gas_price:
+  type: eip1559
+  target: 2000000000
+  min_price: 100000
+  max_change_denominator: 48

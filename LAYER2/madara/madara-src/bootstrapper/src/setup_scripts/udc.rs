@@ -1,0 +1,61 @@
+use serde::Serialize;
+use starknet::accounts::ConnectedAccount;
+use starknet::core::types::Felt;
+
+use crate::contract_clients::config::Clients;
+use crate::contract_clients::utils::{declare_contract, DeclarationInput, RpcAccount};
+use crate::helpers::account_actions::{get_contract_address_from_deploy_tx, AccountActions};
+use crate::utils::constants::UDC_PATH;
+use crate::utils::{save_to_json, wait_for_transaction, JsonValueType};
+
+pub struct UdcSetup<'a> {
+    account: RpcAccount<'a>,
+    account_address: Felt,
+    clients: &'a Clients,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UdcSetupOutput {
+    pub udc_class_hash: Felt,
+    pub udc_address: Felt,
+}
+
+impl<'a> UdcSetup<'a> {
+    pub fn new(account: RpcAccount<'a>, account_address: Felt, clients: &'a Clients) -> Self {
+        Self { account, account_address, clients }
+    }
+
+    pub async fn setup(&self) -> UdcSetupOutput {
+        let udc_class_hash =
+            declare_contract(self.clients, DeclarationInput::LegacyDeclarationInputs(String::from(UDC_PATH))).await;
+        log::info!("📣 UDC Class Hash Declared.");
+        save_to_json("udc_class_hash", &JsonValueType::StringType(udc_class_hash.to_string())).unwrap();
+
+        let txn = self
+            .account
+            .invoke_contract(
+                self.account_address,
+                "deploy_contract",
+                Vec::from([udc_class_hash, Felt::ZERO, Felt::ONE, Felt::ZERO]),
+                None,
+            )
+            .l1_gas(0)
+            .l1_data_gas(0)
+            .l2_gas(0)
+            .send()
+            .await
+            .unwrap();
+        wait_for_transaction(
+            self.account.provider(),
+            txn.transaction_hash,
+            "deploy_non_bridge_contracts : deploy_contract : udc",
+        )
+        .await
+        .unwrap();
+        let udc_address = get_contract_address_from_deploy_tx(self.account.provider(), &txn).await.unwrap();
+        save_to_json("udc_address", &JsonValueType::StringType(udc_address.to_string())).unwrap();
+        log::info!("📣 udc_address : {:?}", udc_address);
+
+        UdcSetupOutput { udc_class_hash, udc_address }
+    }
+}

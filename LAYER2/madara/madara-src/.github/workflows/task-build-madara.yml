@@ -1,0 +1,77 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/SchemaStore/schemastore/refs/heads/master/src/schemas/json/github-workflow.json
+name: Task - Build Madara
+
+# This workflow builds the main Madara binary and related components
+# It also caches the build artifacts for other workflows to use
+on:
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      madara-binary-hash:
+        description: "Hash of the built madara binary"
+        value: ${{ jobs.build-binaries.outputs.madara-binary-hash }}
+      cairo-artifacts-hash:
+        description: "Hash of the cairo artifacts"
+        value: ${{ jobs.build-binaries.outputs.cairo-artifacts-hash }}
+
+jobs:
+  build-binaries:
+    runs-on: blacksmith-8vcpu-ubuntu-2204
+    outputs:
+      madara-binary-hash: ${{ steps.generate-binary-hash.outputs.madara-hash }}
+      cairo-artifacts-hash: ${{ steps.generate-binary-hash.outputs.cairo-hash }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Load env
+        uses: ./.github/actions/load-env
+
+      - name: Rust setup
+        uses: ./.github/actions/setup-rust
+        with:
+          rust-version: ${{ env.BUILD_RUST_VERSION }}
+          cache-key: madara-${{ runner.os }}
+
+      # Build Madara
+      - name: Cargo build
+        run: |
+          CARGO_TARGET_DIR=target cargo build --manifest-path madara/Cargo.toml  --bin madara --release
+
+      # Generate hash for the Madara binary
+      - name: Generate binary hashes
+        id: generate-binary-hash
+        run: |
+          # Get current Unix timestamp for uniqueness
+          TIMESTAMP=$(date +%s)
+
+          # Path to the compiled Madara binary
+          BINARY_PATH=./target/release/madara
+          HASH=$(echo "$TIMESTAMP" | cat - $BINARY_PATH | sha256sum | awk '{ print $1 }')
+          echo "madara-hash=$HASH" >> $GITHUB_OUTPUT
+          echo "Hash of the madara is: $HASH (with timestamp: $TIMESTAMP)"
+
+          # Path to the cairo artifacts
+          ARTIFACTS_PATH=./artifacts.tar.gz
+          HASH=$(echo "$TIMESTAMP" | cat - $ARTIFACTS_PATH | sha256sum | awk '{ print $1 }')
+          echo "cairo-hash=$HASH" >> $GITHUB_OUTPUT
+          echo "Hash of cairo artifacts is: $HASH (with timestamp: $TIMESTAMP)"
+
+      # Upload Madara binary as artifact
+      - name: Upload Madara binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: madara-binary-${{ steps.generate-binary-hash.outputs.madara-hash }}
+          path: target/release/madara
+
+      # Upload cairo artifacts
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-${{ steps.generate-binary-hash.outputs.cairo-hash }}
+          path: build-artifacts/**
