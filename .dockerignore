@@ -4,3 +4,4 @@ LAYER1/besu/besu-src
 LAYER2/madara/madara-src
 **/node_modules
 PROOF/stone/stone-src
+PROOF/stone-cli/stone-cli-src

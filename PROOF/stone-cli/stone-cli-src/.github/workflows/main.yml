@@ -1,0 +1,113 @@
+on:
+  push:
+    branches:
+      - main
+      - dev-ci
+
+  pull_request:
+    branches:
+      - main
+      - dev-ci
+
+  schedule:
+    - cron: "0 1 * * 0" # 1 AM UTC every Sunday
+
+jobs:
+  build-and-test-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        id: cache-cargo
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - if: steps.cache-cargo.outputs.cache-hit == 'true'
+        run: echo "cargo cache hit"
+
+      - if: steps.cache-cargo.outputs.cache-hit == 'false'
+        run: echo "cargo cache miss"
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Increase stack size
+        run: |
+          echo "Setting stack size to 8MB"
+          echo "RUST_MIN_STACK=8388608" >> $GITHUB_ENV
+
+      - name: Run cargo test
+        run: cargo test --all-features
+
+      - name: Run cargo build
+        run: cargo build --all
+
+      - name: Run cargo fmt
+        run: cargo fmt --all -- --check
+
+      - name: Run cargo clippy
+        run: cargo clippy --all -- -D warnings
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: CLI Integration tests
+        run: ./tests/cli/tests.sh ${{ secrets.ETHEREUM_MAINNET_FORK_URL }} ${{ secrets.STARKNET_SEPOLIA_V0_7_URL }}
+
+  build-and-test-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - name: Cache cargo
+        id: cache-cargo
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - if: steps.cache-cargo.outputs.cache-hit == 'true'
+        run: echo "cargo cache hit"
+
+      - if: steps.cache-cargo.outputs.cache-hit == 'false'
+        run: echo "cargo cache miss"
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Increase stack size
+        run: |
+          echo "Setting stack size to 8MB"
+          echo "RUST_MIN_STACK=8388608" >> $GITHUB_ENV
+
+      - name: Run cargo test
+        run: cargo test --all-features
+
+      - name: Run cargo build
+        run: cargo build --all
+
+      - name: Run cargo fmt
+        run: cargo fmt --all -- --check
+
+      - name: Run cargo clippy
+        run: cargo clippy --all -- -D warnings
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: CLI Integration tests
+        run: ./tests/cli/tests.sh ${{ secrets.ETHEREUM_MAINNET_FORK_URL }} ${{ secrets.STARKNET_SEPOLIA_V0_7_URL }}
