@@ -22,7 +22,8 @@ RUN wget -q https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/baz
         -O /usr/local/bin/bazel && chmod +x /usr/local/bin/bazel
 ENV USE_BAZEL_VERSION=5.4.1
 WORKDIR /app
-RUN git clone https://github.com/starkware-libs/stone-prover.git .
+RUN git clone https://github.com/starkware-libs/stone-prover.git . \
+ && git checkout 1414a545e4fb38a85391289abe91dd4467d268e1
 RUN bash install_deps.sh
 RUN bazel build //...
 
