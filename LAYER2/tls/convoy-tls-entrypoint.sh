@@ -4,9 +4,7 @@
 #  CLIENT_TUNNELS: accept plaintext from the app, present our cert, verify the server cert+name.
 set -eu
 CONF=/tmp/stunnel.conf
-# before
-{ echo "foreground = yes"; echo "pid ="; echo "syslog = no"; echo "sslVersionMin = TLSv1.3"; } > "$CONF"
-# after
+
 { echo "foreground = yes"; echo "pid ="; echo "syslog = no"; echo "sslVersionMin = TLSv1.3"; } > "$CONF"
 
 n=0
