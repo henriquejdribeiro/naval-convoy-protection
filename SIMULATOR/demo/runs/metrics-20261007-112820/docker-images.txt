@@ -1,0 +1,13 @@
+convoy-prover-api:latest	1.27GB
+rust:latest	2.33GB
+scarb-2.6.3:latest	446MB
+convoy-cairo-builder:latest	2.88GB
+amir20/dozzle:latest	83.8MB
+curlimages/curl:latest	35.4MB
+python:3.11-slim	200MB
+ghcr.io/foundry-rs/foundry:latest	786MB
+hyperledger/besu:26.7.1	883MB
+ghcr.io/madara-alliance/bootstrapper-v2:nightly-b185bb3	183MB
+ghcr.io/madara-alliance/madara:v0.9.1	490MB
+eqlabs/pathfinder:v0.21.3	494MB
+ethereum/solc:0.6.12	12.8MB

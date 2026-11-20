@@ -1,0 +1,548 @@
+=== script1 18:29:40 ===
+  seeded node key -> convoy-ship-a-node
+  seeded node key -> convoy-ship-b-node
+  seeded node key -> convoy-ship-c-node
+  seeded node key -> convoy-ship-d-node
+  seeded node key -> convoy-ship-e-node
+  seeded node key -> convoy-ship-f-node
+  [1/4] L1 chain — 6 Besu QBFT validators (ships A–F)
+═══════════════════════════════════════════════════════════════
+ Container convoy-ship-f Started 
+ Container convoy-ship-e Started 
+ Container convoy-ship-b Started 
+  waiting for Besu ship-a RPC (localhost:8545)........ ✓
+
+═══════════════════════════════════════════════════════════════
+  [2/4] L1 contracts — Registry, Verifier, CommandLog
+═══════════════════════════════════════════════════════════════
+  importing owner key into ship volume convoy-ship-a-key (host never keeps it)
+  importing owner key into ship volume convoy-relay-alpha-key (host never keeps it)
+  importing owner key into ship volume convoy-relay-bravo-key (host never keeps it)
+  importing owner key into ship volume convoy-ship-d-key (host never keeps it)
+  deploying alpha Starknet core (bootstrapper-v2 setup-base)...
+[2026-10-17T17:30:18Z INFO  bootstrapper_v2::setup::base_layer::ethereum] Deployed CoreContract at address: 0x0116686e2291dbd5e317f47fadbfb43b599786ef
+[2026-10-17T17:30:25Z INFO  bootstrapper_v2::setup::base_layer::ethereum] Deployed Manager at address: 0x9baab117304f7d6517048e371025db8f89a8dbe5
+[2026-10-17T17:30:32Z INFO  bootstrapper_v2::setup::base_layer::ethereum] Deployed Registry at address: 0x1eb835eb7beeee9e6bbfe08f16a2d2ef668204bd
+[2026-10-17T17:30:39Z INFO  bootstrapper_v2::setup::base_layer::ethereum] Deployed MultiBridge at address: 0x31a65c6d4eb07ad51e7afc890ac3b7be84df2ead
+[2026-10-17T17:30:46Z INFO  bootstrapper_v2::setup::base_layer::ethereum] Deployed EthBridge at address: 0x2706a171ecb68e0038378d40dd1d136361d0cb7d
+[2026-10-17T17:30:53Z INFO  bootstrapper_v2::setup::base_layer::ethereum] Deployed EthBridgeEIC at address: 0x993f00eb9c73e3e4eae3d6afb4ba65a6b8b5e597
+[2026-10-17T17:30:53Z INFO  bootstrapper_v2::setup::base_layer::ethereum] Computed config hash: 0x4b770bb457112c3766402811d37e461a0c0864f822ff50dd474d53d4b3861ee
+[2026-10-17T17:30:53Z INFO  bootstrapper_v2::setup::base_layer::ethereum] Using computed config hash: 0x4b770bb457112c3766402811d37e461a0c0864f822ff50dd474d53d4b3861ee
+[2026-10-17T17:31:00Z INFO  bootstrapper_v2::setup::base_layer::ethereum] Deployed factory at 0xd771d7c0e1ebe89c9e9f663824851bb89b926d1a
+[2026-10-17T17:31:07Z INFO  bootstrapper_v2::setup::base_layer::ethereum::factory] Received BaseLayerContractsDeployed event, Base layer contracts: BaseLayerContracts { coreContract: 0xb05827a30496ed35d62a4c0b08658a6cd9df0978, manager: 0xff00b07c8f85b81c668e2a15e168c2f432d0d5ff, registry: 0xc19dea222c49cf580341821d8aad5580e7e2a7f3, tokenBridge: 0x33bc304daa5f0dab0e17741439bdb8c153dc3542, ethTokenBridge: 0x74a6dc89fc8662621cf8eba730367ec5f93a6640 }
+[2026-10-17T17:31:07Z INFO  bootstrapper_v2::setup::base_layer::ethereum] Ethereum base layer addresses saved to: /bootstrap/output/addresses-alpha.json
+  deploying bravo Starknet core (bootstrapper-v2 setup-base)...
+[2026-10-17T17:31:15Z INFO  bootstrapper_v2::setup::base_layer::ethereum] Deployed CoreContract at address: 0x8464135c8f25da09e49bc8782676a84730c318bc
+[2026-10-17T17:31:23Z INFO  bootstrapper_v2::setup::base_layer::ethereum] Deployed Manager at address: 0x71c95911e9a5d330f4d621842ec243ee1343292e
+[2026-10-17T17:31:30Z INFO  bootstrapper_v2::setup::base_layer::ethereum] Deployed Registry at address: 0x948b3c65b89df0b4894abe91e6d02fe579834f8f
+[2026-10-17T17:31:37Z INFO  bootstrapper_v2::setup::base_layer::ethereum] Deployed MultiBridge at address: 0x712516e61c8b383df4a63cfe83d7701bce54b03e
+[2026-10-17T17:31:44Z INFO  bootstrapper_v2::setup::base_layer::ethereum] Deployed EthBridge at address: 0xbcf26943c0197d2ee0e5d05c716be60cc2761508
+[2026-10-17T17:31:51Z INFO  bootstrapper_v2::setup::base_layer::ethereum] Deployed EthBridgeEIC at address: 0x59f2f1fcfe2474fd5f0b9ba1e73ca90b143eb8d0
+[2026-10-17T17:31:51Z INFO  bootstrapper_v2::setup::base_layer::ethereum] Computed config hash: 0x5b119ec147dfd8c3ce53ed0f0a00d79d8f36b0ef66c3f8b0e1db4378c356d17
+[2026-10-17T17:31:51Z INFO  bootstrapper_v2::setup::base_layer::ethereum] Using computed config hash: 0x5b119ec147dfd8c3ce53ed0f0a00d79d8f36b0ef66c3f8b0e1db4378c356d17
+[2026-10-17T17:31:58Z INFO  bootstrapper_v2::setup::base_layer::ethereum] Deployed factory at 0xc6ba8c3233ecf65b761049ef63466945c362edd2
+[2026-10-17T17:32:05Z INFO  bootstrapper_v2::setup::base_layer::ethereum::factory] Received BaseLayerContractsDeployed event, Base layer contracts: BaseLayerContracts { coreContract: 0xf46c546160eb1cf436ed30e939bff00369f7aa29, manager: 0x6a32892eeb7dfc604fc031f42617bc0b4fbfe23b, registry: 0xfc4df3332bb0379ccd79e1d0874a6fa5196c1aba, tokenBridge: 0x4490ce953691d5d660f04e80cc2e23af70569bef, ethTokenBridge: 0x9d50066d423caaf577aaf1eeee8d75879ab48ef9 }
+[2026-10-17T17:32:05Z INFO  bootstrapper_v2::setup::base_layer::ethereum] Ethereum base layer addresses saved to: /bootstrap/output/addresses-bravo.json
+  Alpha core: 0xb05827a30496ed35d62a4c0b08658a6cd9df0978
+  Bravo core: 0xf46c546160eb1cf436ed30e939bff00369f7aa29
+[deploy-l1] installing forge dependencies
+[deploy-l1] building
+[deploy-l1] deploying convoy contracts
+  Registry         deployed at: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+  Verifier         deployed at: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+  CommandLog       deployed at: 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+[deploy-l1] L1 contracts deployed; run ./scripts/script4_register-missions.sh after L2 setup
+  [2b] StarkWare 2023_9 GPS verifier suite (byte-identical mainnet bytecode)
+[deploy-stark] deploying 15 stateless contracts (byte-identical to mainnet 2023_9)...
+[deploy-stark] deploying CpuFrilessVerifier (7-builtin starknet)...
+[deploy-stark] deploying GpsStatementVerifier (2023_9, N_BUILTINS=9)...
+[deploy-stark] done - addresses written to SIMULATOR/demo/.tmp-l1/stark-verifier.env:
+# StarkWare 2023_9 (7-builtin starknet) verifier suite on Besu - deploy-stark-verifier.sh
+GPS_STATEMENT_VERIFIER_ADDR=0xc6e7DF5E7b4f2A278906862b61205850344D4e7d
+CPU_FRILESS_VERIFIER_ADDR=0x3Aa5ebB10DC797CAC828524e59A333d0A371443c
+MERKLE_STATEMENT_CONTRACT_ADDR=0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9
+FRI_STATEMENT_CONTRACT_ADDR=0x5FC8d32690cc91D4c39d9d3abcBD16989F875707
+MEMORY_PAGE_FACT_REGISTRY_ADDR=0x0165878A594ca255338adfa4d48449f69242Eb8F
+CPU_CONSTRAINT_POLY_ADDR=0xa513E6E4b8f2a923D98304ec87F64353C4D5C853
+CPU_OODS_ADDR=0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6
+CAIRO_BOOTLOADER_PROGRAM_ADDR=0x8A791620dd6260079BF849Dc5567aDC3F2FdC318
+  wiring convoy Verifier 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512 -> GPS 0xc6e7DF5E7b4f2A278906862b61205850344D4e7d
+  ✓ starkVerifier wired
+
+═══════════════════════════════════════════════════════════════
+  [3/4] L2 stack — 10 Madara + 2 pathfinder leaders + prover APIs
+═══════════════════════════════════════════════════════════════
+  seeding alpha genesis (--devnet one-shot)...
+ Volume naval-convoy-protection_madara-alpha-data Creating 
+ Volume naval-convoy-protection_madara-alpha-data Created 
+time="2026-10-17T18:33:09+01:00" level=warning msg="volume \"convoy-ship-a-node\" already exists but was not created by Docker Compose. Use `external: true` to use an existing volume"
+ Container convoy-ship-a Running 
+ Container convoy-madara-alpha-seed Creating 
+ Container convoy-madara-alpha-seed Created 
+ Container convoy-ship-a Waiting 
+ Container convoy-ship-a Healthy 
+ Container convoy-madara-alpha-seed Starting 
+ Container convoy-madara-alpha-seed Started 
+ Container convoy-madara-alpha-seed Stopping 
+ Container convoy-madara-alpha-seed Stopped 
+Going to remove convoy-madara-alpha-seed
+ Container convoy-madara-alpha-seed Removing 
+ Container convoy-madara-alpha-seed Removed 
+  alpha genesis seeded ✓
+  seeding bravo genesis (--devnet one-shot)...
+ Volume naval-convoy-protection_madara-bravo-data Creating 
+ Volume naval-convoy-protection_madara-bravo-data Created 
+time="2026-10-17T18:33:16+01:00" level=warning msg="volume \"convoy-ship-a-node\" already exists but was not created by Docker Compose. Use `external: true` to use an existing volume"
+ Container convoy-ship-a Running 
+ Container convoy-madara-bravo-seed Creating 
+ Container convoy-madara-bravo-seed Created 
+ Container convoy-ship-a Waiting 
+ Container convoy-ship-a Healthy 
+ Container convoy-madara-bravo-seed Starting 
+ Container convoy-madara-bravo-seed Started 
+ Container convoy-madara-bravo-seed Stopping 
+ Container convoy-madara-bravo-seed Stopped 
+Going to remove convoy-madara-bravo-seed
+ Container convoy-madara-bravo-seed Removing 
+ Container convoy-madara-bravo-seed Removed 
+  bravo genesis seeded ✓
+ Container convoy-madara-bravo-4 Started 
+ Container convoy-madara-bravo-5 Started 
+ Container convoy-madara-bravo-3 Started 
+  waiting for madara-alpha (sequencer) healthy... ✓
+  waiting for madara-bravo (sequencer) healthy... ✓
+  waiting for pathfinder-alpha-1 (leader archive) healthy..... ✓
+  waiting for pathfinder-bravo-1 (leader archive) healthy... ✓
+
+═══════════════════════════════════════════════════════════════
+  [4/4] Dozzle log viewer
+═══════════════════════════════════════════════════════════════
+ Container convoy-debugger Created 
+ Container convoy-debugger Starting 
+ Container convoy-debugger Started 
+  → http://localhost:8888  (sidebar grouped by drone hardware)
+
+═══════════════════════════════════════════════════════════════
+  Stack is up. Suggested next steps:
+═══════════════════════════════════════════════════════════════
+    ./SIMULATOR/demo/scripts/script2_deploy-l2.sh --swarm both
+    ./SIMULATOR/demo/scripts/script3_generate-drone-accounts.sh --swarm both
+    ./SIMULATOR/demo/scripts/script4_register-missions.sh --swarm both
+    python3 SIMULATOR/demo/scripts/script5_generate-mission.py --scenario both-safe
+    for swarm in alpha bravo; do
+        for did in 1 2 3 4 5; do
+            f=SIMULATOR/demo/scenarios/both-safe/${swarm}_${did}.json
+            [ -f "$f" ] && ./SIMULATOR/demo/scripts/script6_submit-telemetry.sh $swarm $did "$f"
+        done
+    done
+    
+
+docker run --rm --network convoy-l1 ghcr.io/foundry-rs/foundry:latest   -c cast call 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0 advanceCount()(uint256) --rpc-url http://ship-a:8545   
+  
+
+    
+
+docker run --rm --network convoy-l1 -v convoy-ship-d-key:/key --entrypoint sh ghcr.io/foundry-rs/foundry:latest -c  cast send 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0 advance(uint256,uint256,uint256) 1 2 100 --rpc-url http://ship-a:8545 --private-key $(cat /key/pk) --legacy  
+    
+
+=== script2 18:33:40 ===
+[deploy-l2] deployer account: 0x055be462e718c4166d656d11f89e341115b8bc82389c3762a10eade04fcb225d (held in relay-ship volumes, not on host)
+[deploy-l2] importing deployer key into relay-ship volume convoy-ship-f-key (host never keeps it)
+WARNING: setting passwords via --password is generally considered insecure, as they will be stored in your shell history or other log files.
+
+======================================================================
+  Deploying convoy_protocol to convoy-madara-alpha  (swarm=alpha)
+  RPC: http://convoy-madara-alpha:9944/rpc/v0.8.1
+======================================================================
+[deploy-l2/alpha] computing class hash...
+[deploy-l2/alpha] class_hash: 0x064e71fde2f92fc0de62961df70b9c6e732ee608c33f43f153d9328d2f8dabb6
+[deploy-l2/alpha] declaring convoy_protocol...
+Transaction 0x07e88384f66bdf6b44f84a585aec5398cb13f1209a0276fdcb7a7bca98f34005 confirmed
+Class hash declared:
+0x064e71fde2f92fc0de62961df70b9c6e732ee608c33f43f153d9328d2f8dabb6
+[deploy-l2/alpha] waiting for class 0x064e71fde2f92fc0de62961df70b9c6e732ee608c33f43f153d9328d2f8dabb6 to be declared on-chain...
+[deploy-l2/alpha] class is declared ✓
+[deploy-l2/alpha] deploying contract...
+  constructor: l1_commander=0x5FbDB2315678afecb367f032d93F642f64180aa3
+Waiting for transaction 0x07b2ba00076561a5c28d1e6fbdd89be737ae2fdfc267661e2836e7272f7b0090 to confirm...
+Transaction not confirmed yet...
+0x04f7df2655436af015551ba5c04853126beaef45889f5f36b3c64f65ba90709d
+Transaction 0x07b2ba00076561a5c28d1e6fbdd89be737ae2fdfc267661e2836e7272f7b0090 confirmed
+Contract deployed:
+[deploy-l2/alpha] contract_addr: 0x04f7df2655436af015551ba5c04853126beaef45889f5f36b3c64f65ba90709d
+[deploy-l2/alpha] wrote SIMULATOR/demo/.tmp-l2/convoy_l2_alpha.env
+[deploy-l2/alpha] smoke test: safe_count(0) (expect 0x0)...
+[deploy-l2/alpha] smoke OK
+[deploy-l2] importing deployer key into relay-ship volume convoy-ship-b-key (host never keeps it)
+WARNING: setting passwords via --password is generally considered insecure, as they will be stored in your shell history or other log files.
+
+======================================================================
+  Deploying convoy_protocol to convoy-madara-bravo  (swarm=bravo)
+  RPC: http://convoy-madara-bravo:9944/rpc/v0.8.1
+======================================================================
+[deploy-l2/bravo] computing class hash...
+[deploy-l2/bravo] class_hash: 0x064e71fde2f92fc0de62961df70b9c6e732ee608c33f43f153d9328d2f8dabb6
+[deploy-l2/bravo] declaring convoy_protocol...
+0x064e71fde2f92fc0de62961df70b9c6e732ee608c33f43f153d9328d2f8dabb6
+Transaction 0x066c32d0315fb8705f7632ffec7ba8cdf9a25f190c453d812d53ff87bc55781a confirmed
+Class hash declared:
+[deploy-l2/bravo] waiting for class 0x064e71fde2f92fc0de62961df70b9c6e732ee608c33f43f153d9328d2f8dabb6 to be declared on-chain...
+[deploy-l2/bravo] class is declared ✓
+[deploy-l2/bravo] deploying contract...
+  constructor: l1_commander=0x5FbDB2315678afecb367f032d93F642f64180aa3
+Waiting for transaction 0x036c194eb5fc8f7562b1ba6b7bb49c1bf060554289448a116f396f78aca2292d to confirm...
+Transaction not confirmed yet...
+0x00f49c129e8c1b0bcc9ec67bad9e01e021fa5072e45ffd4d51d37aa65ee0ec04
+Transaction 0x036c194eb5fc8f7562b1ba6b7bb49c1bf060554289448a116f396f78aca2292d confirmed
+Contract deployed:
+[deploy-l2/bravo] contract_addr: 0x00f49c129e8c1b0bcc9ec67bad9e01e021fa5072e45ffd4d51d37aa65ee0ec04
+[deploy-l2/bravo] wrote SIMULATOR/demo/.tmp-l2/convoy_l2_bravo.env
+[deploy-l2/bravo] smoke test: safe_count(0) (expect 0x0)...
+[deploy-l2/bravo] smoke OK
+
+[deploy-l2] combined SIMULATOR/demo/.tmp-l2/convoy_l2.env:
+CONVOY_PROTOCOL_CLASS_HASH_ALPHA=0x064e71fde2f92fc0de62961df70b9c6e732ee608c33f43f153d9328d2f8dabb6
+CONVOY_PROTOCOL_ADDR_ALPHA=0x04f7df2655436af015551ba5c04853126beaef45889f5f36b3c64f65ba90709d
+CONVOY_PROTOCOL_CLASS_HASH_BRAVO=0x064e71fde2f92fc0de62961df70b9c6e732ee608c33f43f153d9328d2f8dabb6
+CONVOY_PROTOCOL_ADDR_BRAVO=0x00f49c129e8c1b0bcc9ec67bad9e01e021fa5072e45ffd4d51d37aa65ee0ec04
+ACCOUNT_ADDR=0x055be462e718c4166d656d11f89e341115b8bc82389c3762a10eade04fcb225d
+=== script3 18:37:45 ===
+
+======================================================================
+  Minting 5 drone accounts on convoy-madara-alpha
+  (deployer: account #1 at 0x055be462e718c4166d656d11f89e341115b8bc82389c3762a10eade04fcb225d)
+======================================================================
+[mint/alpha/1] deploying drone account...[mint/alpha/1] minting key INSIDE convoy-machine-alpha-1 (host never sees it)
+WARNING: setting passwords via --password is generally considered insecure, as they will be stored in your shell history or other log files.
+ OK  addr=0x02ec14f9442371b9662ba85b4358a858ab051052997a57092582c7529e2334ef
+[mint/alpha/2] deploying drone account...[mint/alpha/2] minting key INSIDE convoy-machine-alpha-2 (host never sees it)
+WARNING: setting passwords via --password is generally considered insecure, as they will be stored in your shell history or other log files.
+ OK  addr=0x04fd101109ed71f4978d0efeb0e73476cdd1d14035ee0bc08e4b6c74c9360e63
+[mint/alpha/3] deploying drone account...[mint/alpha/3] minting key INSIDE convoy-machine-alpha-3 (host never sees it)
+WARNING: setting passwords via --password is generally considered insecure, as they will be stored in your shell history or other log files.
+ OK  addr=0x07c3895af0eb0f048086c107d29dbee2e143eefbe5c4dd4d12bd2b5595e7fce2
+[mint/alpha/4] deploying drone account...[mint/alpha/4] minting key INSIDE convoy-machine-alpha-4 (host never sees it)
+WARNING: setting passwords via --password is generally considered insecure, as they will be stored in your shell history or other log files.
+ OK  addr=0x05b9a22ba3f63c0970e9a3dad41991e4543a9b8b305dbac5487a302995472519
+[mint/alpha/5] deploying drone account...[mint/alpha/5] minting key INSIDE convoy-machine-alpha-5 (host never sees it)
+WARNING: setting passwords via --password is generally considered insecure, as they will be stored in your shell history or other log files.
+ OK  addr=0x028c2b94aee39053626b5b573d18cefb75ceac7872b20713039d4e55a575eaf4
+
+[mint/alpha] wrote SIMULATOR/demo/.tmp-l2/drones-alpha.env
+# Generated by generate-drone-accounts.sh — do not commit
+# Swarm: alpha    Madara: convoy-madara-alpha
+
+ALPHA_DRONE_1_ADDR=0x02ec14f9442371b9662ba85b4358a858ab051052997a57092582c7529e2334ef
+ALPHA_DRONE_1_PUBKEY=0x025727b4b6c0679ae8dc9e6301939fe86813cf2c364464368bcc0037ceaf0990
+ALPHA_DRONE_1_KEYSTORE=convoy-machine-alpha-1:/key/keystore.json
+
+ALPHA_DRONE_2_ADDR=0x04fd101109ed71f4978d0efeb0e73476cdd1d14035ee0bc08e4b6c74c9360e63
+ALPHA_DRONE_2_PUBKEY=0x0383dd43b19133e1cda9f72d7af05e6dd9fc5cf82a784f75c597ff5095112c1b
+ALPHA_DRONE_2_KEYSTORE=convoy-machine-alpha-2:/key/keystore.json
+
+ALPHA_DRONE_3_ADDR=0x07c3895af0eb0f048086c107d29dbee2e143eefbe5c4dd4d12bd2b5595e7fce2
+ALPHA_DRONE_3_PUBKEY=0x010d5866342faf13dabfaa9831b4edec84ee88888cf5443de685c3ce669bb499
+ALPHA_DRONE_3_KEYSTORE=convoy-machine-alpha-3:/key/keystore.json
+
+ALPHA_DRONE_4_ADDR=0x05b9a22ba3f63c0970e9a3dad41991e4543a9b8b305dbac5487a302995472519
+ALPHA_DRONE_4_PUBKEY=0x01f6de2cf5f69dffe33d241063ee066837d7a1ea94853c8f7ca0c78bd8e448ba
+ALPHA_DRONE_4_KEYSTORE=convoy-machine-alpha-4:/key/keystore.json
+
+ALPHA_DRONE_5_ADDR=0x028c2b94aee39053626b5b573d18cefb75ceac7872b20713039d4e55a575eaf4
+ALPHA_DRONE_5_PUBKEY=0x061de3ac8494118fbee44d21f5b2644ae4643efbd99826cd10fab5ea9517c39f
+ALPHA_DRONE_5_KEYSTORE=convoy-machine-alpha-5:/key/keystore.json
+
+
+[fund/alpha] funding 5 drones with 1000000000000000000 wei STRK + ETH each...
+  [1/5] 0x02ec14f9442371b9662ba85b4358a858ab051052997a57092582c7529e2334ef... OK
+  [2/5] 0x04fd101109ed71f4978d0efeb0e73476cdd1d14035ee0bc08e4b6c74c9360e63... OK
+  [3/5] 0x07c3895af0eb0f048086c107d29dbee2e143eefbe5c4dd4d12bd2b5595e7fce2... OK
+  [4/5] 0x05b9a22ba3f63c0970e9a3dad41991e4543a9b8b305dbac5487a302995472519... OK
+  [5/5] 0x028c2b94aee39053626b5b573d18cefb75ceac7872b20713039d4e55a575eaf4... OK
+
+======================================================================
+  Minting 5 drone accounts on convoy-madara-bravo
+  (deployer: account #1 at 0x055be462e718c4166d656d11f89e341115b8bc82389c3762a10eade04fcb225d)
+======================================================================
+[mint/bravo/1] deploying drone account...[mint/bravo/1] minting key INSIDE convoy-machine-bravo-1 (host never sees it)
+WARNING: setting passwords via --password is generally considered insecure, as they will be stored in your shell history or other log files.
+ OK  addr=0x0729a03618078f9c0a32956e3b11425a9416334f53c496d65dad41d9ee187eeb
+[mint/bravo/2] deploying drone account...[mint/bravo/2] minting key INSIDE convoy-machine-bravo-2 (host never sees it)
+WARNING: setting passwords via --password is generally considered insecure, as they will be stored in your shell history or other log files.
+ OK  addr=0x02f67ac7e7e465fe6f7ed713d697945ce223611a33f16fd317627a9838522ebc
+[mint/bravo/3] deploying drone account...[mint/bravo/3] minting key INSIDE convoy-machine-bravo-3 (host never sees it)
+WARNING: setting passwords via --password is generally considered insecure, as they will be stored in your shell history or other log files.
+ OK  addr=0x02c3cc4b70eea13b8a976458ace2bf9f630e8f680fec06165ee91af01cf2ad5b
+[mint/bravo/4] deploying drone account...[mint/bravo/4] minting key INSIDE convoy-machine-bravo-4 (host never sees it)
+WARNING: setting passwords via --password is generally considered insecure, as they will be stored in your shell history or other log files.
+ OK  addr=0x066f4a25d6488e86d0d1f0f97325d1497a962c3729254e8a7e879e8ea82cdabf
+[mint/bravo/5] deploying drone account...[mint/bravo/5] minting key INSIDE convoy-machine-bravo-5 (host never sees it)
+WARNING: setting passwords via --password is generally considered insecure, as they will be stored in your shell history or other log files.
+ OK  addr=0x063127f2224d4c77f1c34ea91707ebc6af8cd479ced8961ef0f5838ec8c78638
+
+[mint/bravo] wrote SIMULATOR/demo/.tmp-l2/drones-bravo.env
+# Generated by generate-drone-accounts.sh — do not commit
+# Swarm: bravo    Madara: convoy-madara-bravo
+
+BRAVO_DRONE_1_ADDR=0x0729a03618078f9c0a32956e3b11425a9416334f53c496d65dad41d9ee187eeb
+BRAVO_DRONE_1_PUBKEY=0x066fb46c5291e6ba237c3e37491bfeb5ecb11a0af23e29a0dd66e9880b829ac8
+BRAVO_DRONE_1_KEYSTORE=convoy-machine-bravo-1:/key/keystore.json
+
+BRAVO_DRONE_2_ADDR=0x02f67ac7e7e465fe6f7ed713d697945ce223611a33f16fd317627a9838522ebc
+BRAVO_DRONE_2_PUBKEY=0x07fcb6fcb7390c39033305685366e6cfb7ac00eb8c4fbf00631c0b1d36b20fa7
+BRAVO_DRONE_2_KEYSTORE=convoy-machine-bravo-2:/key/keystore.json
+
+BRAVO_DRONE_3_ADDR=0x02c3cc4b70eea13b8a976458ace2bf9f630e8f680fec06165ee91af01cf2ad5b
+BRAVO_DRONE_3_PUBKEY=0x06715af2757e4a67f9f29610276ae04f46b67e41a8a5f83c5b302be7da6e4667
+BRAVO_DRONE_3_KEYSTORE=convoy-machine-bravo-3:/key/keystore.json
+
+BRAVO_DRONE_4_ADDR=0x066f4a25d6488e86d0d1f0f97325d1497a962c3729254e8a7e879e8ea82cdabf
+BRAVO_DRONE_4_PUBKEY=0x0564aaf07dd085fca54b880d222030616e5c0da59e95c81fe9f988ab3d52e17b
+BRAVO_DRONE_4_KEYSTORE=convoy-machine-bravo-4:/key/keystore.json
+
+BRAVO_DRONE_5_ADDR=0x063127f2224d4c77f1c34ea91707ebc6af8cd479ced8961ef0f5838ec8c78638
+BRAVO_DRONE_5_PUBKEY=0x0064a818e134f75eb6eb45887d14c5a836f6dad27ceef899c936bd1e80e6c26c
+BRAVO_DRONE_5_KEYSTORE=convoy-machine-bravo-5:/key/keystore.json
+
+
+[fund/bravo] funding 5 drones with 1000000000000000000 wei STRK + ETH each...
+  [1/5] 0x0729a03618078f9c0a32956e3b11425a9416334f53c496d65dad41d9ee187eeb... OK
+  [2/5] 0x02f67ac7e7e465fe6f7ed713d697945ce223611a33f16fd317627a9838522ebc... OK
+  [3/5] 0x02c3cc4b70eea13b8a976458ace2bf9f630e8f680fec06165ee91af01cf2ad5b... OK
+  [4/5] 0x066f4a25d6488e86d0d1f0f97325d1497a962c3729254e8a7e879e8ea82cdabf... OK
+  [5/5] 0x063127f2224d4c77f1c34ea91707ebc6af8cd479ced8961ef0f5838ec8c78638... OK
+=== script4 18:44:35 ===
+[register/alpha]   area hash: 0x064771285d45e19f4f28a0e58c35ee0cc046e1ad8f1d5d58aede9fd2ba21c3c9
+
+[register/alpha] mission 1 on Registry 0x5FbDB2315678afecb367f032d93F642f64180aa3
+[register/alpha]   convoy_protocol L2 addr: 0x04f7df2655436af015551ba5c04853126beaef45889f5f36b3c64f65ba90709d
+[register/alpha]   drones: 0x02ec14f9442371b9662ba85b4358a858ab051052997a57092582c7529e2334ef 0x04fd101109ed71f4978d0efeb0e73476cdd1d14035ee0bc08e4b6c74c9360e63 0x07c3895af0eb0f048086c107d29dbee2e143eefbe5c4dd4d12bd2b5595e7fce2 0x05b9a22ba3f63c0970e9a3dad41991e4543a9b8b305dbac5487a302995472519 0x028c2b94aee39053626b5b573d18cefb75ceac7872b20713039d4e55a575eaf4
+[register/alpha] step 1a: Registry.setConvoyProtocolL2(1, 0x04f7df2655436af015551ba5c04853126beaef45889f5f36b3c64f65ba90709d)
+blobGasPrice         
+blobGasUsed          
+to                   0x5FbDB2315678afecb367f032d93F642f64180aa3
+[register/alpha] step 2: Registry.deploy(1, spec, drones, 1700000000)
+[register/alpha]   → also fires the real Starknet core sendMessageToL2(...) → L1→L2 open_mission
+blobGasPrice         
+blobGasUsed          
+to                   0x5FbDB2315678afecb367f032d93F642f64180aa3
+[register/alpha] step 2b: registered per-drone areas (droneAreas):
+[register/alpha]   drone 1: [xStart yStart width height coverTarget] = 150000000 [1.5e8] 370000000 [3.7e8] 2000000 [2e6] 10000000 [1e7] 1208925819614629174706175 [1.208e24] 
+[register/alpha]   drone 2: [xStart yStart width height coverTarget] = 152000000 [1.52e8] 370000000 [3.7e8] 2000000 [2e6] 10000000 [1e7] 1208925819614629174706175 [1.208e24] 
+[register/alpha]   drone 3: [xStart yStart width height coverTarget] = 154000000 [1.54e8] 370000000 [3.7e8] 2000000 [2e6] 10000000 [1e7] 1208925819614629174706175 [1.208e24] 
+[register/alpha]   drone 4: [xStart yStart width height coverTarget] = 156000000 [1.56e8] 370000000 [3.7e8] 2000000 [2e6] 10000000 [1e7] 1208925819614629174706175 [1.208e24] 
+[register/alpha]   drone 5: [xStart yStart width height coverTarget] = 158000000 [1.58e8] 370000000 [3.7e8] 2000000 [2e6] 10000000 [1e7] 1208925819614629174706175 [1.208e24] 
+[register/alpha] step 3: registering drone pubkeys on Verifier 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+[register/alpha]   drone 1 → 0x025727b4b6c0679ae8dc9e6301939fe86813cf2c364464368bcc0037ceaf0990
+blobGasUsed          
+to                   0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+[register/alpha]   drone 2 → 0x0383dd43b19133e1cda9f72d7af05e6dd9fc5cf82a784f75c597ff5095112c1b
+blobGasUsed          
+to                   0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+[register/alpha]   drone 3 → 0x010d5866342faf13dabfaa9831b4edec84ee88888cf5443de685c3ce669bb499
+blobGasUsed          
+to                   0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+[register/alpha]   drone 4 → 0x01f6de2cf5f69dffe33d241063ee066837d7a1ea94853c8f7ca0c78bd8e448ba
+blobGasUsed          
+to                   0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+[register/alpha]   drone 5 → 0x061de3ac8494118fbee44d21f5b2644ae4643efbd99826cd10fab5ea9517c39f
+blobGasUsed          
+to                   0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+[register/alpha] step 4: setSwarmProgram(1, <program hash>)
+[register/alpha]   program hash: 0x07bff9d1a34902f1ab780cdc71757d8529023e4e74577fdfe607d1f09473c67a
+blobGasUsed          
+to                   0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+[register/alpha] OK
+[register/bravo]   area hash: 0x01357d84714d1596d85d4a968b8d24081e7de9f6f210529288e75f0e0aec659d
+
+[register/bravo] mission 2 on Registry 0x5FbDB2315678afecb367f032d93F642f64180aa3
+[register/bravo]   convoy_protocol L2 addr: 0x00f49c129e8c1b0bcc9ec67bad9e01e021fa5072e45ffd4d51d37aa65ee0ec04
+[register/bravo]   drones: 0x0729a03618078f9c0a32956e3b11425a9416334f53c496d65dad41d9ee187eeb 0x02f67ac7e7e465fe6f7ed713d697945ce223611a33f16fd317627a9838522ebc 0x02c3cc4b70eea13b8a976458ace2bf9f630e8f680fec06165ee91af01cf2ad5b 0x066f4a25d6488e86d0d1f0f97325d1497a962c3729254e8a7e879e8ea82cdabf 0x063127f2224d4c77f1c34ea91707ebc6af8cd479ced8961ef0f5838ec8c78638
+[register/bravo] step 1a: Registry.setConvoyProtocolL2(2, 0x00f49c129e8c1b0bcc9ec67bad9e01e021fa5072e45ffd4d51d37aa65ee0ec04)
+blobGasPrice         
+blobGasUsed          
+to                   0x5FbDB2315678afecb367f032d93F642f64180aa3
+[register/bravo] step 2: Registry.deploy(2, spec, drones, 1700000000)
+[register/bravo]   → also fires the real Starknet core sendMessageToL2(...) → L1→L2 open_mission
+blobGasPrice         
+blobGasUsed          
+to                   0x5FbDB2315678afecb367f032d93F642f64180aa3
+[register/bravo] step 2b: registered per-drone areas (droneAreas):
+[register/bravo]   drone 1: [xStart yStart width height coverTarget] = 130000000 [1.3e8] 370000000 [3.7e8] 4000000 [4e6] 10000000 [1e7] 1099511627775 [1.099e12] 
+[register/bravo]   drone 2: [xStart yStart width height coverTarget] = 134000000 [1.34e8] 370000000 [3.7e8] 4000000 [4e6] 10000000 [1e7] 1099511627775 [1.099e12] 
+[register/bravo]   drone 3: [xStart yStart width height coverTarget] = 138000000 [1.38e8] 370000000 [3.7e8] 4000000 [4e6] 10000000 [1e7] 1099511627775 [1.099e12] 
+[register/bravo]   drone 4: [xStart yStart width height coverTarget] = 142000000 [1.42e8] 370000000 [3.7e8] 4000000 [4e6] 10000000 [1e7] 1099511627775 [1.099e12] 
+[register/bravo]   drone 5: [xStart yStart width height coverTarget] = 146000000 [1.46e8] 370000000 [3.7e8] 4000000 [4e6] 10000000 [1e7] 1099511627775 [1.099e12] 
+[register/bravo] step 3: registering drone pubkeys on Verifier 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+[register/bravo]   drone 1 → 0x066fb46c5291e6ba237c3e37491bfeb5ecb11a0af23e29a0dd66e9880b829ac8
+blobGasUsed          
+to                   0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+[register/bravo]   drone 2 → 0x07fcb6fcb7390c39033305685366e6cfb7ac00eb8c4fbf00631c0b1d36b20fa7
+blobGasUsed          
+to                   0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+[register/bravo]   drone 3 → 0x06715af2757e4a67f9f29610276ae04f46b67e41a8a5f83c5b302be7da6e4667
+blobGasUsed          
+to                   0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+[register/bravo]   drone 4 → 0x0564aaf07dd085fca54b880d222030616e5c0da59e95c81fe9f988ab3d52e17b
+blobGasUsed          
+to                   0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+[register/bravo]   drone 5 → 0x0064a818e134f75eb6eb45887d14c5a836f6dad27ceef899c936bd1e80e6c26c
+blobGasUsed          
+to                   0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+[register/bravo] step 4: setSwarmProgram(2, <program hash>)
+[register/bravo]   program hash: 0x024b41c1ba6f180fb4b5e81bc5f5b29508ec8ec39deb76014cc04105be95afd8
+blobGasUsed          
+to                   0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+[register/bravo] OK
+[register] missions anchored on L1 + L1→L2 open_mission sent through the real Starknet core
+[register] both swarms auto-consume open_mission via their own core (--sequencer L1 sync)
+[submit/alpha/1] signing telemetry commitment in convoy-machine-alpha-1...
+
+[submit/alpha/1] submitting telemetry
+  mission_id:  1
+  drone_id:    1
+  contract:    0x04f7df2655436af015551ba5c04853126beaef45889f5f36b3c64f65ba90709d
+  RPC:         http://convoy-madara-alpha:9944/rpc/v0.8.1
+  cells_file:  SIMULATOR/demo/scenarios/both-safe/alpha_1.json
+
+WARNING: setting keystore passwords via --password or env var is generally considered insecure, as they might be stored in your shell history or other log files.
+WARNING: the JSON-RPC endpoint you're using serves specs 0.8.1, which might be incompatible with the version 0.8.0 supported by this Starkli release for the `starknet_estimateFee` method. You might encounter errors.
+Invoke transaction: 0x0006a8b14c55cea94188882a429480adde41d265f3393d413e25cf7e08df8b62
+Waiting for transaction 0x0006a8b14c55cea94188882a429480adde41d265f3393d413e25cf7e08df8b62 to confirm...
+Transaction not confirmed yet...
+Transaction 0x0006a8b14c55cea94188882a429480adde41d265f3393d413e25cf7e08df8b62 confirmed
+[submit/alpha/2] signing telemetry commitment in convoy-machine-alpha-2...
+
+[submit/alpha/2] submitting telemetry
+  mission_id:  1
+  drone_id:    2
+  contract:    0x04f7df2655436af015551ba5c04853126beaef45889f5f36b3c64f65ba90709d
+  RPC:         http://convoy-madara-alpha:9944/rpc/v0.8.1
+  cells_file:  SIMULATOR/demo/scenarios/both-safe/alpha_2.json
+
+WARNING: setting keystore passwords via --password or env var is generally considered insecure, as they might be stored in your shell history or other log files.
+WARNING: the JSON-RPC endpoint you're using serves specs 0.8.1, which might be incompatible with the version 0.8.0 supported by this Starkli release for the `starknet_estimateFee` method. You might encounter errors.
+Invoke transaction: 0x06e93877624259c68c4d6c1604635f6e9798dcf5c2540ac9f3d3dc4014952d60
+Waiting for transaction 0x06e93877624259c68c4d6c1604635f6e9798dcf5c2540ac9f3d3dc4014952d60 to confirm...
+Transaction not confirmed yet...
+Transaction 0x06e93877624259c68c4d6c1604635f6e9798dcf5c2540ac9f3d3dc4014952d60 confirmed
+[submit/alpha/3] signing telemetry commitment in convoy-machine-alpha-3...
+
+[submit/alpha/3] submitting telemetry
+  mission_id:  1
+  drone_id:    3
+  contract:    0x04f7df2655436af015551ba5c04853126beaef45889f5f36b3c64f65ba90709d
+  RPC:         http://convoy-madara-alpha:9944/rpc/v0.8.1
+  cells_file:  SIMULATOR/demo/scenarios/both-safe/alpha_3.json
+
+WARNING: setting keystore passwords via --password or env var is generally considered insecure, as they might be stored in your shell history or other log files.
+WARNING: the JSON-RPC endpoint you're using serves specs 0.8.1, which might be incompatible with the version 0.8.0 supported by this Starkli release for the `starknet_estimateFee` method. You might encounter errors.
+Invoke transaction: 0x05cb83ebe37e0d595c1a12d38415bd9cced176b66f73e2a0bf294ce0340f7571
+Waiting for transaction 0x05cb83ebe37e0d595c1a12d38415bd9cced176b66f73e2a0bf294ce0340f7571 to confirm...
+Transaction not confirmed yet...
+Transaction 0x05cb83ebe37e0d595c1a12d38415bd9cced176b66f73e2a0bf294ce0340f7571 confirmed
+[submit/alpha/4] signing telemetry commitment in convoy-machine-alpha-4...
+
+[submit/alpha/4] submitting telemetry
+  mission_id:  1
+  drone_id:    4
+  contract:    0x04f7df2655436af015551ba5c04853126beaef45889f5f36b3c64f65ba90709d
+  RPC:         http://convoy-madara-alpha:9944/rpc/v0.8.1
+  cells_file:  SIMULATOR/demo/scenarios/both-safe/alpha_4.json
+
+WARNING: setting keystore passwords via --password or env var is generally considered insecure, as they might be stored in your shell history or other log files.
+WARNING: the JSON-RPC endpoint you're using serves specs 0.8.1, which might be incompatible with the version 0.8.0 supported by this Starkli release for the `starknet_estimateFee` method. You might encounter errors.
+Invoke transaction: 0x067198585aee9fb5d61ca3d3a36d37abedd429e12f663dd1b9c7ba145baea49c
+Waiting for transaction 0x067198585aee9fb5d61ca3d3a36d37abedd429e12f663dd1b9c7ba145baea49c to confirm...
+Transaction not confirmed yet...
+Transaction 0x067198585aee9fb5d61ca3d3a36d37abedd429e12f663dd1b9c7ba145baea49c confirmed
+[submit/alpha/5] signing telemetry commitment in convoy-machine-alpha-5...
+
+[submit/alpha/5] submitting telemetry
+  mission_id:  1
+  drone_id:    5
+  contract:    0x04f7df2655436af015551ba5c04853126beaef45889f5f36b3c64f65ba90709d
+  RPC:         http://convoy-madara-alpha:9944/rpc/v0.8.1
+  cells_file:  SIMULATOR/demo/scenarios/both-safe/alpha_5.json
+
+WARNING: setting keystore passwords via --password or env var is generally considered insecure, as they might be stored in your shell history or other log files.
+WARNING: the JSON-RPC endpoint you're using serves specs 0.8.1, which might be incompatible with the version 0.8.0 supported by this Starkli release for the `starknet_estimateFee` method. You might encounter errors.
+Invoke transaction: 0x0362080c2d99e3dcd69207e5e25649812996cd6611d86b005d740875b090b1df
+Waiting for transaction 0x0362080c2d99e3dcd69207e5e25649812996cd6611d86b005d740875b090b1df to confirm...
+Transaction not confirmed yet...
+Transaction 0x0362080c2d99e3dcd69207e5e25649812996cd6611d86b005d740875b090b1df confirmed
+[submit/bravo/1] signing telemetry commitment in convoy-machine-bravo-1...
+
+[submit/bravo/1] submitting telemetry
+  mission_id:  2
+  drone_id:    1
+  contract:    0x00f49c129e8c1b0bcc9ec67bad9e01e021fa5072e45ffd4d51d37aa65ee0ec04
+  RPC:         http://convoy-madara-bravo:9944/rpc/v0.8.1
+  cells_file:  SIMULATOR/demo/scenarios/both-safe/bravo_1.json
+
+WARNING: setting keystore passwords via --password or env var is generally considered insecure, as they might be stored in your shell history or other log files.
+WARNING: the JSON-RPC endpoint you're using serves specs 0.8.1, which might be incompatible with the version 0.8.0 supported by this Starkli release for the `starknet_estimateFee` method. You might encounter errors.
+Invoke transaction: 0x04a90a4dabc7bf1654b31e32002a066e43368ba64973a1de6a79a213c013d782
+Waiting for transaction 0x04a90a4dabc7bf1654b31e32002a066e43368ba64973a1de6a79a213c013d782 to confirm...
+Transaction not confirmed yet...
+Transaction 0x04a90a4dabc7bf1654b31e32002a066e43368ba64973a1de6a79a213c013d782 confirmed
+[submit/bravo/2] signing telemetry commitment in convoy-machine-bravo-2...
+
+[submit/bravo/2] submitting telemetry
+  mission_id:  2
+  drone_id:    2
+  contract:    0x00f49c129e8c1b0bcc9ec67bad9e01e021fa5072e45ffd4d51d37aa65ee0ec04
+  RPC:         http://convoy-madara-bravo:9944/rpc/v0.8.1
+  cells_file:  SIMULATOR/demo/scenarios/both-safe/bravo_2.json
+
+WARNING: setting keystore passwords via --password or env var is generally considered insecure, as they might be stored in your shell history or other log files.
+WARNING: the JSON-RPC endpoint you're using serves specs 0.8.1, which might be incompatible with the version 0.8.0 supported by this Starkli release for the `starknet_estimateFee` method. You might encounter errors.
+Invoke transaction: 0x0705f81c0f9f55eb94c75deabacae5b00ce9a02821d9c71e004f5420c91f2654
+Waiting for transaction 0x0705f81c0f9f55eb94c75deabacae5b00ce9a02821d9c71e004f5420c91f2654 to confirm...
+Transaction not confirmed yet...
+Transaction 0x0705f81c0f9f55eb94c75deabacae5b00ce9a02821d9c71e004f5420c91f2654 confirmed
+[submit/bravo/3] signing telemetry commitment in convoy-machine-bravo-3...
+
+[submit/bravo/3] submitting telemetry
+  mission_id:  2
+  drone_id:    3
+  contract:    0x00f49c129e8c1b0bcc9ec67bad9e01e021fa5072e45ffd4d51d37aa65ee0ec04
+  RPC:         http://convoy-madara-bravo:9944/rpc/v0.8.1
+  cells_file:  SIMULATOR/demo/scenarios/both-safe/bravo_3.json
+
+WARNING: setting keystore passwords via --password or env var is generally considered insecure, as they might be stored in your shell history or other log files.
+WARNING: the JSON-RPC endpoint you're using serves specs 0.8.1, which might be incompatible with the version 0.8.0 supported by this Starkli release for the `starknet_estimateFee` method. You might encounter errors.
+Invoke transaction: 0x0796bd6434ac816ef87412cd6fc0d086c28ffe4b17eab59000eadf4942c0db0b
+Waiting for transaction 0x0796bd6434ac816ef87412cd6fc0d086c28ffe4b17eab59000eadf4942c0db0b to confirm...
+Transaction not confirmed yet...
+Transaction 0x0796bd6434ac816ef87412cd6fc0d086c28ffe4b17eab59000eadf4942c0db0b confirmed
+[submit/bravo/4] signing telemetry commitment in convoy-machine-bravo-4...
+
+[submit/bravo/4] submitting telemetry
+  mission_id:  2
+  drone_id:    4
+  contract:    0x00f49c129e8c1b0bcc9ec67bad9e01e021fa5072e45ffd4d51d37aa65ee0ec04
+  RPC:         http://convoy-madara-bravo:9944/rpc/v0.8.1
+  cells_file:  SIMULATOR/demo/scenarios/both-safe/bravo_4.json
+
+WARNING: setting keystore passwords via --password or env var is generally considered insecure, as they might be stored in your shell history or other log files.
+WARNING: the JSON-RPC endpoint you're using serves specs 0.8.1, which might be incompatible with the version 0.8.0 supported by this Starkli release for the `starknet_estimateFee` method. You might encounter errors.
+Invoke transaction: 0x0747403a9a88c15137ceed3b76b4fae117e6fe66f8df6978be7520dc976551ab
+Waiting for transaction 0x0747403a9a88c15137ceed3b76b4fae117e6fe66f8df6978be7520dc976551ab to confirm...
+Transaction not confirmed yet...
+Transaction 0x0747403a9a88c15137ceed3b76b4fae117e6fe66f8df6978be7520dc976551ab confirmed
+[submit/bravo/5] signing telemetry commitment in convoy-machine-bravo-5...
+
+[submit/bravo/5] submitting telemetry
+  mission_id:  2
+  drone_id:    5
+  contract:    0x00f49c129e8c1b0bcc9ec67bad9e01e021fa5072e45ffd4d51d37aa65ee0ec04
+  RPC:         http://convoy-madara-bravo:9944/rpc/v0.8.1
+  cells_file:  SIMULATOR/demo/scenarios/both-safe/bravo_5.json
+
+WARNING: setting keystore passwords via --password or env var is generally considered insecure, as they might be stored in your shell history or other log files.
+WARNING: the JSON-RPC endpoint you're using serves specs 0.8.1, which might be incompatible with the version 0.8.0 supported by this Starkli release for the `starknet_estimateFee` method. You might encounter errors.
+Invoke transaction: 0x03a7ea4dbdd580213fea1d2b0861f8111b4a7049bc84bb1a00498e34a81fed30
+Waiting for transaction 0x03a7ea4dbdd580213fea1d2b0861f8111b4a7049bc84bb1a00498e34a81fed30 to confirm...
+Transaction not confirmed yet...
+Transaction 0x03a7ea4dbdd580213fea1d2b0861f8111b4a7049bc84bb1a00498e34a81fed30 confirmed

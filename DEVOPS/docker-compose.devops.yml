@@ -1,0 +1,57 @@
+# =============================================================================
+# convoy-devops — the single OPERATOR node.
+#
+# You start it with SIMULATOR/demo/scripts/script0_devops.sh (the only script
+# you run on the host). On boot it runs DEVOPS/orchestrate_poc1.sh, which runs
+# the whole PoC (script1 … script7) from INSIDE this container.
+#
+# How it reaches the host Docker daemon:
+#   - /var/run/docker.sock is mounted → `docker run` / `docker compose` issued
+#     here execute as SIBLING containers on the host daemon (docker-out-of-docker).
+#   - The repo is mounted at its *HOST* path (${HOST_REPO_ROOT}), so every
+#     `-v <hostpath>:/x` bind and `--project-directory .` the scripts use resolves
+#     correctly on the host daemon. Named volumes (all the keys) need no mapping.
+#   - Its own L1 health curls go to host.docker.internal:8545 (host-published),
+#     so it needs no attachment to convoy-l1 (which script1 itself creates).
+# =============================================================================
+services:
+  convoy-devops:
+    image: convoy-devops:latest
+    build:
+      context: DEVOPS          # small build context (just the Dockerfile)
+      dockerfile: Dockerfile
+    container_name: convoy-devops
+    user: root                    # needs to read the mounted docker.sock + write the repo
+    working_dir: ${HOST_REPO_ROOT}
+    command: ["bash", "DEVOPS/orchestrate_poc1.sh"]
+    restart: "no"
+    environment:
+      HOST_REPO_ROOT: ${HOST_REPO_ROOT}
+      # script1's health checks run from inside this container, so point them at
+      # the host-published L1 RPC instead of localhost:
+      URL: "http://host.docker.internal:8545"
+      L1_HEALTH_URL: "http://host.docker.internal:8545"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - .:${HOST_REPO_ROOT}                            # repo mounted at its HOST path
+      - /var/run/docker.sock:/var/run/docker.sock      # talk to the host daemon
+  
+  convoy-tls-devops:
+    image: alpine:3.20
+    container_name: convoy-tls-devops
+    profiles: ["tls"]                      # only comes up with the TLS mesh
+    entrypoint: ["sh","-c","apk add --no-cache stunnel >/dev/null && exec sh /convoy-tls-entrypoint.sh"]
+    environment:
+      NODE: devops
+      CLIENT_TUNNELS: "19944:convoy-tls-node1:9444 29944:convoy-tls-node1b:9444 18545:convoy-tls-shipa:8545"
+    volumes:
+      - ./LAYER2/tls/convoy-tls-entrypoint.sh:/convoy-tls-entrypoint.sh:ro
+      - convoy-tls-certs:/tls:ro
+    networks: [convoy-l1]
+    restart: unless-stopped
+
+volumes:
+    convoy-tls-certs: { external: true, name: convoy-tls-certs }
+networks:
+    convoy-l1: { external: true }

@@ -1,7 +1,7 @@
-import json, urllib.request, urllib.error
+import os, json, urllib.request, urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-BESU = "http://ship-a:8545"
+BESU = os.environ.get("BESU_UPSTREAM", "http://ship-a:8545")
 
 def _relabel(x):
     # Besu-QBFT serves neither `finalized` nor `safe` (it ERRORS on the tag), yet

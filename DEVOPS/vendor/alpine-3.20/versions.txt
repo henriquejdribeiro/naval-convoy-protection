@@ -1,0 +1,51 @@
+== apk -v ==
+libcrypto3-3.3.7-r0
+libssl3-3.3.7-r0
+openssl-3.3.7-r0
+stunnel-5.72-r0
+
+== openssl version ==
+OpenSSL 3.3.7 7 Apr 2026 (Library: OpenSSL 3.3.7 7 Apr 2026)
+built on: Thu Apr  9 22:19:57 2026 UTC
+platform: linux-x86_64
+options:  bn(64,64)
+compiler: gcc -fPIC -pthread -m64 -Wa,--noexecstack -Os -fstack-clash-protection -Wformat -Werror=format-security -fno-plt -g -Os -fstack-clash-protection -Wformat -Werror=format-security -fno-plt -g -Wa,--noexecstack -DOPENSSL_USE_NODELETE -DL_ENDIAN -DOPENSSL_PIC -DOPENSSL_BUILDING_OPENSSL -DNDEBUG
+OPENSSLDIR: "/etc/ssl"
+ENGINESDIR: "/usr/lib/engines-3"
+MODULESDIR: "/usr/lib/ossl-modules"
+Seeding source: os-specific
+CPUINFO: OPENSSL_ia32cap=0xfffa32234f8bffff:0x184007a4219c27ab
+
+== stunnel -version ==
+Initializing inetd mode configuration
+stunnel 5.72 on x86_64-alpine-linux-musl platform
+Compiled with OpenSSL 3.3.0 9 Apr 2024
+Running  with OpenSSL 3.3.7 7 Apr 2026
+Threading:PTHREAD Sockets:POLL,IPv6 TLS:ENGINE,OCSP,PSK,SNI
+ 
+Global options:
+RNDbytes               = 1024
+RNDfile                = /dev/urandom
+RNDoverwrite           = yes
+ 
+Service-level options:
+ciphers                = HIGH:!aNULL:!SSLv2:!DH:!kDHEPSK
+ciphersuites           = TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256 (with TLSv1.3)
+curves                 = X25519:P-256:X448:P-521:P-384
+debug                  = daemon.notice
+logId                  = sequential
+options                = NO_SSLv2
+options                = NO_SSLv3
+securityLevel          = 2
+sessionCacheSize       = 1000
+sessionCacheTimeout    = 300 seconds
+stack                  = 65536 bytes
+TIMEOUTbusy            = 300 seconds
+TIMEOUTclose           = 60 seconds
+TIMEOUTconnect         = 10 seconds
+TIMEOUTidle            = 43200 seconds
+TIMEOUTocsp            = 5 seconds
+verify                 = none
+
+== openssl.cnf floor ==
+(no MinProtocol/CipherString set -> OpenSSL library default applies)

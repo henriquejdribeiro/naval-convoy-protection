@@ -167,7 +167,6 @@ contract Registry is Ownable {
 
     /// @notice Emitted by setMissionSafe when a mission flips SAFE on L1. The live
     ///         "verified" event. NOTE: aggH is always bytes32(0) now (vestigial).
-    ///         Distinct from L2's MissionSafe and Verifier's MissionSafeConsumed.
     event MissionSafe(
         uint256 indexed missionId,
         bytes32         aggH

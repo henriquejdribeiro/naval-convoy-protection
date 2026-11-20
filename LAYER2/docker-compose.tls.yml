@@ -1,0 +1,78 @@
+# mTLS mesh: one convoy-tls per node/ship + a convoy-ops deploy node. Opt-in via -f.
+x-convoy-tls: &convoy-tls
+  image: alpine:3.20
+  profiles: ["tls"]
+  entrypoint: ["sh","-c","apk add --no-cache stunnel >/dev/null && exec sh /convoy-tls-entrypoint.sh"]
+  volumes:
+    - ./LAYER2/tls/convoy-tls-entrypoint.sh:/convoy-tls-entrypoint.sh:ro
+    - convoy-tls-certs:/tls:ro
+  networks: [convoy-l1]
+  restart: unless-stopped
+  depends_on:
+    convoy-tls-certs: { condition: service_completed_successfully }
+
+services:
+  convoy-tls-certs:
+    image: alpine:3.20
+    container_name: convoy-tls-certs
+    profiles: ["tls"]
+    entrypoint: ["sh","-c","apk add --no-cache openssl >/dev/null && sh /gen-certs.sh"]
+    restart: "no"
+    volumes:
+      - ./LAYER2/tls/gen-certs.sh:/gen-certs.sh:ro
+      - convoy-tls-certs:/tls
+    networks: [convoy-l1]
+
+  # ---------- Alpha: leader ----------
+  convoy-tls-node1: { <<: *convoy-tls, container_name: convoy-tls-node1,
+    environment: { NODE: node1,
+      SERVER_TUNNELS: "9444:convoy-madara-alpha:9944 8443:convoy-madara-alpha:8080" } }
+
+  # ---------- Alpha: followers 2..5 (client to own leader node1) ----------
+  convoy-tls-node2: { <<: *convoy-tls, container_name: convoy-tls-node2,
+    environment: { NODE: node2, CLIENT_TUNNELS: "9944:convoy-tls-node1:9444 8080:convoy-tls-node1:8443" } }
+  convoy-tls-node3: { <<: *convoy-tls, container_name: convoy-tls-node3,
+    environment: { NODE: node3, CLIENT_TUNNELS: "9944:convoy-tls-node1:9444 8080:convoy-tls-node1:8443" } }
+  convoy-tls-node4: { <<: *convoy-tls, container_name: convoy-tls-node4,
+    environment: { NODE: node4, CLIENT_TUNNELS: "9944:convoy-tls-node1:9444 8080:convoy-tls-node1:8443" } }
+  convoy-tls-node5: { <<: *convoy-tls, container_name: convoy-tls-node5,
+    environment: { NODE: node5, CLIENT_TUNNELS: "9944:convoy-tls-node1:9444 8080:convoy-tls-node1:8443" } }
+
+  # ---------- Bravo: leader ----------
+  convoy-tls-node1b: { <<: *convoy-tls, container_name: convoy-tls-node1b,
+    environment: { NODE: node1b,
+      SERVER_TUNNELS: "9444:convoy-madara-bravo:9944 8443:convoy-madara-bravo:8080" } }
+
+  # ---------- Bravo: followers 2..5 (client to own leader node1b) ----------
+  convoy-tls-node2b: { <<: *convoy-tls, container_name: convoy-tls-node2b,
+    environment: { NODE: node2b, CLIENT_TUNNELS: "9944:convoy-tls-node1b:9444 8080:convoy-tls-node1b:8443" } }
+  convoy-tls-node3b: { <<: *convoy-tls, container_name: convoy-tls-node3b,
+    environment: { NODE: node3b, CLIENT_TUNNELS: "9944:convoy-tls-node1b:9444 8080:convoy-tls-node1b:8443" } }
+  convoy-tls-node4b: { <<: *convoy-tls, container_name: convoy-tls-node4b,
+    environment: { NODE: node4b, CLIENT_TUNNELS: "9944:convoy-tls-node1b:9444 8080:convoy-tls-node1b:8443" } }
+  convoy-tls-node5b: { <<: *convoy-tls, container_name: convoy-tls-node5b,
+    environment: { NODE: node5b, CLIENT_TUNNELS: "9944:convoy-tls-node1b:9444 8080:convoy-tls-node1b:8443" } }
+
+  # ---------- App-side overrides (point cross-node apps at their local convoy-tls) ----------
+  machine-alpha-2: { environment: { STARKNET_RPC: "http://convoy-tls-node2:9944/rpc/v0.8.1" } }
+  machine-alpha-3: { environment: { STARKNET_RPC: "http://convoy-tls-node3:9944/rpc/v0.8.1" } }
+  machine-alpha-4: { environment: { STARKNET_RPC: "http://convoy-tls-node4:9944/rpc/v0.8.1" } }
+  machine-alpha-5: { environment: { STARKNET_RPC: "http://convoy-tls-node5:9944/rpc/v0.8.1" } }
+  machine-bravo-2: { environment: { STARKNET_RPC: "http://convoy-tls-node2b:9944/rpc/v0.8.1" } }
+  machine-bravo-3: { environment: { STARKNET_RPC: "http://convoy-tls-node3b:9944/rpc/v0.8.1" } }
+  machine-bravo-4: { environment: { STARKNET_RPC: "http://convoy-tls-node4b:9944/rpc/v0.8.1" } }
+  machine-bravo-5: { environment: { STARKNET_RPC: "http://convoy-tls-node5b:9944/rpc/v0.8.1" } }
+
+  # Followers: only the two gateway URLs change. Full command shown for alpha-2; the rest
+  # are identical with node2→node3/4/5 (alpha) and →node{N}b against convoy-tls-node1b (bravo).
+  madara-alpha-2:
+    command: >
+      --name MadaraAlphaDrone2 --full --preset devnet --base-path /madara_db
+      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=${STARKNET_CORE_ADDR_ALPHA},block_time=30s
+      --gateway-url http://convoy-tls-node2:8080
+      --validate-then-forward-txs-to http://convoy-tls-node2:8080
+      --rpc-external --rpc-cors all --l1-sync-disabled
+      --l1-gas-price 1000000000 --blob-gas-price 100000
+
+volumes:
+  convoy-tls-certs: { name: convoy-tls-certs }

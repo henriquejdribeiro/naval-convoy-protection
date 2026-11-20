@@ -131,7 +131,9 @@ EOF
 mint_drone_account() {
     local swarm="$1"
     local did="$2"
-    local rpc_url="http://convoy-madara-${swarm}:9944/rpc/v${RPC_VERSION}"
+    #local rpc_url="http://convoy-madara-${swarm}:9944/rpc/v${RPC_VERSION}"
+    local rpc_var="MADARA_RPC_${swarm^^}"
+    local rpc_url=${!rpc_var:-http://convoy-madara-${swarm}:9944/rpc/v${RPC_VERSION}}
     local d_rel="SIMULATOR/demo/.tmp-l2/drones/${swarm}/${did}"
     local out_dir="${REPO_ROOT}/${d_rel}"
     mkdir -p "${out_dir}"
@@ -252,7 +254,9 @@ EOF
 fund_drone() {
     local swarm="$1"
     local drone_addr="$2"
-    local rpc_url="http://convoy-madara-${swarm}:9944/rpc/v${RPC_VERSION}"
+    #local rpc_url="http://convoy-madara-${swarm}:9944/rpc/v${RPC_VERSION}"
+    local rpc_var="MADARA_RPC_${swarm^^}"
+    local rpc_url=${!rpc_var:-http://convoy-madara-${swarm}:9944/rpc/v${RPC_VERSION}}
 
     local token label out rc nonce attempts
     for token in "${STRK_TOKEN_ADDR}" "${ETH_TOKEN_ADDR}"; do

@@ -232,11 +232,6 @@ mod ConvoyProtocol {
         StorageMapReadAccess, StorageMapWriteAccess,
     };
 
-    // The L2→L1 message hook. Fired by submit_telemetry when the 5th drone lands
-    // SAFE; the relay then hand-credits it on L1. (This is the syscall that needs
-    // L1 gas — the reason only the 5th drone's tx hit the gas issue.)
-    use core::starknet::syscalls::send_message_to_l1_syscall;
-
     // Shared types + codes defined at FILE scope (outside this module) so BOTH
     // the interface trait and this contract can use them. `super::` = the parent
     // (file) module; we reach up to pull them into the contract's scope.
@@ -315,7 +310,6 @@ mod ConvoyProtocol {
         // ContractAddress is an L2 type. An L1 address (160 bits) crosses the
         // bridge as a plain felt252. Type = which chain the address belongs to.
         l1_commander_addr: felt252,    // L1 address authorised to call open_mission (#[l1_handler] sender check)
-        l1_verifier_addr:  felt252,    // L1 destination of the all-SAFE send_message_to_l1
     }
 
     // ── Events ─────────────────────────────────────────────────────────────
@@ -647,16 +641,6 @@ mod ConvoyProtocol {
                     // All drones SAFE — emit the L1 message exactly once.
                     self.l1_emitted.write(mission_id, true);
 
-                    // Payload = [mission_id, n_drones]. The L1 Verifier is the
-                    // destination (l1_verifier_addr, an L1 addr stored as felt252).
-                    // .span() gives the syscall a read-only view of the array.
-                    let n_drones_felt: felt252 = spec.n_drones.into();
-                    let payload = array![mission_id, n_drones_felt].span();
-                    let _ = send_message_to_l1_syscall(
-                        self.l1_verifier_addr.read(),
-                        payload,
-                    );
-
                     self.emit(MissionSafeEvent {
                         mission_id,
                         n_drones: spec.n_drones,
@@ -914,9 +898,7 @@ mod ConvoyProtocol {
     fn constructor(
         ref self: ContractState,
         l1_commander_addr: felt252,
-        l1_verifier_addr:  felt252,
     ) {
         self.l1_commander_addr.write(l1_commander_addr);
-        self.l1_verifier_addr.write(l1_verifier_addr);
     }
 }

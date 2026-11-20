@@ -25,7 +25,9 @@ case "${SWARM}" in alpha|bravo) ;; *) echo "swarm must be alpha|bravo"; exit 2;;
 
 MISSION_ID=$( [ "${SWARM}" = "alpha" ] && echo 1 || echo 2 )
 PROVER="convoy-prover-api-${SWARM}"
-RPC_URL="http://convoy-madara-${SWARM}:9944/rpc/v${RPC_VERSION}"
+#RPC_URL="http://convoy-madara-${SWARM}:9944/rpc/v${RPC_VERSION}"
+RPC_VAR="MADARA_RPC_${SWARM^^}"
+RPC_URL=${!RPC_VAR:-http://convoy-madara-${SWARM}:9944/rpc/v${RPC_VERSION}}
 CONV_ENV="${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/convoy_l2_${SWARM}.env"
 UP="${SWARM^^}"
 

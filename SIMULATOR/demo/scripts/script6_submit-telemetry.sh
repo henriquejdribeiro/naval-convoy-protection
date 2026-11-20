@@ -66,7 +66,9 @@ fi
 
 MISSION_ID=$( [ "${SWARM}" = "alpha" ] && echo 1 || echo 2 )
 MADARA_HOST="convoy-madara-${SWARM}"
-RPC_URL="http://${MADARA_HOST}:9944/rpc/v${RPC_VERSION}"
+#RPC_URL="http://${MADARA_HOST}:9944/rpc/v${RPC_VERSION}"
+RPC_VAR="MADARA_RPC_${SWARM^^}"
+RPC_URL=${!RPC_VAR:-http://${MADARA_HOST}:9944/rpc/v${RPC_VERSION}}
 CONV_ENV="${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/convoy_l2_${SWARM}.env"
 
 MACHINE="convoy-machine-${SWARM}-${DRONE_ID}"

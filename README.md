@@ -306,18 +306,23 @@ source SIMULATOR/demo/.tmp-l2/convoy_l2.env; ok=no; for i in $(seq 1 40); do a=$
 if [ "$ok" = yes ]; then echo "submit $(date +%s)" >> "$RUN/phases.txt"; { for sw in alpha bravo; do for d in 1 2 3 4 5; do f=SIMULATOR/demo/scenarios/both-safe/${sw}_${d}.json; [ -f "$f" ] && ./SIMULATOR/demo/scripts/script6_submit-telemetry.sh "$sw" "$d" "$f"; done; done; } 2>&1 | tee -a "$LOG"; echo "submits done"; else echo ">>> GATE TIMEOUT — kill \$STATS_PID + ping me" | tee -a "$LOG"; fi
 ```
 
-**4. `prove` marker → prove both swarms (script7), then watch until each registers:**
+**4. `prove` marker → prove each swarm ALONE (full machine, no core contention), writing isolated per-swarm times to `prove_splits.txt`:**
 
 ```bash
-echo "prove $(date +%s)" >> "$RUN/phases.txt"; { echo "=== prove alpha $(date +%T) ==="; ./SIMULATOR/demo/scripts/script7_prove-swarm.sh alpha; echo "=== prove bravo $(date +%T) ==="; ./SIMULATOR/demo/scripts/script7_prove-swarm.sh bravo; } 2>&1 | tee -a "$LOG"
-```
-
-```bash
-docker logs -f convoy-prover-api-alpha
-```
-
-```bash
-docker logs -f convoy-prover-api-bravo
+echo "prove $(date +%s)" >> "$RUN/phases.txt"; : > "$RUN/prove_splits.txt"
+# ---- ALPHA alone ----
+echo "alpha_start $(date +%s)" | tee -a "$RUN/prove_splits.txt"
+{ echo "=== prove alpha $(date +%T) ==="; ./SIMULATOR/demo/scripts/script7_prove-swarm.sh alpha; } 2>&1 | tee -a "$LOG"
+echo "  waiting for ALPHA prover to finish (full hardware)..."
+for i in $(seq 1 120); do docker logs convoy-prover-api-alpha 2>&1 | grep -q "PIPELINE COMPLETE" && { echo "  alpha PIPELINE COMPLETE (~$((i*10))s)"; break; }; sleep 10; done
+echo "alpha_end $(date +%s)" | tee -a "$RUN/prove_splits.txt"
+# ---- BRAVO alone ----
+echo "bravo_start $(date +%s)" | tee -a "$RUN/prove_splits.txt"
+{ echo "=== prove bravo $(date +%T) ==="; ./SIMULATOR/demo/scripts/script7_prove-swarm.sh bravo; } 2>&1 | tee -a "$LOG"
+echo "  waiting for BRAVO prover to finish (full hardware)..."
+for i in $(seq 1 120); do docker logs convoy-prover-api-bravo 2>&1 | grep -q "PIPELINE COMPLETE" && { echo "  bravo PIPELINE COMPLETE (~$((i*10))s)"; break; }; sleep 10; done
+echo "bravo_end $(date +%s)" | tee -a "$RUN/prove_splits.txt"
+echo "=== prove splits ==="; cat "$RUN/prove_splits.txt"
 ```
 
 **5. `advance` marker → check the gate + advance → +10 s settle → capture ALL logs →
@@ -328,7 +333,7 @@ stop the sampler.** This writes `prover-{alpha,bravo}.log` and `logs/<node>.log`
 echo "advance $(date +%s)" >> "$RUN/phases.txt"; { echo "=== L1 state $(date +%T) ==="; docker run --rm --network convoy-l1 --entrypoint sh ghcr.io/foundry-rs/foundry:latest -c "echo -n 'principalHash='; cast call 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512 'principalHash()(bytes32)' --rpc-url http://ship-a:8545; echo -n 'isDualSafe='; cast call 0x5FbDB2315678afecb367f032d93F642f64180aa3 'isDualSafe(uint256,uint256)(bool)' 1 2 --rpc-url http://ship-a:8545"; echo "=== advance $(date +%T) ==="; MSYS_NO_PATHCONV=1 docker run --rm --network convoy-l1 -v convoy-ship-d-key:/key --entrypoint sh ghcr.io/foundry-rs/foundry:latest -c "cast send 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0 'advance(uint256,uint256,uint256)' 1 2 100 --rpc-url http://ship-a:8545 --private-key \"\$(cat /key/pk)\" --legacy"; } 2>&1 | tee -a "$LOG"
 sleep 10
 echo "end $(date +%s)" >> "$RUN/phases.txt"; kill "$STATS_PID" 2>/dev/null
-docker logs convoy-prover-api-alpha > "$RUN/prover-alpha.log" 2>&1; docker logs convoy-prover-api-bravo > "$RUN/prover-bravo.log" 2>&1
+docker logs -t convoy-prover-api-alpha > "$RUN/prover-alpha.log" 2>&1; docker logs -t convoy-prover-api-bravo > "$RUN/prover-bravo.log" 2>&1
 mkdir -p "$RUN/logs"; for c in $(docker ps --format '{{.Names}}' | grep -E '^convoy-(ship-[a-f]|madara-(alpha|bravo)(-[2-5])?)$'); do docker logs "$c" > "$RUN/logs/$c.log" 2>&1; done
 echo "ALL DONE — $RUN"
 ```

@@ -122,10 +122,25 @@
             'to its swarm’s leader / sequencer (a1 · b1). Each leader then fetches all 5 ' +
             'drones’ readings and runs the coverage circuit — every strip, every reading, ' +
             'all 5 signatures verified in-circuit — into a single <b>swarm STARK proof</b>.',
-      data: `10 signed <code>submit_telemetry</code> txns → a1 · b1<br>` +
-            `Circuit <b>${M.proof.felts} felts</b> · ${M.proof.builtins} · 5× in-circuit ECDSA (cairo ${M.proof.cairoVer})<br>` +
-            `Alpha proof <b>${M.alpha.proofKB} KB</b> · Bravo <b>${M.bravo.proofKB} KB</b><br>` +
-            `Stone prove time: a1 <b>${dsec(M.alpha.proveSec)}</b> · b1 <b>${dsec(M.bravo.proveSec)}</b> &nbsp;(verify off-chain &lt;1s)`,
+      data: () => {
+        const P = (STATS && STATS.prove) || {};
+        const felts = P.felts != null ? P.felts : M.proof.felts;
+        const pick = sw => { const p = P[sw];
+          if (p && p.stone != null) return { s: p.stone, stone: true };
+          if (p && p.total != null) return { s: p.total, stone: false };
+          return { s: M[sw].proveSec, stone: null }; };
+        const a = pick('alpha'), b = pick('bravo');
+        const kbA = (P.alpha && P.alpha.proofKB) || M.alpha.proofKB;
+        const kbB = (P.bravo && P.bravo.proofKB) || M.bravo.proofKB;
+        const stone = a.stone === true && b.stone === true;
+        const lbl = stone ? 'Stone prove time' : 'Prove time (per swarm, isolated)';
+        const tail = stone ? ' &nbsp;(verify off-chain &lt;1s)' : '';
+        const src = (STATS && STATS.run) ? `<br><span style="color:#64748b">last run · ${STATS.run}</span>` : '';
+        return `10 signed <code>submit_telemetry</code> txns → a1 · b1<br>` +
+          `Circuit <b>${felts} felts</b> · ${M.proof.builtins} · 5× in-circuit ECDSA (cairo ${M.proof.cairoVer})<br>` +
+          `Alpha proof <b>${kbA} KB</b> · Bravo <b>${kbB} KB</b><br>` +
+          `${lbl}: a1 <b>${dsec(a.s)}</b> · b1 <b>${dsec(b.s)}</b>${tail}${src}`;
+      },
       enter: () => { W.clearTracks(); resetDrones(); W.focus(-15.0, 35.98, 88); submitAndProve(2600); },
     },
     {
@@ -732,7 +747,8 @@
     document.getElementById('d-title').textContent = s.title;
     document.getElementById('d-body').innerHTML = s.body;
     const dd = document.getElementById('d-data');
-    dd.innerHTML = s.data || ''; dd.style.display = s.data ? '' : 'none';
+    const dv = (typeof s.data === 'function') ? s.data() : s.data;
+    dd.innerHTML = dv || ''; dd.style.display = dv ? '' : 'none';
     document.getElementById('d-count').textContent = i + ' / ' + (STEPS.length - 1);
     document.getElementById('d-prev').disabled = i === 0;
     const nx = document.getElementById('d-next');
@@ -753,6 +769,11 @@
     W.onDemoPick = onDemoPick;                   // click a unit → show its container stack
     build();
     go(0);
+    ensureStats(() => {                       // last-run prove times loaded → refresh PROVE card (step 4)
+      if (idx !== 4) return;
+      const dd = document.getElementById('d-data'), dv = STEPS[4].data();
+      if (dd) { dd.innerHTML = dv || ''; dd.style.display = dv ? '' : 'none'; }
+    });
   }
 
   // launch when the menu selects demo (or immediately if already set)

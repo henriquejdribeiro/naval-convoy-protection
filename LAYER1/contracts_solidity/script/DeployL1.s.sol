@@ -60,9 +60,6 @@ contract DeployL1 is Script {
         Registry registry = new Registry(deployer, commanderAddr, alphaCore, bravoCore);
         console2.log("Registry         deployed at:", address(registry));
 
-        // 3. Verifier — consumes L2→L1 MissionSafe messages and flips
-        //    Registry.missionSafe. No STARK-proof gating any more (that
-        //    moved to L2's convoy_protocol contract in commit 4fa6ad4).
         // 3. Verifier — gated: reads isValid(factHash) on the GpsStatementVerifier.
         address alphaRelay    = vm.envAddress("ALPHA_RELAY_ADDR");
         address bravoRelay    = vm.envAddress("BRAVO_RELAY_ADDR");

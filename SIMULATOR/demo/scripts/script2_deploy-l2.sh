@@ -103,7 +103,9 @@ EOF
 deploy_to() {
     local swarm="$1"           # "alpha" or "bravo"
     local madara_host="convoy-madara-${swarm}"
-    local rpc_url="http://${madara_host}:9944/rpc/v${RPC_VERSION}"
+    #local rpc_url="http://${madara_host}:9944/rpc/v${RPC_VERSION}"
+    local rpc_var="MADARA_RPC_${swarm^^}"
+    local rpc_url="${!rpc_var:-http://${madara_host}:9944/rpc/v${RPC_VERSION}}"
     local env_file="${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/convoy_l2_${swarm}.env"
 
     local KEYVOL; KEYVOL=$(relay_key_vol "${swarm}")   # SCARB_RUN reads this
@@ -169,7 +171,7 @@ deploy_to() {
         return 1
     fi
 
-    # 4. Deploy via UDC. Constructor takes (l1_commander_addr, l1_verifier_addr)
+    # 4. Deploy via UDC. Constructor takes (l1_commander_addr)
     #    as felt252.
     #
     #    l1_commander_addr is the L1 address that the L2 contract will
@@ -181,31 +183,22 @@ deploy_to() {
     #    the commander's EOA, even though that EOA is the one that
     #    signed the Registry.deploy tx.
     #
-    #    l1_verifier_addr is the L1 destination for L2 → L1 MissionSafe
-    #    messages. send_message_to_l1_syscall uses this as its first
-    #    arg, and L1's Verifier.consumeL2Message will be msg.sender of
-    #    the consume call — the hash bind makes only that address able
-    #    to claim the message.
-    #
     #    Both addresses are read from LAYER1/deployments/local.env (populated
     #    by DeployL1.s.sol) so they line up with the actually-deployed
     #    L1 contracts on the current chain.
     local local_env="${REPO_ROOT}/LAYER1/deployments/local.env"
-    local l1_commander l1_verifier
+    local l1_commander
     if [ -f "${local_env}" ]; then
         l1_commander=$(grep -E "^export REGISTRY_ADDR="        "${local_env}" | cut -d= -f2 | tr -d ' ')
-        l1_verifier=$(  grep -E "^export CONVOY_VERIFIER_ADDR=" "${local_env}" | cut -d= -f2 | tr -d ' ')
     fi
     [ -z "${l1_commander}" ] && { echo "[deploy-l2/${swarm}] REGISTRY_ADDR not in LAYER1/deployments/local.env"; return 1; }
-    [ -z "${l1_verifier}"  ] && { echo "[deploy-l2/${swarm}] CONVOY_VERIFIER_ADDR not in LAYER1/deployments/local.env"; return 1; }
 
     echo "[deploy-l2/${swarm}] deploying contract..."
-    echo "  constructor: l1_commander=${l1_commander}, l1_verifier=${l1_verifier}"
+    echo "  constructor: l1_commander=${l1_commander}"
     local deploy_out
     deploy_out=$(SCARB_RUN "${rpc_url}" starkli deploy \
         "${class_hash}" \
         "${l1_commander}" \
-        "${l1_verifier}" \
         --rpc "${rpc_url}" \
         --watch \
         2>&1)  || true

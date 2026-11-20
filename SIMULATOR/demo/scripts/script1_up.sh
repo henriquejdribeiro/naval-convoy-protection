@@ -69,7 +69,7 @@ wait_besu() {
     printf "  waiting for Besu ship-a RPC (localhost:8545)..."
     until curl -fs -X POST -H 'Content-Type: application/json' \
         --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
-        http://localhost:8545 >/dev/null 2>&1; do
+        "${L1_HEALTH_URL:-http://localhost:8545}" >/dev/null 2>&1; do
         printf "."
         sleep 3
     done

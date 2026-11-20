@@ -21,6 +21,7 @@ import json
 import os
 import re
 import sys
+import datetime
 
 WEBAPP_DIR = os.path.dirname(os.path.abspath(__file__))      # SIMULATOR/webapp
 SIM_DIR = os.path.dirname(WEBAPP_DIR)                         # SIMULATOR
@@ -34,6 +35,56 @@ RUN_STAT_RE = re.compile(r"(convoy-[\w-]+)=([\d.]+)%/([\d.]+)([KMG])iB")   # nam
 def _mib(v, u):
     v = float(v)
     return v * 1024.0 if u == "G" else (v / 1024.0 if u == "K" else v)
+
+def _ts(line):
+    m = re.match(r'(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?)', line)
+    if not m:
+        return None
+    s = m.group(1)
+    if '.' in s:
+        h, fr = s.split('.'); s = h + '.' + fr[:6]
+    try:
+        return datetime.datetime.fromisoformat(s)
+    except ValueError:
+        return None
+
+def _prove_times(run_dir):
+    kv = {}
+    sp = os.path.join(run_dir, "prove_splits.txt")
+    if os.path.exists(sp):
+        with open(sp, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                p = line.split()
+                if len(p) >= 2 and p[1].lstrip("-").isdigit():
+                    kv[p[0]] = int(p[1])
+    out, felts = {}, None
+    for sw in ("alpha", "bravo"):
+        d = {}
+        if sw + "_start" in kv and sw + "_end" in kv:
+            d["total"] = kv[sw + "_end"] - kv[sw + "_start"]      # end-to-end (fetch→L1)
+        # after — prefer the timestamped .t.log (both provers have it); fall back for old runs
+        lp = os.path.join(run_dir, "prover-%s.t.log" % sw)
+        if not os.path.exists(lp):
+            lp = os.path.join(run_dir, "prover-%s.log" % sw)
+        if os.path.exists(lp):
+            t2b = t4 = None
+            with open(lp, encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    if felts is None and "felts" in line:
+                        m = re.search(r"code size:\s*(\d+)\s*felts", line)
+                        if m: felts = int(m.group(1))
+                    if "proof bytes" in line:
+                        m = re.search(r"proof bytes:\s*(\d+)", line)
+                        if m: d["proofKB"] = round(int(m.group(1)) / 1024)
+                    if t2b is None and "Step 2b" in line: t2b = _ts(line)
+                    elif t4 is None and "Step 4" in line: t4 = _ts(line)
+            if t2b and t4:
+                d["stone"] = round((t4 - t2b).total_seconds())     # true Stone-prove (needs -t)
+        if d:
+            out[sw] = d
+    if felts is not None:
+        out["felts"] = felts
+    return out
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -120,6 +171,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return self._send_json({
             "run": os.path.basename(os.path.dirname(path)),
             "t": rel, "dur": rel[-1], "containers": series, "phases": phases,
+            "prove": _prove_times(os.path.dirname(path)),
         })
 
     def do_POST(self):

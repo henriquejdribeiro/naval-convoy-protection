@@ -49,3 +49,15 @@ Thumbs.db
 
 # ── Claude Code local state (per-machine, never commit) ───────────────
 .claude/
+
+# demo-run output logs (bulky, regenerated per run; not source)
+SIMULATOR/demo/runs/*/stats.log
+SIMULATOR/demo/runs/*/logs/
+
+# vendored openssl/stunnel: keep source to read (ssl/, crypto/), drop test suites & keys
+# (full source preserved in the .tar.gz). Avoids GitHub push-protection on test PEM keys.
+DEVOPS/vendor/alpine-3.20/src/openssl-3.3.7/test/
+DEVOPS/vendor/alpine-3.20/src/openssl-3.3.7/demos/
+DEVOPS/vendor/alpine-3.20/src/openssl-3.3.7/fuzz/
+DEVOPS/vendor/alpine-3.20/src/**/*.pem
+DEVOPS/vendor/alpine-3.20/src/**/*.key
