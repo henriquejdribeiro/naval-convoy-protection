@@ -24,3 +24,35 @@ services:
     restart: unless-stopped
     depends_on:
       convoy-tls-certs: { condition: service_completed_successfully }
+
+  convoy-tls-shipf:
+    image: alpine:3.20
+    container_name: convoy-tls-shipf          # == cert SAN; the alpha leader checkHosts this
+    profiles: ["tls"]
+    entrypoint: ["sh","-c","apk add --no-cache stunnel >/dev/null && exec sh /convoy-tls-entrypoint.sh"]
+    environment:
+      NODE: shipf                              # loads /tls/shipf.pem (SAN convoy-tls-shipf)
+      SERVER_TUNNELS: "8545:ship-f:8545"       # accept TLS :8545 → plaintext ship-f:8545 (alpha relay)
+    volumes:
+      - ./LAYER2/tls/convoy-tls-entrypoint.sh:/convoy-tls-entrypoint.sh:ro
+      - convoy-tls-certs:/tls:ro
+    networks: [convoy-l1]
+    restart: unless-stopped
+    depends_on:
+      convoy-tls-certs: { condition: service_completed_successfully }
+
+  convoy-tls-shipb:
+    image: alpine:3.20
+    container_name: convoy-tls-shipb          # == cert SAN; the bravo leader checkHosts this
+    profiles: ["tls"]
+    entrypoint: ["sh","-c","apk add --no-cache stunnel >/dev/null && exec sh /convoy-tls-entrypoint.sh"]
+    environment:
+      NODE: shipb                              # loads /tls/shipb.pem (SAN convoy-tls-shipb)
+      SERVER_TUNNELS: "8545:ship-b:8545"       # accept TLS :8545 → plaintext ship-b:8545 (bravo relay)
+    volumes:
+      - ./LAYER2/tls/convoy-tls-entrypoint.sh:/convoy-tls-entrypoint.sh:ro
+      - convoy-tls-certs:/tls:ro
+    networks: [convoy-l1]
+    restart: unless-stopped
+    depends_on:
+      convoy-tls-certs: { condition: service_completed_successfully }

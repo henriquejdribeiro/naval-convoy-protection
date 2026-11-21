@@ -14,16 +14,16 @@ x-convoy-tls-bridge: &tls-bridge
     convoy-tls-certs: { condition: service_completed_successfully }
 
 services:
-  # inject the L1-client tunnel onto the L2 leaders (merges with their LAYER2 def)
-  convoy-tls-node1:  { environment: { CLIENT_TUNNELS: "15545:convoy-tls-shipa:8545" } }
-  convoy-tls-node1b: { environment: { CLIENT_TUNNELS: "15545:convoy-tls-shipa:8545" } }
+  # inject the L1-client tunnel onto each L2 leader → its OWN relay ship
+  convoy-tls-node1:  { environment: { CLIENT_TUNNELS: "15545:convoy-tls-shipf:8545" } }   # alpha → ship F
+  convoy-tls-node1b: { environment: { CLIENT_TUNNELS: "15545:convoy-tls-shipb:8545" } }   # bravo → ship B
 
   prover-api-alpha:
     environment: { GETH_RPC_URL: "http://convoy-tls-node1:15545",  URL: "http://convoy-tls-node1:15545" }
   prover-api-bravo:
     environment: { GETH_RPC_URL: "http://convoy-tls-node1b:15545", URL: "http://convoy-tls-node1b:15545" }
-  l1-shim:
-    environment: { BESU_UPSTREAM: "http://convoy-tls-node1:15545" }
+  l1-shim-alpha: { environment: { BESU_UPSTREAM: "http://convoy-tls-node1:15545" } }   # → ship F over mTLS
+  l1-shim-bravo: { environment: { BESU_UPSTREAM: "http://convoy-tls-node1b:15545" } }  # → ship B over mTLS
 
 volumes:
   convoy-tls-certs: { external: true, name: convoy-tls-certs }

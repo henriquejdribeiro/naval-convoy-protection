@@ -74,5 +74,68 @@ services:
       --rpc-external --rpc-cors all --l1-sync-disabled
       --l1-gas-price 1000000000 --blob-gas-price 100000
 
+  madara-alpha-3:
+    command: >
+      --name MadaraAlphaDrone3 --full --preset devnet --base-path /madara_db
+      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=${STARKNET_CORE_ADDR_ALPHA},block_time=30s
+      --gateway-url http://convoy-tls-node3:8080
+      --validate-then-forward-txs-to http://convoy-tls-node3:8080
+      --rpc-external --rpc-cors all --l1-sync-disabled
+      --l1-gas-price 1000000000 --blob-gas-price 100000
+
+  madara-alpha-4:
+    command: >
+      --name MadaraAlphaDrone4 --full --preset devnet --base-path /madara_db
+      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=${STARKNET_CORE_ADDR_ALPHA},block_time=30s
+      --gateway-url http://convoy-tls-node4:8080
+      --validate-then-forward-txs-to http://convoy-tls-node4:8080
+      --rpc-external --rpc-cors all --l1-sync-disabled
+      --l1-gas-price 1000000000 --blob-gas-price 100000
+
+  madara-alpha-5:
+    command: >
+      --name MadaraAlphaDrone5 --full --preset devnet --base-path /madara_db
+      --chain-config-override=chain_id=convoy_alpha,eth_core_contract_address=${STARKNET_CORE_ADDR_ALPHA},block_time=30s
+      --gateway-url http://convoy-tls-node5:8080
+      --validate-then-forward-txs-to http://convoy-tls-node5:8080
+      --rpc-external --rpc-cors all --l1-sync-disabled
+      --l1-gas-price 1000000000 --blob-gas-price 100000
+
+  madara-bravo-2:
+    command: >
+      --name MadaraBravoDrone2 --full --preset devnet --base-path /madara_db
+      --chain-config-override=chain_id=convoy_bravo,eth_core_contract_address=${STARKNET_CORE_ADDR_BRAVO},block_time=30s
+      --gateway-url http://convoy-tls-node2b:8080
+      --validate-then-forward-txs-to http://convoy-tls-node2b:8080
+      --rpc-external --rpc-cors all --l1-sync-disabled
+      --l1-gas-price 1000000000 --blob-gas-price 100000
+
+  madara-bravo-3:
+    command: >
+      --name MadaraBravoDrone3 --full --preset devnet --base-path /madara_db
+      --chain-config-override=chain_id=convoy_bravo,eth_core_contract_address=${STARKNET_CORE_ADDR_BRAVO},block_time=30s
+      --gateway-url http://convoy-tls-node3b:8080
+      --validate-then-forward-txs-to http://convoy-tls-node3b:8080
+      --rpc-external --rpc-cors all --l1-sync-disabled
+      --l1-gas-price 1000000000 --blob-gas-price 100000
+
+  madara-bravo-4:
+    command: >
+      --name MadaraBravoDrone4 --full --preset devnet --base-path /madara_db
+      --chain-config-override=chain_id=convoy_bravo,eth_core_contract_address=${STARKNET_CORE_ADDR_BRAVO},block_time=30s
+      --gateway-url http://convoy-tls-node4b:8080
+      --validate-then-forward-txs-to http://convoy-tls-node4b:8080
+      --rpc-external --rpc-cors all --l1-sync-disabled
+      --l1-gas-price 1000000000 --blob-gas-price 100000
+
+  madara-bravo-5:
+    command: >
+      --name MadaraBravoDrone5 --full --preset devnet --base-path /madara_db
+      --chain-config-override=chain_id=convoy_bravo,eth_core_contract_address=${STARKNET_CORE_ADDR_BRAVO},block_time=30s
+      --gateway-url http://convoy-tls-node5b:8080
+      --validate-then-forward-txs-to http://convoy-tls-node5b:8080
+      --rpc-external --rpc-cors all --l1-sync-disabled
+      --l1-gas-price 1000000000 --blob-gas-price 100000
+
 volumes:
   convoy-tls-certs: { name: convoy-tls-certs }

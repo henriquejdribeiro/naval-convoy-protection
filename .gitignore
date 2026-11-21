@@ -61,3 +61,7 @@ DEVOPS/vendor/alpine-3.20/src/openssl-3.3.7/demos/
 DEVOPS/vendor/alpine-3.20/src/openssl-3.3.7/fuzz/
 DEVOPS/vendor/alpine-3.20/src/**/*.pem
 DEVOPS/vendor/alpine-3.20/src/**/*.key
+
+# vendored openssl/stunnel docs embed sample PEM private keys (trips GitHub push-protection); full docs remain in the .tar.gz
+DEVOPS/vendor/alpine-3.20/src/openssl-3.3.7/doc/
+DEVOPS/vendor/alpine-3.20/src/stunnel-5.72/doc/

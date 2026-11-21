@@ -3,7 +3,7 @@
 # (extendedKeyUsage=serverAuth,clientAuth) so mTLS works in both directions. Idempotent.
 set -eu
 TLS=/tls
-NODES="node1 node2 node3 node4 node5 node1b node2b node3b node4b node5b shipa devops"
+NODES="node1 node2 node3 node4 node5 node1b node2b node3b node4b node5b shipa shipf shipb devops"
 
 [ -s "$TLS/ca.crt" ] || openssl req -x509 -newkey rsa:2048 -nodes \
   -keyout "$TLS/ca.key" -out "$TLS/ca.crt" -days 3650 -subj "/CN=convoy-tls-ca"

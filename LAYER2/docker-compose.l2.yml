@@ -196,11 +196,11 @@ services:
       STONE_OUTPUT_DIR:  /proofs
       SWARM:             alpha
       # ── L1 settlement env (convoy-submitter → gated convoy Verifier) — BESU ──
-      GETH_RPC_URL:      http://ship-a:8545
+      GETH_RPC_URL:      http://ship-f:8545     # ship-f (alpha relay)
       VERIFIER_ADDR:     "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"   # gated convoy Verifier
       REGISTRY_ADDR:     "0x5FbDB2315678afecb367f032d93F642f64180aa3"   # convoy Registry
       # ── Stage A (path-a-runner → StarkWare suite) — BESU addresses ──
-      URL:                              http://ship-a:8545
+      URL:                              http://ship-f:8545     # ship-f (alpha relay)
       MERKLE_STATEMENT_CONTRACT_ADDR:   "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
       FRI_STATEMENT_CONTRACT_ADDR:      "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
       MEMORY_PAGE_FACT_REGISTRY_ADDR:   "0x0165878A594ca255338adfa4d48449f69242Eb8F"
@@ -309,11 +309,11 @@ services:
     environment:
       STONE_OUTPUT_DIR:  /proofs
       SWARM:             bravo
-      GETH_RPC_URL:      http://ship-a:8545
+      GETH_RPC_URL:      http://ship-b:8545     # ship-b  (bravo relay)
       VERIFIER_ADDR:     "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
       REGISTRY_ADDR:     "0x5FbDB2315678afecb367f032d93F642f64180aa3"
       # ── Stage A — Bravo lane signs with BRAVO_RELAY (ship B / anvil[1]) ──
-      URL:                              http://ship-a:8545
+      URL:                              http://ship-b:8545     # ship-b  (bravo relay)
       MERKLE_STATEMENT_CONTRACT_ADDR:   "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
       FRI_STATEMENT_CONTRACT_ADDR:      "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
       MEMORY_PAGE_FACT_REGISTRY_ADDR:   "0x0165878A594ca255338adfa4d48449f69242Eb8F"
@@ -387,7 +387,7 @@ services:
     depends_on:
       ship-a:
         condition: service_healthy
-      l1-shim:
+      l1-shim-alpha:
         condition: service_started
     labels: { dev.dozzle.group: "Alpha 1 (leader)" }
     environment:                                    
@@ -407,7 +407,7 @@ services:
       --gateway-external
       --gateway-port 8080
       --gateway-trusted-add-transaction-endpoint
-      --l1-endpoint http://l1-shim:8545
+      --l1-endpoint http://l1-shim-alpha:8545
       --no-transaction-validation
       --l1-gas-price 1000000000
       --blob-gas-price 100000
@@ -454,7 +454,7 @@ services:
     depends_on:
       ship-a:
         condition: service_healthy
-      l1-shim:
+      l1-shim-bravo:
         condition: service_started
     labels: { dev.dozzle.group: "Bravo 1 (leader)" }
     volumes:
@@ -472,7 +472,7 @@ services:
       --gateway-external
       --gateway-port 8080
       --gateway-trusted-add-transaction-endpoint
-      --l1-endpoint http://l1-shim:8545
+      --l1-endpoint http://l1-shim-bravo:8545
       --no-transaction-validation
       --l1-gas-price 1000000000
       --blob-gas-price 100000
@@ -710,15 +710,26 @@ services:
   # geth rejects it ("invalid block range params"). This stdlib proxy
   # rewrites that one tag to `latest` and passes everything else through.
   # Finality is still enforced by madara (l1_messages_finality_blocks=10).
-  l1-shim:
+  l1-shim-alpha:
     image: python:3.11-slim
-    container_name: convoy-l1-shim
+    container_name: convoy-l1-shim-alpha
     profiles: ["l2", "proving", "proving-direct"]
     command: ["python", "/shim.py"]
+    environment: { BESU_UPSTREAM: "http://ship-f:8545" }   # alpha relay (plaintext base)
     volumes:
       - ./LAYER2/l1-shim/shim.py:/shim.py:ro
-    networks:
-      - convoy-l1
+    networks: [convoy-l1]
+    restart: unless-stopped
+
+  l1-shim-bravo:
+    image: python:3.11-slim
+    container_name: convoy-l1-shim-bravo
+    profiles: ["l2", "proving", "proving-direct"]
+    command: ["python", "/shim.py"]
+    environment: { BESU_UPSTREAM: "http://ship-b:8545" }   # bravo relay (plaintext base)
+    volumes:
+      - ./LAYER2/l1-shim/shim.py:/shim.py:ro
+    networks: [convoy-l1]
     restart: unless-stopped
 
 volumes:
