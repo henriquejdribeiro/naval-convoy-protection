@@ -1,57 +1,54 @@
-# mTLS mesh: one convoy-tls per node/ship + a convoy-ops deploy node. Opt-in via -f.
+# mTLS mesh: one convoy-tls per node. Certs are minted + sealed per-node by the devops
+# factory (DEVOPS/factory/make-certs.sh): each convoy-tls-<node> volume holds ONLY that
+# node's <node>.pem + the public ca.crt. No shared cert volume; the CA private key never
+# leaves the factory vault (convoy-tls-ca). Opt-in via -f.
 x-convoy-tls: &convoy-tls
   image: alpine:3.20
   profiles: ["tls"]
   entrypoint: ["sh","-c","apk add --no-cache stunnel >/dev/null && exec sh /convoy-tls-entrypoint.sh"]
-  volumes:
-    - ./LAYER2/tls/convoy-tls-entrypoint.sh:/convoy-tls-entrypoint.sh:ro
-    - convoy-tls-certs:/tls:ro
   networks: [convoy-l1]
   restart: unless-stopped
-  depends_on:
-    convoy-tls-certs: { condition: service_completed_successfully }
 
 services:
-  convoy-tls-certs:
-    image: alpine:3.20
-    container_name: convoy-tls-certs
-    profiles: ["tls"]
-    entrypoint: ["sh","-c","apk add --no-cache openssl >/dev/null && sh /gen-certs.sh"]
-    restart: "no"
-    volumes:
-      - ./LAYER2/tls/gen-certs.sh:/gen-certs.sh:ro
-      - convoy-tls-certs:/tls
-    networks: [convoy-l1]
-
   # ---------- Alpha: leader ----------
   convoy-tls-node1: { <<: *convoy-tls, container_name: convoy-tls-node1,
     environment: { NODE: node1,
-      SERVER_TUNNELS: "9444:convoy-madara-alpha:9944 8443:convoy-madara-alpha:8080" } }
+      SERVER_TUNNELS: "9444:convoy-madara-alpha:9944 8443:convoy-madara-alpha:8080" },
+    volumes: ["./LAYER2/tls/convoy-tls-entrypoint.sh:/convoy-tls-entrypoint.sh:ro", "convoy-tls-node1:/tls:ro"] }
 
   # ---------- Alpha: followers 2..5 (client to own leader node1) ----------
   convoy-tls-node2: { <<: *convoy-tls, container_name: convoy-tls-node2,
-    environment: { NODE: node2, CLIENT_TUNNELS: "9944:convoy-tls-node1:9444 8080:convoy-tls-node1:8443" } }
+    environment: { NODE: node2, CLIENT_TUNNELS: "9944:convoy-tls-node1:9444 8080:convoy-tls-node1:8443" },
+    volumes: ["./LAYER2/tls/convoy-tls-entrypoint.sh:/convoy-tls-entrypoint.sh:ro", "convoy-tls-node2:/tls:ro"] }
   convoy-tls-node3: { <<: *convoy-tls, container_name: convoy-tls-node3,
-    environment: { NODE: node3, CLIENT_TUNNELS: "9944:convoy-tls-node1:9444 8080:convoy-tls-node1:8443" } }
+    environment: { NODE: node3, CLIENT_TUNNELS: "9944:convoy-tls-node1:9444 8080:convoy-tls-node1:8443" },
+    volumes: ["./LAYER2/tls/convoy-tls-entrypoint.sh:/convoy-tls-entrypoint.sh:ro", "convoy-tls-node3:/tls:ro"] }
   convoy-tls-node4: { <<: *convoy-tls, container_name: convoy-tls-node4,
-    environment: { NODE: node4, CLIENT_TUNNELS: "9944:convoy-tls-node1:9444 8080:convoy-tls-node1:8443" } }
+    environment: { NODE: node4, CLIENT_TUNNELS: "9944:convoy-tls-node1:9444 8080:convoy-tls-node1:8443" },
+    volumes: ["./LAYER2/tls/convoy-tls-entrypoint.sh:/convoy-tls-entrypoint.sh:ro", "convoy-tls-node4:/tls:ro"] }
   convoy-tls-node5: { <<: *convoy-tls, container_name: convoy-tls-node5,
-    environment: { NODE: node5, CLIENT_TUNNELS: "9944:convoy-tls-node1:9444 8080:convoy-tls-node1:8443" } }
+    environment: { NODE: node5, CLIENT_TUNNELS: "9944:convoy-tls-node1:9444 8080:convoy-tls-node1:8443" },
+    volumes: ["./LAYER2/tls/convoy-tls-entrypoint.sh:/convoy-tls-entrypoint.sh:ro", "convoy-tls-node5:/tls:ro"] }
 
   # ---------- Bravo: leader ----------
   convoy-tls-node1b: { <<: *convoy-tls, container_name: convoy-tls-node1b,
     environment: { NODE: node1b,
-      SERVER_TUNNELS: "9444:convoy-madara-bravo:9944 8443:convoy-madara-bravo:8080" } }
+      SERVER_TUNNELS: "9444:convoy-madara-bravo:9944 8443:convoy-madara-bravo:8080" },
+    volumes: ["./LAYER2/tls/convoy-tls-entrypoint.sh:/convoy-tls-entrypoint.sh:ro", "convoy-tls-node1b:/tls:ro"] }
 
   # ---------- Bravo: followers 2..5 (client to own leader node1b) ----------
   convoy-tls-node2b: { <<: *convoy-tls, container_name: convoy-tls-node2b,
-    environment: { NODE: node2b, CLIENT_TUNNELS: "9944:convoy-tls-node1b:9444 8080:convoy-tls-node1b:8443" } }
+    environment: { NODE: node2b, CLIENT_TUNNELS: "9944:convoy-tls-node1b:9444 8080:convoy-tls-node1b:8443" },
+    volumes: ["./LAYER2/tls/convoy-tls-entrypoint.sh:/convoy-tls-entrypoint.sh:ro", "convoy-tls-node2b:/tls:ro"] }
   convoy-tls-node3b: { <<: *convoy-tls, container_name: convoy-tls-node3b,
-    environment: { NODE: node3b, CLIENT_TUNNELS: "9944:convoy-tls-node1b:9444 8080:convoy-tls-node1b:8443" } }
+    environment: { NODE: node3b, CLIENT_TUNNELS: "9944:convoy-tls-node1b:9444 8080:convoy-tls-node1b:8443" },
+    volumes: ["./LAYER2/tls/convoy-tls-entrypoint.sh:/convoy-tls-entrypoint.sh:ro", "convoy-tls-node3b:/tls:ro"] }
   convoy-tls-node4b: { <<: *convoy-tls, container_name: convoy-tls-node4b,
-    environment: { NODE: node4b, CLIENT_TUNNELS: "9944:convoy-tls-node1b:9444 8080:convoy-tls-node1b:8443" } }
+    environment: { NODE: node4b, CLIENT_TUNNELS: "9944:convoy-tls-node1b:9444 8080:convoy-tls-node1b:8443" },
+    volumes: ["./LAYER2/tls/convoy-tls-entrypoint.sh:/convoy-tls-entrypoint.sh:ro", "convoy-tls-node4b:/tls:ro"] }
   convoy-tls-node5b: { <<: *convoy-tls, container_name: convoy-tls-node5b,
-    environment: { NODE: node5b, CLIENT_TUNNELS: "9944:convoy-tls-node1b:9444 8080:convoy-tls-node1b:8443" } }
+    environment: { NODE: node5b, CLIENT_TUNNELS: "9944:convoy-tls-node1b:9444 8080:convoy-tls-node1b:8443" },
+    volumes: ["./LAYER2/tls/convoy-tls-entrypoint.sh:/convoy-tls-entrypoint.sh:ro", "convoy-tls-node5b:/tls:ro"] }
 
   # ---------- App-side overrides (point cross-node apps at their local convoy-tls) ----------
   machine-alpha-2: { environment: { STARKNET_RPC: "http://convoy-tls-node2:9944/rpc/v0.8.1" } }
@@ -138,4 +135,13 @@ services:
       --l1-gas-price 1000000000 --blob-gas-price 100000
 
 volumes:
-  convoy-tls-certs: { name: convoy-tls-certs }
+  convoy-tls-node1:  { external: true, name: convoy-tls-node1 }
+  convoy-tls-node2:  { external: true, name: convoy-tls-node2 }
+  convoy-tls-node3:  { external: true, name: convoy-tls-node3 }
+  convoy-tls-node4:  { external: true, name: convoy-tls-node4 }
+  convoy-tls-node5:  { external: true, name: convoy-tls-node5 }
+  convoy-tls-node1b: { external: true, name: convoy-tls-node1b }
+  convoy-tls-node2b: { external: true, name: convoy-tls-node2b }
+  convoy-tls-node3b: { external: true, name: convoy-tls-node3b }
+  convoy-tls-node4b: { external: true, name: convoy-tls-node4b }
+  convoy-tls-node5b: { external: true, name: convoy-tls-node5b }

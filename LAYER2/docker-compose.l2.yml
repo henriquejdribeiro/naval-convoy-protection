@@ -388,7 +388,7 @@ services:
       ship-a:
         condition: service_healthy
       l1-shim-alpha:
-        condition: service_started
+        condition: service_healthy
     labels: { dev.dozzle.group: "Alpha 1 (leader)" }
     environment:                                    
       RUST_LOG: "info,alloy=trace,ethers=trace,mc_settlement=trace"
@@ -422,9 +422,9 @@ services:
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9944/health"]
       interval: 10s
-      timeout: 5s
-      retries: 15
-      start_period: 30s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
 
   # ─── Bravo sequencer ───────────────────────────────────────────────
   madara-bravo-seed:
@@ -455,7 +455,7 @@ services:
       ship-a:
         condition: service_healthy
       l1-shim-bravo:
-        condition: service_started
+        condition: service_healthy
     labels: { dev.dozzle.group: "Bravo 1 (leader)" }
     volumes:
       - madara-bravo-data:/madara_db
@@ -488,9 +488,9 @@ services:
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9944/health"]
       interval: 10s
-      timeout: 5s
-      retries: 15
-      start_period: 30s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
 
   # ═══ Pathfinders — one onboard L2 node per drone ═══════════════════════
   # Each drone in the fleet runs its OWN Pathfinder indexer because each
@@ -720,6 +720,12 @@ services:
       - ./LAYER2/l1-shim/shim.py:/shim.py:ro
     networks: [convoy-l1]
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,json; urllib.request.urlopen(urllib.request.Request('http://localhost:8545',data=json.dumps({'jsonrpc':'2.0','id':1,'method':'eth_blockNumber','params':[]}).encode(),headers={'Content-Type':'application/json'}),timeout=5).read()"]
+      interval: 5s
+      timeout: 6s
+      retries: 24
+      start_period: 10s
 
   l1-shim-bravo:
     image: python:3.11-slim
@@ -731,6 +737,12 @@ services:
       - ./LAYER2/l1-shim/shim.py:/shim.py:ro
     networks: [convoy-l1]
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,json; urllib.request.urlopen(urllib.request.Request('http://localhost:8545',data=json.dumps({'jsonrpc':'2.0','id':1,'method':'eth_blockNumber','params':[]}).encode(),headers={'Content-Type':'application/json'}),timeout=5).read()"]
+      interval: 5s
+      timeout: 6s
+      retries: 24
+      start_period: 10s
 
 volumes:
   prover-alpha-output:

@@ -19,13 +19,13 @@
 # idempotent and the healthchecks short-circuit if everything's already up.
 #
 # Usage:
-#   ./SIMULATOR/demo/scripts/script1_up.sh                  # bring up everything including Dozzle
-#   ./SIMULATOR/demo/scripts/script1_up.sh --no-debugger    # skip Dozzle (saves a container)
+#   ./DEVOPS/pipeline/script1_up.sh                  # bring up everything including Dozzle
+#   ./DEVOPS/pipeline/script1_up.sh --no-debugger    # skip Dozzle (saves a container)
 #
 # After this exits the next step is:
-#   ./SIMULATOR/demo/scripts/script2_deploy-l2.sh
-#   ./SIMULATOR/demo/scripts/script3_generate-drone-accounts.sh --swarm both
-#   ./SIMULATOR/demo/scripts/script4_register-missions.sh
+#   ./DEVOPS/pipeline/script2_deploy-l2.sh
+#   ./DEVOPS/pipeline/script3_generate-drone-accounts.sh --swarm both
+#   ./DEVOPS/pipeline/script4_register-missions.sh
 # then submit telemetry per drone. See README for the full sequence.
 # =============================================================================
 
@@ -48,7 +48,7 @@ while [ $# -gt 0 ]; do
 done
 
 # root directory 
-REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+REPO_ROOT="${HOST_REPO_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 cd "${REPO_ROOT}"
 
 # Helper that waits for a docker container to reach the healthy state. Polls every 3s.
@@ -121,6 +121,13 @@ ensure_ship_key() {   # $1 = key volume   $2 = raw private key
     echo "  importing owner key into ship volume $1 (host never keeps it)"
     printf "%s" "$2" | MSYS_NO_PATHCONV=1 docker run --rm -i --user 0:0 -v "$1:/key" --entrypoint sh "${FOUNDRY_IMG}" -c 'cat > /key/pk'
 }
+
+ensure_ship_file() {   # $1 = key volume   $2 = filename under /key   $3 = raw value
+    MSYS_NO_PATHCONV=1 docker run --rm -v "$1:/key" --entrypoint sh "${FOUNDRY_IMG}" -c "test -s /key/$2" 2>/dev/null && return 0
+    echo "  importing $2 into ship volume $1 (host never keeps it)"
+    printf "%s" "$3" | MSYS_NO_PATHCONV=1 docker run --rm -i --user 0:0 -v "$1:/key" --entrypoint sh "${FOUNDRY_IMG}" -c "cat > /key/$2"
+}
+
 ensure_ship_key "${OWNER_KEYVOL}" "${DEPLOYER_PK:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}"
 
 # Relay signer keys (L1 Stage-A proof submission) live in per-swarm volumes
@@ -128,6 +135,15 @@ ensure_ship_key "${OWNER_KEYVOL}" "${DEPLOYER_PK:-0xac0974bec39a17e36ba4a6b4d238
 # so the forward prover never sees the higher-authority keys.
 ensure_ship_key "convoy-relay-alpha-key" "${ALPHA_RELAY_PK:-0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba}"
 ensure_ship_key "convoy-relay-bravo-key" "${BRAVO_RELAY_PK:-0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d}"
+
+# Relay EVM signing key, sealed into the RELAY SHIP's own volume (ship F=alpha,
+# ship B=bravo). Same value as the L2-side relay-*-key above — only the home
+# moves. The ship-side convoy-submitter reads this as /key/evm_pk; the key
+# never leaves the ship. Must match the ALPHA_RELAY_ADDR/BRAVO_RELAY_ADDR that
+# L1 registered, or the convoy Verifier rejects the submit.
+ensure_ship_file "convoy-ship-f-key" "evm_pk" "${ALPHA_RELAY_PK:-0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba}"
+ensure_ship_file "convoy-ship-b-key" "evm_pk" "${BRAVO_RELAY_PK:-0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d}"
+
 # Commander key (ship D) — signs mission orders in script4. Seeded here so
 # script4 stays key-free and just reads it from ship D's volume.
 ensure_ship_key "convoy-ship-d-key" "${COMMANDER_PK:-0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356}"
@@ -202,7 +218,7 @@ GPS_ADDR=""
 if core_has_code "${GPS_ADDR}"; then
     echo "  reusing STARK verifier suite (GPS ${GPS_ADDR})"
 else
-    "${REPO_ROOT}/SIMULATOR/demo/scripts/deploy-stark-verifier.sh"
+    "${REPO_ROOT}/DEVOPS/pipeline/deploy-stark-verifier.sh"
     GPS_ADDR=$(grep '^GPS_STATEMENT_VERIFIER_ADDR=' "${STARK_ENV}" | cut -d= -f2)
 fi
 echo "  wiring convoy Verifier ${CONVOY_VERIFIER_ADDR} -> GPS ${GPS_ADDR}"
@@ -234,9 +250,26 @@ seed_sequencer() {   # $1 = alpha | bravo
 }
 seed_sequencer alpha
 seed_sequencer bravo
-docker compose --project-directory . -f LAYER1/docker-compose.l1.yml -f LAYER2/docker-compose.l2.yml --profile l2 up -d 2>&1 | tail -3
-wait_healthy "convoy-madara-alpha"     "madara-alpha (sequencer)"
-wait_healthy "convoy-madara-bravo"     "madara-bravo (sequencer)"
+
+# ── Wave 1: sequencers FIRST (avoid the thundering-herd healthcheck race) ──
+# Launching the whole L2 stack at once starves the sequencers' /health for a
+# moment, and compose aborts the entire `up` on the first transient "unhealthy"
+# reading. So bring the two sequencers up ALONE and poll them healthy first
+# (wait_healthy never aborts); by the time the full up runs they're warm and
+# answer /health instantly, so the gate passes cleanly.
+docker compose --project-directory . -f LAYER1/docker-compose.l1.yml -f LAYER2/docker-compose.l2.yml --profile l2 up -d madara-alpha madara-bravo 2>&1 | tail -3
+wait_healthy "convoy-madara-alpha" "madara-alpha (sequencer)"
+wait_healthy "convoy-madara-bravo" "madara-bravo (sequencer)"
+
+# ── Mint + seal per-node TLS certs (devops = CA) BEFORE the mesh ──────────
+# Each convoy-tls-<node> volume gets ONLY its own <node>.pem + ca.crt; the CA
+# private key stays sealed in the convoy-tls-ca vault. Idempotent.
+echo "[factory] minting + sealing per-node TLS certs"
+bash "${REPO_ROOT}/DEVOPS/factory/make-certs.sh"
+
+# ── Wave 2: the rest of the L2 stack + the full TLS mesh ──────────────────
+docker compose --project-directory . -f LAYER1/docker-compose.l1.yml -f LAYER1/docker-compose.tls.yml -f LAYER2/docker-compose.l2.yml -f LAYER2/docker-compose.tls.yml -f PROOF/docker-compose.tls.yml --profile l2 --profile tls up -d 2>&1 | tail -3
+
 wait_healthy "convoy-pathfinder-alpha-1" "pathfinder-alpha-1 (leader archive)"
 wait_healthy "convoy-pathfinder-bravo-1" "pathfinder-bravo-1 (leader archive)"
 
@@ -253,14 +286,14 @@ echo
 echo "═══════════════════════════════════════════════════════════════"
 echo "  Stack is up. Suggested next steps:"
 echo "═══════════════════════════════════════════════════════════════"
-echo "    ./SIMULATOR/demo/scripts/script2_deploy-l2.sh --swarm both"
-echo "    ./SIMULATOR/demo/scripts/script3_generate-drone-accounts.sh --swarm both"
-echo "    ./SIMULATOR/demo/scripts/script4_register-missions.sh --swarm both"
-echo "    python3 SIMULATOR/demo/scripts/script5_generate-mission.py --scenario both-safe"
+echo "    ./DEVOPS/pipeline/script2_deploy-l2.sh --swarm both"
+echo "    ./DEVOPS/pipeline/script3_generate-drone-accounts.sh --swarm both"
+echo "    ./DEVOPS/pipeline/script4_register-missions.sh --swarm both"
+echo "    python3 DEVOPS/pipeline/script5_generate-mission.py --scenario both-safe"
 echo "    for swarm in alpha bravo; do"
 echo "        for did in 1 2 3 4 5; do"
 echo "            f=SIMULATOR/demo/scenarios/both-safe/\${swarm}_\${did}.json"
-echo "            [ -f \"\$f\" ] && ./SIMULATOR/demo/scripts/script6_submit-telemetry.sh \$swarm \$did \"\$f\""
+echo "            [ -f \"\$f\" ] && ./DEVOPS/pipeline/script6_submit-telemetry.sh \$swarm \$did \"\$f\""
 echo "        done"
 echo "    done"
 echo "    

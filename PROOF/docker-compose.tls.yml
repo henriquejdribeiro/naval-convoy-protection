@@ -1,31 +1,19 @@
 # L2↔L1 proof/order bridge (mTLS). ADD-ON to LAYER2/docker-compose.tls.yml,
-# which owns the CA + cert volume + the L2 leader sidecars this file extends.
-# Always run BOTH files together (see run command below).
-x-convoy-tls-bridge: &tls-bridge
-  image: alpine:3.20
-  profiles: ["tls"]
-  entrypoint: ["sh","-c","apk add --no-cache stunnel >/dev/null && exec sh /convoy-tls-entrypoint.sh"]
-  volumes:
-    - ./LAYER2/tls/convoy-tls-entrypoint.sh:/convoy-tls-entrypoint.sh:ro
-    - convoy-tls-certs:/tls:ro
-  networks: [convoy-l1]
-  restart: unless-stopped
-  depends_on:
-    convoy-tls-certs: { condition: service_completed_successfully }
-
+# which owns the per-node cert volumes + the L2 leader sidecars this file extends.
+# Always run BOTH files together.
 services:
   # inject the L1-client tunnel onto each L2 leader → its OWN relay ship
-  convoy-tls-node1:  { environment: { CLIENT_TUNNELS: "15545:convoy-tls-shipf:8545" } }   # alpha → ship F
-  convoy-tls-node1b: { environment: { CLIENT_TUNNELS: "15545:convoy-tls-shipb:8545" } }   # bravo → ship B
+  convoy-tls-node1:  { environment: { CLIENT_TUNNELS: "15545:convoy-tls-shipf:8545 15000:convoy-tls-shipf:9000" } }   # alpha → ship F
+  convoy-tls-node1b: { environment: { CLIENT_TUNNELS: "15545:convoy-tls-shipb:8545 15000:convoy-tls-shipb:9000" } }   # bravo → ship B
 
   prover-api-alpha:
-    environment: { GETH_RPC_URL: "http://convoy-tls-node1:15545",  URL: "http://convoy-tls-node1:15545" }
+    entrypoint: ["/bin/sh","-c","exec /app/entrypoint.sh"]   # N:B no PRIVATE_KEY export in TLS mode
+    environment: { SUBMIT_ENDPOINT: "http://convoy-tls-node1:15000" }
   prover-api-bravo:
-    environment: { GETH_RPC_URL: "http://convoy-tls-node1b:15545", URL: "http://convoy-tls-node1b:15545" }
+    entrypoint: ["/bin/sh","-c","exec /app/entrypoint.sh"]
+    environment: { SUBMIT_ENDPOINT: "http://convoy-tls-node1b:15000" }
   l1-shim-alpha: { environment: { BESU_UPSTREAM: "http://convoy-tls-node1:15545" } }   # → ship F over mTLS
   l1-shim-bravo: { environment: { BESU_UPSTREAM: "http://convoy-tls-node1b:15545" } }  # → ship B over mTLS
 
-volumes:
-  convoy-tls-certs: { external: true, name: convoy-tls-certs }
 networks:
   convoy-l1: { external: true }

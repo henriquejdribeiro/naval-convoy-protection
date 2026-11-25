@@ -34,7 +34,9 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - .:${HOST_REPO_ROOT}                            # repo mounted at its HOST path
+      - type: bind
+        source: .
+        target: ${HOST_REPO_ROOT}
       - /var/run/docker.sock:/var/run/docker.sock      # talk to the host daemon
   
   convoy-tls-devops:
@@ -52,6 +54,6 @@ services:
     restart: unless-stopped
 
 volumes:
-    convoy-tls-certs: { external: true, name: convoy-tls-certs }
+    convoy-tls-devops: { external: true, name: convoy-tls-devops }
 networks:
     convoy-l1: { external: true }

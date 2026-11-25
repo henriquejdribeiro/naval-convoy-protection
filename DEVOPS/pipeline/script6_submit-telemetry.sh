@@ -45,7 +45,7 @@
 
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+REPO_ROOT="${HOST_REPO_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 RPC_VERSION="0.8.1"
 KEYSTORE_PWD="convoy"
 

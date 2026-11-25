@@ -10,7 +10,7 @@
 # =============================================================================
 set -euo pipefail
 cd "${HOST_REPO_ROOT:?orchestrate_poc1.sh must run inside convoy-devops (HOST_REPO_ROOT unset)}"
-S="SIMULATOR/demo/scripts"
+S="DEVOPS/pipeline"
 
 echo "════════════ [1/7] L1 + L2 bring-up ════════════"
 bash "$S/script1_up.sh" --no-debugger

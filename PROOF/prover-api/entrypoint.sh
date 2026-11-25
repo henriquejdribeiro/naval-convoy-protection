@@ -50,8 +50,6 @@ echo "============================================"
 
 # ── Tool sanity ────────────────────────────────────────────────────────
 echo "[*] Checking tools..."
-cpu_air_prover    --help > /dev/null 2>&1 && echo "    cpu_air_prover    : OK"
-cpu_air_verifier  --help > /dev/null 2>&1 && echo "    cpu_air_verifier  : OK"
 stone-cli --help          > /dev/null 2>&1 && echo "    stone-cli         : OK"
 convoy-submitter --help   > /dev/null 2>&1 && echo "    convoy-submitter  : OK" || true
 cast --version            > /dev/null 2>&1 && echo "    cast              : OK"
@@ -193,12 +191,28 @@ EOPRM
         || { echo "    Ethereum serialization FAILED"; cd /; return 1; }
     cd /
 
-    # ── 5b/6. STAGE A+B — convoy-submitter runs the four StarkWare phases
-    #    (trace Merkle, FRI, memory pages, GpsStatementVerifier) AND the
-    #    identity-gated Verifier.registerSafeProof in one tool. STARK-suite
-    #    addresses + CONVOY_VERIFIER_ADDR come from env (docker-compose).
+    # ── 5b/6. SUBMISSION. Two modes:
+    #    • SUBMIT_ENDPOINT set → ship the proof bundle over mTLS to this swarm's
+    #      relay ship, which signs with ITS relay key against its LOCAL L1 node.
+    #      The relay key never lives on L2.                      (production path)
+    #    • otherwise → run convoy-submitter inline here          (legacy 1-host path;
+    #      needs URL + PRIVATE_KEY + the StarkWare/Verifier addresses in env).
     if [ "${SKIP_STAGE_A:-0}" = "1" ]; then
         echo "[!] Step 5b/6: SUBMISSION SKIPPED (SKIP_STAGE_A=1)."
+    elif [ -n "${SUBMIT_ENDPOINT:-}" ]; then
+        echo "[*] Step 5b/6: shipping proof bundle → ${SUBMIT_ENDPOINT} (ship-side submit)"
+        HTTP_CODE=$(cd "${OUTPUT_DIR}" && tar -cf - evm_proof.json fact_topologies.json safe_area_verify.json \
+            | curl -sS -X POST \
+                   -H "Content-Type: application/x-tar" \
+                   -H "X-Convoy-Tag: ${TAG}" -H "X-Convoy-Swarm: ${SWARM}" \
+                   --data-binary @- \
+                   -o "${OUTPUT_DIR}/submit_log.txt" -w "%{http_code}" \
+                   "${SUBMIT_ENDPOINT}/submit") || true
+        echo "    ship responded HTTP ${HTTP_CODE}"; cat "${OUTPUT_DIR}/submit_log.txt"
+        if [ "${HTTP_CODE}" != "200" ] || ! grep -q "^\[submitter\] DONE\." "${OUTPUT_DIR}/submit_log.txt"; then
+            echo "    SHIP-SIDE SUBMISSION FAILED — see ${OUTPUT_DIR}/submit_log.txt"; return 1
+        fi
+        echo "    ✓ phases 1-4b OK on the ship — proof verified + verdict recorded on L1"
     else
         echo "[*] Step 5b/6: convoy-submitter — phases 1-4b (GPS verify + registerSafeProof)"
         : "${URL:?URL env var required}"
