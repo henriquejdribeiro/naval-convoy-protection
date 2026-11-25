@@ -235,14 +235,19 @@ MSYS_NO_PATHCONV=1 docker run --rm --network convoy-l1 -v convoy-ship-d-key:/key
 ```bash
 docker compose --project-directory . -f LAYER1/docker-compose.l1.yml -f LAYER2/docker-compose.l2.yml down -v --remove-orphans 2>/dev/null
 docker ps -aq --filter name=convoy- | xargs -r docker rm -f
+docker ps -aq --filter ancestor=ghcr.io/madara-alliance/bootstrapper-v2:nightly-b185bb3 | xargs -r docker rm -f
 docker volume ls -q --filter name=naval-convoy-protection | xargs -r docker volume rm
 docker volume ls -q --filter name=convoy- | xargs -r docker volume rm
 docker network prune -f
+rm -f LAYER1/bootstrap/output/addresses*.json
 ```
 
 > **Always tear down before a fresh run.** Madara persists its L1-sync cursor in a
 > named volume; a stale volume makes the sequencer skip the next mission's messages.
-> The block above removes the containers **and** the volumes.
+> The block above removes the containers **and** the volumes. It also kills any stray
+> `bootstrapper-v2` container and deletes `LAYER1/bootstrap/output/addresses*.json` —
+> each mission mints fresh keys and re-deploys the Starknet cores, so a leftover
+> core-address file would silently abort the next bring-up.
 
 ## Interactive 3D simulator
 
@@ -280,7 +285,7 @@ session** (the `$RUN`, `$LOG`, `$STATS_PID` variables carry across blocks).
 volumes, so Madara's L1-sync cursor is fresh):
 
 ```bash
-docker compose --project-directory . -f LAYER1/docker-compose.l1.yml -f LAYER2/docker-compose.l2.yml down -v --remove-orphans 2>/dev/null; docker ps -aq --filter name=convoy- | xargs -r docker rm -f; docker volume ls -q --filter name=naval-convoy-protection | xargs -r docker volume rm; docker volume ls -q --filter name=convoy- | xargs -r docker volume rm; docker network prune -f; echo "down done"
+docker compose --project-directory . -f LAYER1/docker-compose.l1.yml -f LAYER2/docker-compose.l2.yml down -v --remove-orphans 2>/dev/null; docker ps -aq --filter name=convoy- | xargs -r docker rm -f; docker ps -aq --filter ancestor=ghcr.io/madara-alliance/bootstrapper-v2:nightly-b185bb3 | xargs -r docker rm -f; docker volume ls -q --filter name=naval-convoy-protection | xargs -r docker volume rm; docker volume ls -q --filter name=convoy- | xargs -r docker volume rm; docker network prune -f; rm -f LAYER1/bootstrap/output/addresses*.json; echo "down done"
 ```
 
 **2. Start the sampler + `setup` marker, then bring up + deploy L2 + drone accounts**

@@ -128,26 +128,61 @@ ensure_ship_file() {   # $1 = key volume   $2 = filename under /key   $3 = raw v
     printf "%s" "$3" | MSYS_NO_PATHCONV=1 docker run --rm -i --user 0:0 -v "$1:/key" --entrypoint sh "${FOUNDRY_IMG}" -c "cat > /key/$2"
 }
 
+# Mint a FRESH secp256k1 signer straight into a ship volume (born in-container;
+# host + repo never hold the key). Idempotent: reuses an existing key so a
+# mid-mission re-run doesn't rotate a registered identity — a NEW mission = a
+# clean-slate down that wipes these volumes. Echoes the derived 0x… address.
+mint_ship_key() {   # $1 = key volume   $2 = filename under /key (default: pk) ; echoes derived 0x… address
+    local f="${2:-pk}"
+    MSYS_NO_PATHCONV=1 docker run --rm --user 0:0 -v "$1:/key" --entrypoint sh "${FOUNDRY_IMG}" \
+      -c '[ -s "/key/$1" ] || cast wallet new --json 2>/dev/null | grep -oE "private_key...0x[0-9a-fA-F]{64}" | grep -oE "0x[0-9a-fA-F]{64}" | head -n1 > "/key/$1"; cast wallet address --private-key "$(cat /key/$1)"' \
+      _ "$f" | tr -d '[:space:]'
+}
+copy_ship_key() {   # $1 src vol  $2 src file  $3 dst vol  $4 dst file  (key stays in container-land)
+    MSYS_NO_PATHCONV=1 docker run --rm --user 0:0 -v "$1:/src:ro" -v "$3:/dst" --entrypoint sh "${FOUNDRY_IMG}" \
+        -c "[ -s /dst/$4 ] || cp /src/$2 /dst/$4"
+}
+
 ensure_ship_key "${OWNER_KEYVOL}" "${DEPLOYER_PK:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}"
 
-# Relay signer keys (L1 Stage-A proof submission) live in per-swarm volumes
-# mounted into each prover-api — kept SEPARATE from the owner/deployer volumes
-# so the forward prover never sees the higher-authority keys.
-ensure_ship_key "convoy-relay-alpha-key" "${ALPHA_RELAY_PK:-0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba}"
-ensure_ship_key "convoy-relay-bravo-key" "${BRAVO_RELAY_PK:-0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d}"
+# Genesis faucet (anvil[1], 0x7099… — pre-funded in genesis.json). Funds the fresh
+# mission signers so the OWNER (anvil[0]) sends NOTHING before deploy-l1: its nonce
+# must stay 0 or Registry/Verifier/CommandLog (and the predicted STARK_VERIFIER_ADDR)
+# shift off the addresses the whole stack hardcodes. A fixed bring-up authority like
+# the owner + the L2 deployer — NOT a mission identity.
+FAUCET_KEYVOL="convoy-faucet-key"
+ensure_ship_file "${FAUCET_KEYVOL}" "pk" "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
 
-# Relay EVM signing key, sealed into the RELAY SHIP's own volume (ship F=alpha,
-# ship B=bravo). Same value as the L2-side relay-*-key above — only the home
-# moves. The ship-side convoy-submitter reads this as /key/evm_pk; the key
-# never leaves the ship. Must match the ALPHA_RELAY_ADDR/BRAVO_RELAY_ADDR that
-# L1 registered, or the convoy Verifier rejects the submit.
-ensure_ship_file "convoy-ship-f-key" "evm_pk" "${ALPHA_RELAY_PK:-0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba}"
-ensure_ship_file "convoy-ship-b-key" "evm_pk" "${BRAVO_RELAY_PK:-0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d}"
+# Relay + commander signers: FRESH per mission, born inside each ship's volume
+# (no hardcoded key; host/repo never see it). Their derived addresses are
+# registered on-chain by DeployL1 (exported below → the deploy-l1 service).
+# Free gas (zeroBaseFee + --min-gas-price=0) → fresh keys need no funding.
+#
+# alpha relay = ONE identity, two homes: ship F's evm_pk (the ship-side submitter
+# signs L1 with it) + convoy-relay-alpha-key (the bootstrapper's core deploy).
+ALPHA_RELAY_ADDR=$(mint_ship_key "convoy-ship-f-key" "evm_pk")
+copy_ship_key "convoy-ship-f-key" "evm_pk" "convoy-relay-alpha-key" "pk"
+BRAVO_RELAY_ADDR=$(mint_ship_key "convoy-ship-b-key" "evm_pk")
+copy_ship_key "convoy-ship-b-key" "evm_pk" "convoy-relay-bravo-key" "pk"
+# commander (ship D): signs Registry.deploy + mission orders (script4) + the advance finale
+COMMANDER_ADDR=$(mint_ship_key "convoy-ship-d-key")
+export ALPHA_RELAY_ADDR BRAVO_RELAY_ADDR COMMANDER_ADDR
+echo "  minted fresh mission keys (host never saw them):"
+echo "    alpha relay=${ALPHA_RELAY_ADDR}  bravo relay=${BRAVO_RELAY_ADDR}  commander=${COMMANDER_ADDR}"
 
-# Commander key (ship D) — signs mission orders in script4. Seeded here so
-# script4 stays key-free and just reads it from ship D's volume.
-ensure_ship_key "convoy-ship-d-key" "${COMMANDER_PK:-0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356}"
-
+# Fund the fresh signers from the owner (genesis-funded; the fresh addrs aren't
+# in genesis alloc). Gas is free here, but bootstrapper setup-base MOVES value
+# (bridge/account funding) and a zero-balance signer hangs it. Owner key never
+# leaves ship A's volume; cast reads it in-container. Besu is reachable on the
+# host-published RPC (same endpoint the host polls).
+fund_addr() {   # $1 = recipient 0x…   $2 = label
+    echo "  funding ${2} ${1} from genesis faucet…"
+    MSYS_NO_PATHCONV=1 docker run --rm -v "${FAUCET_KEYVOL}:/key:ro" --entrypoint sh "${FOUNDRY_IMG}" \
+        -c "cast send \"$1\" --rpc-url http://host.docker.internal:8545 --private-key \"\$(cat /key/pk)\" --value 100000ether --legacy --gas-price 0 >/dev/null"
+}
+fund_addr "${ALPHA_RELAY_ADDR}" "alpha relay"
+fund_addr "${BRAVO_RELAY_ADDR}" "bravo relay"
+fund_addr "${COMMANDER_ADDR}"  "commander"
 
 core_has_code() {
     local a="${1:-}"; [ -z "$a" ] && return 1
@@ -164,7 +199,7 @@ bootstrap_core() {   # $1=swarm  $2=config file   (signer read from the relay vo
     local keyvol="convoy-relay-${swarm}-key"
     local out="${REPO_ROOT}/LAYER1/bootstrap/output/addresses-${swarm}.json"
     CORE_ADDR=""
-    [ -f "${out}" ] && CORE_ADDR=$(grep -oE '"coreContract"[^"]*"0x[0-9a-fA-F]+"' "${out}" | head -1 | grep -oE '0x[0-9a-fA-F]+')
+    [ -f "${out}" ] && CORE_ADDR=$(grep -oE '"coreContract"[^"]*"0x[0-9a-fA-F]+"' "${out}" | head -1 | grep -oE '0x[0-9a-fA-F]+' || true)
     if core_has_code "${CORE_ADDR}"; then echo "  reusing ${swarm} core ${CORE_ADDR}"; return 0; fi
     echo "  deploying ${swarm} Starknet core (bootstrapper-v2 setup-base)..."
     mkdir -p "${REPO_ROOT}/LAYER1/bootstrap/output"; printf '{}' > "${out}"
@@ -179,7 +214,7 @@ bootstrap_core() {   # $1=swarm  $2=config file   (signer read from the relay vo
         setup-base --config-path "/bootstrap/${cfg}" \
         --addresses-output-path "/bootstrap/output/addresses-${swarm}.json" 2>&1 \
         | grep -E "Deployed|config hash|saved" | tail -14
-    CORE_ADDR=$(grep -oE '"coreContract"[^"]*"0x[0-9a-fA-F]+"' "${out}" | head -1 | grep -oE '0x[0-9a-fA-F]+')
+    CORE_ADDR=$(grep -oE '"coreContract"[^"]*"0x[0-9a-fA-F]+"' "${out}" | head -1 | grep -oE '0x[0-9a-fA-F]+' || true)
 }
 bootstrap_core alpha config.json       ; STARKNET_CORE_ADDR_ALPHA="${CORE_ADDR}"
 bootstrap_core bravo config-bravo.json ; STARKNET_CORE_ADDR_BRAVO="${CORE_ADDR}"
