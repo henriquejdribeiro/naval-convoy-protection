@@ -7,8 +7,8 @@
 #   .tmp-l2           L2 deployer keystore, contract addresses, pulled proofs
 #   SIMULATOR/runs    run logs
 #   bootstrap/output  madara-bootstrapper Starknet-core addresses
-SIMULATOR/demo/.tmp-l1/
-SIMULATOR/demo/.tmp-l2/
+SIMULATOR/poc1/demo/.tmp-l1/
+SIMULATOR/poc1/demo/.tmp-l2/
 LAYER1/bootstrap/output/
 
 # ── Foundry (L1) build output ─────────────────────────────────────────
@@ -51,8 +51,8 @@ Thumbs.db
 .claude/
 
 # demo-run output logs (bulky, regenerated per run; not source)
-SIMULATOR/demo/runs/*/stats.log
-SIMULATOR/demo/runs/*/logs/
+SIMULATOR/poc1/demo/runs/*/stats.log
+SIMULATOR/poc1/demo/runs/*/logs/
 
 # vendored openssl/stunnel: keep source to read (ssl/, crypto/), drop test suites & keys
 # (full source preserved in the .tar.gz). Avoids GitHub push-protection on test PEM keys.

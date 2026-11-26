@@ -12,12 +12,12 @@
 # (5× script6_submit-telemetry.sh <swarm> <1..5> <cells.json>).
 #
 # Usage:
-#   ./SIMULATOR/demo/scripts/script7_prove-swarm.sh alpha
-#   ./SIMULATOR/demo/scripts/script7_prove-swarm.sh bravo
+#   ./SIMULATOR/poc1/demo/scripts/script7_prove-swarm.sh alpha
+#   ./SIMULATOR/poc1/demo/scripts/script7_prove-swarm.sh bravo
 # =============================================================================
 set -euo pipefail
 
-REPO_ROOT="${HOST_REPO_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
+REPO_ROOT="${HOST_REPO_ROOT:-$(cd "$(dirname "$0")/../../.." && pwd)}"
 RPC_VERSION="0.8.1"
 
 SWARM="${1:?usage: $0 <alpha|bravo>}"
@@ -28,7 +28,7 @@ PROVER="convoy-prover-api-${SWARM}"
 #RPC_URL="http://convoy-madara-${SWARM}:9944/rpc/v${RPC_VERSION}"
 RPC_VAR="MADARA_RPC_${SWARM^^}"
 RPC_URL=${!RPC_VAR:-http://convoy-madara-${SWARM}:9944/rpc/v${RPC_VERSION}}
-CONV_ENV="${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/convoy_l2_${SWARM}.env"
+CONV_ENV="${REPO_ROOT}/SIMULATOR/poc1/demo/.tmp-l2/convoy_l2_${SWARM}.env"
 UP="${SWARM^^}"
 
 docker ps --format '{{.Names}}' | grep -qx "${PROVER}" \

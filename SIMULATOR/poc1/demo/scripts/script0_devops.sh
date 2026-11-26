@@ -3,15 +3,15 @@
 # script0_devops.sh — the ONLY script you run on the host.
 #
 # Starts the convoy-devops OPERATOR node, which then runs the entire PoC
-# (script1 … script7) from inside itself via DEVOPS/orchestrate_poc1.sh.
+# (script1 … script7) from inside itself via DEVOPS/poc1/orchestrate_poc1.sh.
 # Everything after this happens inside convoy-devops.
 #
 # Usage:
-#   bash SIMULATOR/demo/scripts/script0_devops.sh
+#   bash SIMULATOR/poc1/demo/scripts/script0_devops.sh
 # =============================================================================
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 cd "${REPO_ROOT}"
 # devops talks to the HOST engine via docker.sock, so every repo path the inner
 # scripts hand the engine must be a HOST path. On Docker Desktop the engine (a

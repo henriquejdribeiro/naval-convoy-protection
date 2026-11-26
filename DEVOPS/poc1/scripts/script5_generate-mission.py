@@ -4,7 +4,7 @@ generate-mission.py — canonical mission generator for the convoy
 proof-of-concept (5-drone-per-swarm, per-swarm coverage-proof rev).
 
 Writes one cells.json per drone (10 total: alpha1..5 + bravo1..5) in the schema
-`SIMULATOR/demo/scripts/script6_submit-telemetry.sh` consumes:
+`SIMULATOR/poc1/demo/scripts/script6_submit-telemetry.sh` consumes:
 
     {
       "_comment":         <human-readable label>,
@@ -29,7 +29,7 @@ Instead every drone also logs its full realistic flight track in `path`:
     home (convoy berth) → transit out → sweep the strip → transit back → home
 
 `path` phases: "transit" (out/back legs, outside the zone) and "sweep" (the in-zone
-readings, identical to cells_*). The webapp demo replays this; the proof ignores it.
+readings, identical to cells_*). The world demo replays this; the proof ignores it.
 A drone that drops out mid-flight (`returned=false`) has no transit-back leg. A
 "vanish" drone writes no file at all.
 
@@ -61,7 +61,7 @@ Scenarios (mirror the L1 Registry's dual-flank outcomes):
   --scenario dual-dropout             -> alpha[3] vanish + bravo[4] midflight -> HOLD
 
 Usage:
-  python3 SIMULATOR/demo/scripts/script5_generate-mission.py --scenario both-safe --output-dir SIMULATOR/demo/scenarios/
+  python3 SIMULATOR/poc1/demo/scripts/script5_generate-mission.py --scenario both-safe --output-dir SIMULATOR/poc1/demo/scenarios/
 
 Output layout (one subdirectory per scenario):
   <output-dir>/<scenario>/alpha_1.json .. alpha_5.json
@@ -73,9 +73,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
+from time import time
 from pathlib import Path
 from dataclasses import dataclass
+import time
 
 
 # ---------------------------------------------------------------------------
@@ -85,14 +88,14 @@ from dataclasses import dataclass
 COVERAGE_MIN = 950        # permille; ≥ 95% strip coverage (bravo needs full 10/10)
 P_MIN        = 7000       # basis points; per-cell p_contact < 70%
 TIME_WINDOW  = 360        # seconds
-TS_START     = 1700000000
+TS_START     = int(os.environ.get("TS_START") or time.time())  # real order time (unix s): orchestrator exports it so script4 + script5 share ONE stamp; standalone → this machine's clock. No fixed constant.
 
 TRANSIT_STEPS = 6         # interpolated points per transit leg (home↔strip)
 
 
 # ---------------------------------------------------------------------------
-# Drone home berths in the convoy formation — MUST mirror SIMULATOR/webapp/js/
-# world3d.js so the webapp demo replays the same track:
+# Drone home berths in the convoy formation — MUST mirror SIMULATOR/world/js/
+# world3d.js so the world demo replays the same track:
 #   cLon=-15.0, cLat=36.01, SX=0.025, SY=0.03;  P(col,row)=(cLon+col*SX, cLat+row*SY)
 #   Alpha wing (left):  a1..a5 = P(-6,2),P(-5,2),P(-6,1),P(-5,1),P(-6,0)
 #   Bravo wing (right): b1..b5 = P( 6,2),P( 5,2),P( 6,1),P( 5,1),P( 6,0)
@@ -389,7 +392,7 @@ def main() -> int:
     )
     ap.add_argument("--scenario", choices=sorted(SCENARIOS.keys()), required=True,
                     help="which dual-flank outcome to generate")
-    ap.add_argument("--output-dir", type=Path, default=Path("SIMULATOR/demo/scenarios"),
+    ap.add_argument("--output-dir", type=Path, default=Path("SIMULATOR/poc1/demo/scenarios"),
                     help="directory to write the per-drone input JSONs")
     ap.add_argument("--seed", type=int, default=42,
                     help="base RNG seed for deterministic generation (default: 42)")

@@ -1,8 +1,8 @@
 # =============================================================================
 # convoy-devops — the single OPERATOR node.
 #
-# You start it with SIMULATOR/demo/scripts/script0_devops.sh (the only script
-# you run on the host). On boot it runs DEVOPS/orchestrate_poc1.sh, which runs
+# You start it with SIMULATOR/poc1/demo/scripts/script0_devops.sh (the only script
+# you run on the host). On boot it runs DEVOPS/poc1/orchestrate_poc1.sh, which runs
 # the whole PoC (script1 … script7) from INSIDE this container.
 #
 # How it reaches the host Docker daemon:
@@ -23,7 +23,7 @@ services:
     container_name: convoy-devops
     user: root                    # needs to read the mounted docker.sock + write the repo
     working_dir: ${HOST_REPO_ROOT}
-    command: ["bash", "DEVOPS/orchestrate_poc1.sh"]
+    command: ["bash", "DEVOPS/poc1/orchestrate_poc1.sh"]
     restart: "no"
     environment:
       HOST_REPO_ROOT: ${HOST_REPO_ROOT}

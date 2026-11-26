@@ -82,7 +82,9 @@ abigen!(
                         {"name": "swarmVerdict", "type": "uint8"},
                         {"name": "swarmHash",    "type": "bytes32"},
                         {"name": "dronePubkeys", "type": "uint256[5]"},
-                        {"name": "nSteps",       "type": "uint256"}
+                        {"name": "nSteps",       "type": "uint256"},
+                        {"name": "tsStart",      "type": "uint64"},
+                        {"name": "timeWindow",   "type": "uint64"}
                     ]
                 }
             ],
@@ -117,11 +119,11 @@ fn keccak256(data: &[u8]) -> [u8; 32] {
     out
 }
 
-/// Extract the 13 felts safe_area_verify_{alpha,bravo}.cairo write via
+/// Extract the 15 felts safe_area_verify_{alpha,bravo}.cairo write via
 /// serialize_word, in declaration order: (mission_id, swarm_id, zone_x, zone_y,
-/// zone_w, zone_h, swarm_verdict, swarm_hash, pk_1..pk_5), plus the Cairo
-/// program hash (the word just before them).
-fn extract_public_outputs(annotated_proof: &AnnotatedProof) -> Result<([U256; 13], U256)> {
+/// zone_w, zone_h, swarm_verdict, swarm_hash, pk_1..pk_5, ts_start, time_window),
+/// plus the Cairo program hash (the word just before them).
+fn extract_public_outputs(annotated_proof: &AnnotatedProof) -> Result<([U256; 15], U256)> {
     // The annotated proof carries the public_input shape Stone emitted;
     // its memory_segments map names a region called "output" with begin
     // and stop addresses, and public_memory is a list of (address, value)
@@ -171,22 +173,22 @@ fn extract_public_outputs(annotated_proof: &AnnotatedProof) -> Result<([U256; 13
 
     // Bootloader-wrapped output: [simpleBootloaderProgramHash,
     // hashedSupportedCairoVerifiers, nTasks, taskOutputSize, cairoProgramHash,
-    // <13 swarm outputs>]. We need the 13 outputs (last 13) and the Cairo
+    // <15 swarm outputs>]. We need the 15 outputs (last 15) and the Cairo
     // program hash (word just before them).
-    if pairs.len() < 14 {
+    if pairs.len() < 16 {
         bail!(
-            "expected at least 14 output words (bootloader header + program hash + 13 outputs), got {}: {:?}",
+            "expected at least 16 output words (bootloader header + program hash + 15 outputs), got {}: {:?}",
             pairs.len(),
             pairs
         );
     }
-    let cairo_program_hash = pairs[pairs.len() - 14].1;
-    let values: [U256; 13] = pairs[pairs.len() - 13..]
+    let cairo_program_hash = pairs[pairs.len() - 16].1;
+    let values: [U256; 15] = pairs[pairs.len() - 15..]
         .iter()
         .map(|p| p.1)
         .collect::<Vec<_>>()
         .try_into()
-        .map_err(|_| anyhow!("could not coerce to [U256; 13]"))?;
+        .map_err(|_| anyhow!("could not coerce to [U256; 15]"))?;
     Ok((values, cairo_program_hash))
 }
 
@@ -356,7 +358,7 @@ async fn main() -> Result<()> {
 
     let (outputs, cairo_program_hash) = extract_public_outputs(&annotated_proof)?;
     let [mission_id, swarm_id, zone_x, zone_y, zone_w, zone_h,
-         swarm_verdict, swarm_hash, pk1, pk2, pk3, pk4, pk5] = outputs;
+         swarm_verdict, swarm_hash, pk1, pk2, pk3, pk4, pk5, ts_start, time_window] = outputs;
 
     // Match the GPS fact = keccak256(abi.encode(cairoProgramHash, programOutputFact)):
     // program hash is the Cairo hash felt, output hash is the node-stack fact from the event.
@@ -389,6 +391,8 @@ async fn main() -> Result<()> {
         swarm_hash: swarm_hash_bytes,
         drone_pubkeys: [pk1, pk2, pk3, pk4, pk5],
         n_steps,
+        ts_start: ts_start.as_u64(),
+        time_window: time_window.as_u64(),
     };
 
     println!("[submitter]   programHash: 0x{}", hex::encode(program_hash));
@@ -396,6 +400,7 @@ async fn main() -> Result<()> {
     println!("[submitter]   mission {} swarm {} verdict {}", mission_id, swarm_id, swarm_verdict);
     println!("[submitter]   zone x={} y={} w={} h={}", zone_x, zone_y, zone_w, zone_h);
     println!("[submitter]   swarm_hash 0x{}", hex::encode(swarm_hash_bytes));
+    println!("[submitter]   ts_start {} time_window {}", ts_start, time_window);
 
     let verifier = ConvoyVerifier::new(convoy_verifier_addr, signer.clone());
     await_tx(verifier.register_swarm_proof(inputs).send().await?, "registerSwarmProof").await?;

@@ -19,13 +19,13 @@
 # idempotent and the healthchecks short-circuit if everything's already up.
 #
 # Usage:
-#   ./DEVOPS/pipeline/script1_up.sh                  # bring up everything including Dozzle
-#   ./DEVOPS/pipeline/script1_up.sh --no-debugger    # skip Dozzle (saves a container)
+#   ./DEVOPS/poc1/scripts/script1_up.sh                  # bring up everything including Dozzle
+#   ./DEVOPS/poc1/scripts/script1_up.sh --no-debugger    # skip Dozzle (saves a container)
 #
 # After this exits the next step is:
-#   ./DEVOPS/pipeline/script2_deploy-l2.sh
-#   ./DEVOPS/pipeline/script3_generate-drone-accounts.sh --swarm both
-#   ./DEVOPS/pipeline/script4_register-missions.sh
+#   ./DEVOPS/poc1/scripts/script2_deploy-l2.sh
+#   ./DEVOPS/poc1/scripts/script3_generate-drone-accounts.sh --swarm both
+#   ./DEVOPS/poc1/scripts/script4_register-missions.sh
 # then submit telemetry per drone. See README for the full sequence.
 # =============================================================================
 
@@ -48,7 +48,7 @@ while [ $# -gt 0 ]; do
 done
 
 # root directory 
-REPO_ROOT="${HOST_REPO_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
+REPO_ROOT="${HOST_REPO_ROOT:-$(cd "$(dirname "$0")/../../.." && pwd)}"
 cd "${REPO_ROOT}"
 
 # Helper that waits for a docker container to reach the healthy state. Polls every 3s.
@@ -247,13 +247,13 @@ fi
 
 # ── [2b] StarkWare 2023_9 GPS verifier suite + wire the convoy Verifier to it ──
 echo "  [2b] StarkWare 2023_9 GPS verifier suite (byte-identical mainnet bytecode)"
-STARK_ENV="${REPO_ROOT}/SIMULATOR/demo/.tmp-l1/stark-verifier.env"
+STARK_ENV="${REPO_ROOT}/SIMULATOR/poc1/demo/.tmp-l1/stark-verifier.env"
 GPS_ADDR=""
 [ -f "${STARK_ENV}" ] && GPS_ADDR=$(grep '^GPS_STATEMENT_VERIFIER_ADDR=' "${STARK_ENV}" | cut -d= -f2)
 if core_has_code "${GPS_ADDR}"; then
     echo "  reusing STARK verifier suite (GPS ${GPS_ADDR})"
 else
-    "${REPO_ROOT}/DEVOPS/pipeline/deploy-stark-verifier.sh"
+    "${REPO_ROOT}/DEVOPS/poc1/scripts/deploy-stark-verifier.sh"
     GPS_ADDR=$(grep '^GPS_STATEMENT_VERIFIER_ADDR=' "${STARK_ENV}" | cut -d= -f2)
 fi
 echo "  wiring convoy Verifier ${CONVOY_VERIFIER_ADDR} -> GPS ${GPS_ADDR}"
@@ -321,14 +321,14 @@ echo
 echo "═══════════════════════════════════════════════════════════════"
 echo "  Stack is up. Suggested next steps:"
 echo "═══════════════════════════════════════════════════════════════"
-echo "    ./DEVOPS/pipeline/script2_deploy-l2.sh --swarm both"
-echo "    ./DEVOPS/pipeline/script3_generate-drone-accounts.sh --swarm both"
-echo "    ./DEVOPS/pipeline/script4_register-missions.sh --swarm both"
-echo "    python3 DEVOPS/pipeline/script5_generate-mission.py --scenario both-safe"
+echo "    ./DEVOPS/poc1/scripts/script2_deploy-l2.sh --swarm both"
+echo "    ./DEVOPS/poc1/scripts/script3_generate-drone-accounts.sh --swarm both"
+echo "    ./DEVOPS/poc1/scripts/script4_register-missions.sh --swarm both"
+echo "    python3 DEVOPS/poc1/scripts/script5_generate-mission.py --scenario both-safe"
 echo "    for swarm in alpha bravo; do"
 echo "        for did in 1 2 3 4 5; do"
-echo "            f=SIMULATOR/demo/scenarios/both-safe/\${swarm}_\${did}.json"
-echo "            [ -f \"\$f\" ] && ./DEVOPS/pipeline/script6_submit-telemetry.sh \$swarm \$did \"\$f\""
+echo "            f=SIMULATOR/poc1/demo/scenarios/both-safe/\${swarm}_\${did}.json"
+echo "            [ -f \"\$f\" ] && ./DEVOPS/poc1/scripts/script6_submit-telemetry.sh \$swarm \$did \"\$f\""
 echo "        done"
 echo "    done"
 echo "    

@@ -2,19 +2,19 @@
 # Deploys the real StarkWare 2023_9 (7-builtin "starknet") GPS verifier suite
 # on the local Besu chain, from the byte-identical mainnet bytecode + solc-0.6.12
 # creation code vendored under contracts/starkware-verifier/.
-# Writes the resulting addresses to SIMULATOR/demo/.tmp-l1/stark-verifier.env (no fork needed).
+# Writes the resulting addresses to SIMULATOR/poc1/demo/.tmp-l1/stark-verifier.env (no fork needed).
 set -euo pipefail
-cd "${HOST_REPO_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}" || exit 1   # repo root (inside convoy-devops)
+cd "${HOST_REPO_ROOT:-$(cd "$(dirname "$0")/../../.." && pwd)}" || exit 1   # repo root (inside convoy-devops)
 
 BESU=${L1_RPC:-http://ship-a:8545}
 PK=${DEPLOYER_PK:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
 NET=${DOCKER_NET:-convoy-l1}
 DIR=LAYER1/contracts_solidity/starkware-verifier
-OUT=SIMULATOR/demo/.tmp-l1/stark-verifier.env
+OUT=SIMULATOR/poc1/demo/.tmp-l1/stark-verifier.env
 FOUNDRY=ghcr.io/foundry-rs/foundry:latest
 INIT_PREFIX=0x600b5981380380925939f3   # minimal "return the trailing runtime" deployer
 
-mkdir -p SIMULATOR/demo/.tmp-l1
+mkdir -p SIMULATOR/poc1/demo/.tmp-l1
 
 # Owner key (anvil[0]) lives in ship A's volume — import if absent, then read it
 # from there for every deploy (never passed as --private-key on the host CLI).
@@ -26,8 +26,8 @@ encode() { MSYS_NO_PATHCONV=1 docker run --rm --entrypoint cast "$FOUNDRY" abi-e
 
 # Deploy raw initcode (hex) via a mounted file (avoids the Windows arg-length limit).
 deploy_initcode() {  # $1 = initcode (0x...)
-  printf '%s' "$1" > SIMULATOR/demo/.tmp-l1/_init.hex
-  MSYS_NO_PATHCONV=1 docker run --rm --network "$NET" -v "$(pwd)/SIMULATOR/demo/.tmp-l1:/w" -v "$OWNER_KEYVOL:/key" --entrypoint sh "$FOUNDRY" \
+  printf '%s' "$1" > SIMULATOR/poc1/demo/.tmp-l1/_init.hex
+  MSYS_NO_PATHCONV=1 docker run --rm --network "$NET" -v "$(pwd)/SIMULATOR/poc1/demo/.tmp-l1:/w" -v "$OWNER_KEYVOL:/key" --entrypoint sh "$FOUNDRY" \
     -c "cast send --rpc-url $BESU --private-key \$(cat /key/pk) --legacy --gas-price 0 --create \"\$(cat /w/_init.hex)\"" 2>/dev/null \
     | grep -i '^contractAddress' | awk '{print $2}'
 }

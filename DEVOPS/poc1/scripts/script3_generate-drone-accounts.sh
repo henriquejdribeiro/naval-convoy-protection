@@ -6,15 +6,15 @@
 #                              transactions immediately afterwards.
 #
 # Output per drone:
-#   SIMULATOR/demo/.tmp-l2/drones/{swarm}/{i}/keystore.json — encrypted keystore
-#   SIMULATOR/demo/.tmp-l2/drones/{swarm}/{i}/account.json  — starkli account descriptor
+#   SIMULATOR/poc1/demo/.tmp-l2/drones/{swarm}/{i}/keystore.json — encrypted keystore
+#   SIMULATOR/poc1/demo/.tmp-l2/drones/{swarm}/{i}/account.json  — starkli account descriptor
 #                                              (required by `starkli invoke`)
 #   on-chain balance: FUND_AMOUNT_WEI of both ETH and STRK on Madara devnet
 #                     (Madara charges tx fees in STRK; without it a tx sits
 #                      in RECEIVED forever)
 #
 # Output per swarm:
-#   SIMULATOR/demo/.tmp-l2/drones-{swarm}.env — ALPHA_DRONE_{1..5}_{ADDR,PUBKEY,KEYSTORE}
+#   SIMULATOR/poc1/demo/.tmp-l2/drones-{swarm}.env — ALPHA_DRONE_{1..5}_{ADDR,PUBKEY,KEYSTORE}
 #
 # How (and why this differs from DEPLOY_ACCOUNT):
 #   We use account #1 (pre-funded by Madara devnet's genesis) to call the
@@ -47,7 +47,7 @@
 set -euo pipefail
 
 # absolute path to the repo root (parent of this script)
-REPO_ROOT="${HOST_REPO_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
+REPO_ROOT="${HOST_REPO_ROOT:-$(cd "$(dirname "$0")/../../.." && pwd)}"
 
 # Starknet RPC version to use for starkli calls. Madara's RPC is pinned to 0.8.1, so starkli must match.
 RPC_VERSION="0.8.1"
@@ -134,7 +134,7 @@ mint_drone_account() {
     #local rpc_url="http://convoy-madara-${swarm}:9944/rpc/v${RPC_VERSION}"
     local rpc_var="MADARA_RPC_${swarm^^}"
     local rpc_url=${!rpc_var:-http://convoy-madara-${swarm}:9944/rpc/v${RPC_VERSION}}
-    local d_rel="SIMULATOR/demo/.tmp-l2/drones/${swarm}/${did}"
+    local d_rel="SIMULATOR/poc1/demo/.tmp-l2/drones/${swarm}/${did}"
     local out_dir="${REPO_ROOT}/${d_rel}"
     mkdir -p "${out_dir}"
     local ks_rel="${d_rel}/keystore.json"
@@ -317,7 +317,7 @@ deployer_nonce_hex() {
 
 generate_for_swarm() {
     local swarm="$1"
-    local env_file="${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/drones-${swarm}.env"
+    local env_file="${REPO_ROOT}/SIMULATOR/poc1/demo/.tmp-l2/drones-${swarm}.env"
     local KEYVOL; KEYVOL=$(relay_key_vol "${swarm}")   # deploy/fund read this
 
     echo
@@ -370,7 +370,7 @@ generate_for_swarm() {
 # sure starkli's next nonce fetch sees the previous tx as mined.
 fund_all_drones() {
     local swarm="$1"
-    local env_file="${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/drones-${swarm}.env"
+    local env_file="${REPO_ROOT}/SIMULATOR/poc1/demo/.tmp-l2/drones-${swarm}.env"
     local addrs
     addrs=$(grep -E "^[A-Z]+_DRONE_[0-9]+_ADDR=" "${env_file}" | cut -d= -f2)
     [ -z "${addrs}" ] && return 0
@@ -399,7 +399,7 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-mkdir -p "${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/drones"
+mkdir -p "${REPO_ROOT}/SIMULATOR/poc1/demo/.tmp-l2/drones"
 
 case "${SWARM_FILTER}" in
     alpha) generate_for_swarm alpha ;;

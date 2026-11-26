@@ -4,8 +4,8 @@
 #                        open_mission message via StarknetCore.
 #
 # For each swarm:
-#   1. Reads convoy_protocol L2 address from SIMULATOR/demo/.tmp-l2/convoy_l2_<swarm>.env
-#   2. Reads 5 drone L2 addresses from SIMULATOR/demo/.tmp-l2/drones-<swarm>.env
+#   1. Reads convoy_protocol L2 address from SIMULATOR/poc1/demo/.tmp-l2/convoy_l2_<swarm>.env
+#   2. Reads 5 drone L2 addresses from SIMULATOR/poc1/demo/.tmp-l2/drones-<swarm>.env
 #   3. cast send Registry.setConvoyProtocolL2(missionId, l2Addr)
 #         signed with the deployer (owner) key
 #   4. cast send Registry.deploy(missionId, spec, droneAddresses, tsStart)
@@ -39,9 +39,9 @@ set -euo pipefail
 
 # Absolute path to the repo root (one level up from this script in scripts/).
 # Kept absolute — it's passed to `docker run -v "${REPO_ROOT}:/work"` (Docker
-# requires an absolute host path) and used to read the SIMULATOR/demo/.tmp-l2/*.env files
+# requires an absolute host path) and used to read the SIMULATOR/poc1/demo/.tmp-l2/*.env files
 # written by deploy-l2.sh and generate-drone-accounts.sh.
-REPO_ROOT="${HOST_REPO_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
+REPO_ROOT="${HOST_REPO_ROOT:-$(cd "$(dirname "$0")/../../.." && pwd)}"
 
 # ── Tunables ──────────────────────────────────────────────────────────────
 # Every value is ${VAR:-default}: set the env var to override, else use the
@@ -50,8 +50,11 @@ REPO_ROOT="${HOST_REPO_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 L1_RPC="${L1_RPC:-http://ship-a:8545}" # L1 node RPC — Docker DNS in dev, real URL in prod
 
 
-TS_START=1700000000   # mission start timestamp (unix). MUST match generate-mission.py
-                       # or the telemetry cells_ts will fall outside the time window and fail the time predicate.
+# Mission start timestamp (unix seconds). The orchestrator exports TS_START (real
+# PC time at order issuance) so this and generate-mission.py share ONE value; when
+# run standalone it falls back to now. MUST match generate-mission.py or the
+# telemetry cells_ts fall outside the time window and fail the time predicate.
+TS_START="${TS_START:-$(date +%s)}"
 
 # Resolve contract addresses — env vars win, else LAYER1/deployments/local.env, else fail.
 REGISTRY_ADDR="${REGISTRY_ADDR:-}"
@@ -145,8 +148,8 @@ register_swarm() {
     # Inputs come from earlier pipeline steps:
     #   convoy_l2_<swarm>.env  ← written by deploy-l2.sh            (the L2 contract address)
     #   drones-<swarm>.env     ← written by generate-drone-accounts (the 5 drone addresses)
-    local conv_env="${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/convoy_l2_${swarm}.env"
-    local drone_env="${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/drones-${swarm}.env"
+    local conv_env="${REPO_ROOT}/SIMULATOR/poc1/demo/.tmp-l2/convoy_l2_${swarm}.env"
+    local drone_env="${REPO_ROOT}/SIMULATOR/poc1/demo/.tmp-l2/drones-${swarm}.env"
 
     # Pipeline-order guard: bail if either prior step hasn't run for this swarm.
     [ -f "${conv_env}" ]  || { echo "[register/${swarm}] missing ${conv_env}";  return 1; }

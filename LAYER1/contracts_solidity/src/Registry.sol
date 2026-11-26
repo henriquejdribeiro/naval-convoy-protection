@@ -153,6 +153,11 @@ contract Registry is Ownable {
 
     mapping(uint256 => bytes32) public missionAggH;
 
+    /// @dev missionId → the order's start timestamp (unix seconds). Set at deploy()
+    ///      from the tsStart arg (the L1 spec struct omits it); the Verifier's
+    ///      freshness gate binds each proof's ts_start output to this.
+    mapping(uint256 => uint64) public missionTsStart;
+
     // ───────────────────────────────────────────────────────────────────
     //  Events
     // ───────────────────────────────────────────────────────────────────
@@ -321,6 +326,7 @@ contract Registry is Ownable {
         require(tsStart > 0,                                       "Registry: tsStart = 0");
 
         specs[missionId] = spec; // the L1 ANCHOR
+        missionTsStart[missionId] = uint64(tsStart); // bound by the Verifier's freshness gate
 
         // Explicit per-drone area records = the registered area the Verifier checks.
         uint256 coverTarget =

@@ -310,7 +310,7 @@ func main{output_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr, ecdsa_
         pubkeys, 0, 1, 0,
     );
 
-    assert swarm_verdict * (swarm_verdict - 1) = 0;
+    assert swarm_verdict = 1;   // UNSAFE (verdict 0) can no longer produce a valid proof: a verified fact ⟹ SAFE, so the verdict is unforgeable even by the relay
 
     // ── public outputs (exact order the L1 Verifier expects) ──
     serialize_word(mission_id);
@@ -326,6 +326,8 @@ func main{output_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr, ecdsa_
     serialize_word(pubkeys[2]);
     serialize_word(pubkeys[3]);
     serialize_word(pubkeys[4]);
+    serialize_word(ts_start);
+    serialize_word(time_window);
 
     return ();
 }

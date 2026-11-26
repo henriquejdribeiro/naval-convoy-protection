@@ -32,7 +32,7 @@ set -euo pipefail
 
 
 # Absolute path to the repo root (one level up from this script).
-REPO_ROOT="${HOST_REPO_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
+REPO_ROOT="${HOST_REPO_ROOT:-$(cd "$(dirname "$0")/../../.." && pwd)}"
 
 # Madara devnet account #1 — pre-funded, OZ-style. Same account exists on
 # BOTH madara instances because both ran `--devnet` (deterministic genesis).
@@ -106,7 +106,7 @@ deploy_to() {
     #local rpc_url="http://${madara_host}:9944/rpc/v${RPC_VERSION}"
     local rpc_var="MADARA_RPC_${swarm^^}"
     local rpc_url="${!rpc_var:-http://${madara_host}:9944/rpc/v${RPC_VERSION}}"
-    local env_file="${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/convoy_l2_${swarm}.env"
+    local env_file="${REPO_ROOT}/SIMULATOR/poc1/demo/.tmp-l2/convoy_l2_${swarm}.env"
 
     local KEYVOL; KEYVOL=$(relay_key_vol "${swarm}")   # SCARB_RUN reads this
     ensure_relay_deployer "${KEYVOL}"
@@ -222,7 +222,7 @@ CONVOY_PROTOCOL_CLASS_HASH_${swarm^^}=${class_hash}
 CONVOY_PROTOCOL_ADDR_${swarm^^}=${contract_addr}
 ACCOUNT_ADDR=${ACCOUNT_ADDR}
 EOF
-    echo "[deploy-l2/${swarm}] wrote SIMULATOR/demo/.tmp-l2/convoy_l2_${swarm}.env"
+    echo "[deploy-l2/${swarm}] wrote SIMULATOR/poc1/demo/.tmp-l2/convoy_l2_${swarm}.env"
 
     # 6. Smoke test — safe_count for a non-existent mission returns 0
     #    (Cairo 1 Map default). Confirms the contract responds to calls.
@@ -248,10 +248,10 @@ EOF
 }
 
 # ── Shared one-time setup ───────────────────────────────────────────────────
-# SIMULATOR/demo/.tmp-l2 now holds ONLY the public manifest (convoy_l2*.env). The signer key is
+# SIMULATOR/poc1/demo/.tmp-l2 now holds ONLY the public manifest (convoy_l2*.env). The signer key is
 # imported per-swarm into its relay-ship volume by ensure_relay_deployer (above),
 # so no key material is written to the host.
-mkdir -p "${REPO_ROOT}/SIMULATOR/demo/.tmp-l2"
+mkdir -p "${REPO_ROOT}/SIMULATOR/poc1/demo/.tmp-l2"
 echo "[deploy-l2] deployer account: ${ACCOUNT_ADDR} (held in relay-ship volumes, not on host)"
 
 # ── Arg parsing ─────────────────────────────────────────────────────────────
@@ -272,13 +272,13 @@ case "${SWARM_FILTER}" in
         deploy_to bravo
         # Combined env file with both addresses for downstream tooling.
         {
-            grep -h '^CONVOY_PROTOCOL_' "${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/convoy_l2_alpha.env"
-            grep -h '^CONVOY_PROTOCOL_' "${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/convoy_l2_bravo.env"
+            grep -h '^CONVOY_PROTOCOL_' "${REPO_ROOT}/SIMULATOR/poc1/demo/.tmp-l2/convoy_l2_alpha.env"
+            grep -h '^CONVOY_PROTOCOL_' "${REPO_ROOT}/SIMULATOR/poc1/demo/.tmp-l2/convoy_l2_bravo.env"
             echo "ACCOUNT_ADDR=${ACCOUNT_ADDR}"
-        } > "${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/convoy_l2.env"
+        } > "${REPO_ROOT}/SIMULATOR/poc1/demo/.tmp-l2/convoy_l2.env"
         echo
-        echo "[deploy-l2] combined SIMULATOR/demo/.tmp-l2/convoy_l2.env:"
-        cat "${REPO_ROOT}/SIMULATOR/demo/.tmp-l2/convoy_l2.env"
+        echo "[deploy-l2] combined SIMULATOR/poc1/demo/.tmp-l2/convoy_l2.env:"
+        cat "${REPO_ROOT}/SIMULATOR/poc1/demo/.tmp-l2/convoy_l2.env"
         ;;
     *) echo "[deploy-l2] --swarm must be alpha | bravo | both"; exit 2 ;;
 esac

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""serve.py — static server for the SIMULATOR webapp + drone telemetry writer.
+"""serve.py — static server for the SIMULATOR world + drone telemetry writer.
 
 Drop-in replacement for `python3 -m http.server` (pure stdlib, no deps):
 
     python3 serve.py [port]          # default 8000
 
-Serves this directory (SIMULATOR/webapp) AND accepts telemetry the 3D sim
+Serves this directory (SIMULATOR/world) AND accepts telemetry the 3D sim
 posts as you fly a drone:
 
     POST /api/telemetry/<drone>      body = telemetry JSON
@@ -23,9 +23,9 @@ import re
 import sys
 import datetime
 
-WEBAPP_DIR = os.path.dirname(os.path.abspath(__file__))      # SIMULATOR/webapp
+WEBAPP_DIR = os.path.dirname(os.path.abspath(__file__))      # SIMULATOR/world
 SIM_DIR = os.path.dirname(WEBAPP_DIR)                         # SIMULATOR
-TELEMETRY_DIR = os.path.join(SIM_DIR, "game", "telemetry")
+TELEMETRY_DIR = os.path.join(SIM_DIR, "poc1", "game", "telemetry")
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
 DRONE_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 
@@ -118,7 +118,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         name = (parse_qs(urlparse(self.path).query).get("name") or [""])[0]
         if not re.match(r"^convoy-[a-z0-9-]{1,40}$", name):
             return self.send_error(400, "bad node name")
-        runs = sorted(glob.glob(os.path.join(SIM_DIR, "demo", "runs", "metrics-*", "logs", name + ".log")))
+        runs = sorted(glob.glob(os.path.join(SIM_DIR, "poc1", "demo", "runs", "metrics-*", "logs", name + ".log")))
         body = b"(no captured log for this node)"
         if runs:
             with open(runs[-1], "rb") as f:
@@ -131,7 +131,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def _run_stats(self):
         empty = {"t": [], "dur": 0, "containers": {}, "phases": []}
-        runs = sorted(glob.glob(os.path.join(SIM_DIR, "demo", "runs", "metrics-*", "stats.log")))
+        runs = sorted(glob.glob(os.path.join(SIM_DIR, "poc1", "demo", "runs", "metrics-*", "stats.log")))
         if not runs:
             return self._send_json(empty)
         path = runs[-1]
@@ -217,7 +217,7 @@ class Server(socketserver.ThreadingTCPServer):
 
 if __name__ == "__main__":
     with Server(("127.0.0.1", PORT), Handler) as httpd:
-        print("SIMULATOR webapp  -> http://localhost:%d   (serving %s)" % (PORT, WEBAPP_DIR))
+        print("SIMULATOR world  -> http://localhost:%d   (serving %s)" % (PORT, WEBAPP_DIR))
         print("telemetry writes  -> %s%s<drone>%s<drone>_telemetry.json" % (TELEMETRY_DIR, os.sep, os.sep))
         try:
             httpd.serve_forever()

@@ -105,12 +105,14 @@ contract Verifier is Ownable {
         uint256 nSteps;
         uint256 timestamp;
         uint256 blockNumber;
+        uint64 tsStart; 
+        uint64 timeWindow;
     }
 
     SwarmProofRecord[] public proofs;
     uint256            public proofCount;
 
-    // ── the 13 public outputs of safe_area_verify_{alpha,bravo}.cairo,
+    // ── the 15 public outputs of safe_area_verify_{alpha,bravo}.cairo,
     //    plus the two hashes convoy-submitter derives (programHash, outputHash)
     //    and nSteps. Order/names must stay in lockstep with the submitter abigen.
     struct SwarmProofInputs {
@@ -126,6 +128,8 @@ contract Verifier is Ownable {
         bytes32     swarmHash;
         uint256[5]  dronePubkeys;   // proof outputs 9..13
         uint256     nSteps;
+        uint64      tsStart;        // proof output 14 — order's start timestamp
+        uint64      timeWindow;     // proof output 15 — order's coverage window
     }
 
     event FactRegistered(bytes32 indexed factHash);
@@ -194,6 +198,14 @@ contract Verifier is Ownable {
         // registered expected area (Pedersen chain of the 5 drone area records).
         require(inputs.swarmHash == spec.areaHash, "Verifier: wrong area");
 
+        // 3b. Freshness gate — ts_start / time_window are the in-circuit witnesses
+        //     that enforce max(ts) − ts_start ∈ [0, time_window] inside the proof.
+        //     Exposed as outputs and checked here, they bind the proof to the ORDER's
+        //     window: a dishonest/buggy swarm leader can no longer prove stale
+        //     coverage with a forged (ts_start = now, time_window = ∞).
+        require(inputs.tsStart    == registry.missionTsStart(inputs.missionId), "Verifier: wrong tsStart");
+        require(inputs.timeWindow == spec.timeWindow, "Verifier: wrong timeWindow");
+
         // 4. Sensor-class gate — the proof's program hash must be the one pinned
         //    for this swarm (alpha 0.1° vs bravo 0.2° footprint). Stops a relay
         //    swapping in the other swarm's (easier) program.
@@ -213,6 +225,32 @@ contract Verifier is Ownable {
         factHash = keccak256(abi.encodePacked(inputs.programHash, inputs.outputHash));
         require(starkVerifier.isValid(factHash),
                 "Verifier: STARK fact not registered (run GPS phases first?)");
+ 
+        // 6b. Output-binding gate — the GPS outputHash is keccak256 of the 15 output
+        //     felts (each 32-byte big-endian, the serialize_word order). Recompute it
+        //     from the reported fields and require a match, so the fields ARE the
+        //     proof's committed output. With the spec/identity checks above, this stops
+        //     a relay relabeling a self-made, trivially-safe proof as this mission.
+        require(
+            keccak256(abi.encodePacked(
+                inputs.missionId,
+                inputs.swarmId,
+                uint256(inputs.zoneX),
+                uint256(inputs.zoneY),
+                uint256(inputs.zoneW),
+                uint256(inputs.zoneH),
+                uint256(inputs.swarmVerdict),
+                uint256(inputs.swarmHash),
+                inputs.dronePubkeys[0],
+                inputs.dronePubkeys[1],
+                inputs.dronePubkeys[2],
+                inputs.dronePubkeys[3],
+                inputs.dronePubkeys[4],
+                uint256(inputs.tsStart),
+                uint256(inputs.timeWindow)
+            )) == inputs.outputHash,
+            "Verifier: outputHash != committed fields"
+        );
 
         // 7. Register the fact + audit record.
         _registerFact(factHash);
@@ -224,7 +262,8 @@ contract Verifier is Ownable {
             zoneW:       inputs.zoneW,        zoneH:      inputs.zoneH,
             swarmVerdict: inputs.swarmVerdict, swarmHash:  inputs.swarmHash,
             nSteps:      inputs.nSteps,
-            timestamp:   block.timestamp,     blockNumber: block.number
+            timestamp:   block.timestamp,     blockNumber: block.number,
+            tsStart: inputs.tsStart, timeWindow: inputs.timeWindow
         }));
         proofCount = proofs.length;
         emit SwarmVerified(proofId, inputs.missionId, factHash,

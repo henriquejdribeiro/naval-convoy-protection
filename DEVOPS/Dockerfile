@@ -1,10 +1,10 @@
 # =============================================================================
 # convoy-devops — the FACTORY / operator node.
 #
-# The host runs exactly ONE script (SIMULATOR/demo/scripts/script0_devops.sh),
+# The host runs exactly ONE script (SIMULATOR/poc1/demo/scripts/script0_devops.sh),
 # which builds + starts THIS container. Everything else is the factory's job:
 #
-#   • runs the whole PoC pipeline (DEVOPS/orchestrate_poc1.sh → pipeline/script1..7) as bash
+#   • runs the whole PoC pipeline (DEVOPS/poc1/orchestrate_poc1.sh → poc1/scripts/script1..7) as bash
 #   • drives the HOST Docker engine through the mounted /var/run/docker.sock to
 #     CREATE / exec / compose every other container — the L1 Besu ships, the L2
 #     Madara sequencers + follower mesh, the drone signer machines, the provers,
@@ -61,5 +61,5 @@ RUN set -eux; \
 # note that in the thesis trust model.
 USER root
 
-# working_dir, command (bash DEVOPS/orchestrate_poc1.sh) and all mounts come from
+# working_dir, command (bash DEVOPS/poc1/orchestrate_poc1.sh) and all mounts come from
 # DEVOPS/docker-compose.devops.yml, so no ENTRYPOINT/CMD is baked here.

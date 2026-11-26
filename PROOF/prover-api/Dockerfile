@@ -62,8 +62,8 @@ RUN pip3 install --no-cache-dir cairo-lang==0.14.0.1 fastecdsa sympy
 # convoy-submitter (Rust); cast is not on the critical path.
 RUN curl -L https://foundry.paradigm.xyz | bash || true
 ENV PATH="/root/.foundry/bin:${PATH}"
-RUN /root/.foundry/bin/foundryup -i stable && \
-    /root/.foundry/bin/cast --version
+RUN (/root/.foundry/bin/foundryup -i stable && /root/.foundry/bin/cast --version) || \
+    echo "WARN: foundry/cast unavailable in prover image (non-critical, submitter is Rust)"
 
 # eth-utils for keccak256 in the submit script (sha3 fallback)
 RUN pip3 install --no-cache-dir eth-utils
