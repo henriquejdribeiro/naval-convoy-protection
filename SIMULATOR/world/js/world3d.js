@@ -214,6 +214,15 @@
   const b5Drone = body('b5', ...P(6, 0), DRONE, { size: 0.022 });
   // b5 = Celestara the crowned sky steed (right swarm).
   attachModel(b5Drone, 'js/vendor/models/celestara_the_crowned_sky_steed.glb', { fit: 2.2, rotY: Math.PI, lift: 0.3 });
+  // ── Operator node ("the factory") — anchored at the convoy centre P(0,0): the
+  //    single place keys, mTLS certs and contracts are minted, and from which every
+  //    unit is dispatched. Swap the path for whatever .glb you drop in; tune fit/lift.
+  const [facLon, facLat] = P(0, -7);
+  // Real selectable unit — hover shows coords, click shows its container stack,
+  // exactly like the ships. SIZE is set by `size` here (×20 world units);
+  // attachModel's `fit` is ignored, so this is the actual size knob.
+  const factory = body('DEVOPS', facLon, facLat, 0xf59e0b, { size: 0.33, textColor: '#fde68a' });
+  attachModel(factory, 'js/vendor/models/cristo_rei.glb', { rotY: Math.PI/4, lift: 0.3 });
 
   // ── level-of-detail grid ────────────────────────────────────────────────
   const target = new T.Vector3(lonToX(cLon), 0, latToZ(cLat));
@@ -420,6 +429,7 @@
   function byId(id) { for (const g of bodies) if (g.userData.id === id) return g; return null; }
   const demoTracks = [], demoTiles = [], demoTrail = Object.create(null);
   window.convoyWorld = {
+    factoryPos: { lon: facLon, lat: facLat },
     drones: ['a1','a2','a3','a4','a5','b1','b2','b3','b4','b5'],
     get: byId,
     posOf(id) { const g = byId(id); return g ? { lon: g.userData.lon, lat: g.userData.lat } : null; },

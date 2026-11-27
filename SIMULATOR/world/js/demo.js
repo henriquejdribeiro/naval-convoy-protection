@@ -1,9 +1,9 @@
-/* demo.js — Guided "tutorial" walkthrough of the certified convoy mission.
+/* demo.js : Guided "tutorial" walkthrough of the certified convoy mission.
    -------------------------------------------------------------------------
    Runs when the landing menu picks DEMO (window.CONVOY_MODE === 'demo').
    Drives the 3D world through window.convoyWorld (exposed by world3d.js):
-   an 8-step narrated mission — brief → deploy → sweep → sign+submit (L2) →
-   prove → verify (L1) → certify → advance — overlaid with the REAL numbers
+   an 8-step narrated mission : brief → deploy → sweep → sign+submit (L2) →
+   prove → verify (L1) → certify → advance ; overlaid with the REAL numbers
    captured from the live end-to-end run (both STARK proofs, dual-safe, advance).
 
    Self-contained: injects its own CSS + panel, no index.html markup needed
@@ -52,13 +52,15 @@
   // Each: { tag, title, body (HTML), data (HTML | null), enter(fn) }
   const STEPS = [
     {
-      tag: 'Mission', title: 'The convoy & the mission',
-      body: 'A convoy crosses the open Atlantic (35–40°N, 10–20°W). Two sea zones ' +
-            'ahead — <b style="color:#86efac">green</b> and <b style="color:#c4b5fd">purple</b> — ' +
-            'must be <b>proven</b> clear before it may pass.' +
+      tag: 'Mission Setup', title: 'Factory initializes the convoy and the mission',
+      body: 'Before anything sails, a single <b>operator node</b> at the ' +
+            '<b>convoy-devops factory</b>, out in the middle of the sea bootstraps the convoy and the ' +
+            'mission: it mints the <b>L1 relay &amp; commander keys</b>, stands up the ' +
+            '<b>mTLS certificate authority</b> and seals a per-node cert into each unit, ' +
+            'deploys the <b>L1 + L2 contracts</b>, and funds the drones. Then each element goes on their way:' +
             '<div class="fleet">' +
             '<div><span class="k">3</span> high-value units — the protected cargo &amp; civilians</div>' +
-            '<div><span class="k">6</span> warships (A–F) — the escort, the <b>6 Besu QBFT validators</b> that are part of Layer 1</div>' +
+            '<div><span class="k">6</span> warships (A–F) — the escort, the <b>6 Besu QBFT validators</b> (Layer 1)</div>' +
             '<div><span class="k">2</span> drone swarms — Alpha &amp; Bravo (5 each), each its own <b>Madara Starknet chain</b> (Layer 2)</div>' +
             '</div>',
       data: '<b>The plan</b> <span style="color:#64748b">— the next 7 steps</span>' +
@@ -71,7 +73,17 @@
             '<div>⑥ L1 verifies both on-chain</div>' +
             '<div>⑦ commander <b>D</b> gives <b>advance</b></div>' +
             '</div>',
-      enter: () => { W.clearTracks(); resetDrones(); W.focus(-14.6, 36.7, 190); },
+      enter: () => {
+        W.clearTracks(); resetTrails();
+        const f = W.factoryPos || { lon: -14.6, lat: 36.7 };
+        gatherAtFactory();                 // whole formation stacked on the operator node
+        W.focus(f.lon, f.lat, 70);         // close in — everyone is "at the factory"
+        setTimeout(() => {                 // then dispatch each unit out to its station
+          disperseFromFactory(6000);
+          const from = W.getView ? W.getView() : { lon: f.lon, lat: f.lat, rad: 70, theta: -0.3, phi: 1.0 };
+          focusTween(from, { lon: -14.6, lat: 36.7, rad: 190, theta: from.theta, phi: from.phi }, 6000);
+        }, 900);
+      },
     },
     {
       tag: 'Layer 1', title: 'Commander D opens the mission',
@@ -271,6 +283,17 @@
     if (W.allUnits && W.setUnit) unitHomes.forEach(u => W.setUnit(u.key, u.lon, u.lat));
     else resetDrones();
   }
+  
+  // Factory setup: stack the whole formation on the operator node, then dispatch
+  // each unit to its station. Reuses unitHomes + tweenUnits (same as resetAllUnits).
+  function gatherAtFactory() {
+    const f = W.factoryPos; if (!f || !W.allUnits) return;
+    W.allUnits().forEach(u => W.setUnit(u.key, f.lon, f.lat));
+  }
+  function disperseFromFactory(ms, onDone) {
+    const f = W.factoryPos; if (!f) { if (onDone) onDone(); return; }
+    tweenUnits(unitHomes.map(u => ({ key: u.key, from: f, to: { lon: u.lon, lat: u.lat } })), ms, onDone);
+  }
 
   // Fly each drone through its strip lattice, growing the trail under it and
   // painting the footprint square it clears as SAFE (green Alpha / purple Bravo).
@@ -384,44 +407,62 @@
     if (/^convoy-pathfinder-/.test(n)) return '494 MB';
     if (/^convoy-(prover-api|machine)-/.test(n)) return '1.27 GB';
     if (/^convoy-l1-shim/.test(n)) return '200 MB';
+    if (/^convoy-devops$/.test(n)) return '~280 MB';
+    if (/^convoy-submitter-/.test(n)) return '1.27 GB';   // built into the prover image
+    if (/^convoy-tls-/.test(n)) return '~10 MB';           // Alpine + stunnel sidecar
+    if (/^convoy-deploy-l1$/.test(n)) return '~700 MB';   // ghcr.io/foundry-rs/foundry — verify with `docker images`
     return '';
   }
   const STACK = (() => {
     const s = {
-      A: { title: 'Ship A — L1 validator · RPC anchor', tier: 'Besu L1', c: [
-           ['convoy-ship-a', 'Besu QBFT validator · L1 RPC (owner/deployer)'],
-           ['convoy-l1-shim', 'L1→L2 RPC shim (serves finalized→latest)'] ] },
-      B: { title: 'Ship B — L1 validator · Bravo relay', tier: 'Besu L1', c: [
-           ['convoy-ship-b', 'Besu QBFT validator · submits the Bravo proof to L1'] ] },
-      C: { title: 'Ship C — L1 validator', tier: 'Besu L1', c: [
+      A: { title: 'Ship A: L1 validator · RPC anchor', tier: 'Besu L1', c: [
+           ['convoy-ship-a', 'Besu QBFT validator'],
+           ['convoy-tls-shipa', 'stunnel mTLS 1.3 edge · L1 RPC anchor for the mesh'] ] },
+      B: { title: 'Ship B: L1 validator · Bravo relay', tier: 'Besu L1', c: [
+           ['convoy-ship-b', 'Besu QBFT validator · settles the Bravo proof to L1'],
+           ['convoy-submitter-bravo', 'ship-side L1 proof submitter · holds the Bravo relay key'],
+           ['convoy-tls-shipb', 'stunnel mTLS 1.3 edge · receives the proof, serves L1 RPC to L2'] ] },
+      C: { title: 'Ship C: L1 validator', tier: 'Besu L1', c: [
            ['convoy-ship-c', 'Besu QBFT validator'] ] },
-      D: { title: 'Ship D — L1 validator · Commander', tier: 'Besu L1', c: [
+      D: { title: 'Ship D: L1 validator · Commander', tier: 'Besu L1', c: [
            ['convoy-ship-d', 'Besu QBFT validator · opens the mission + gives advance'] ] },
-      E: { title: 'Ship E — L1 validator', tier: 'Besu L1', c: [
+      E: { title: 'Ship E: L1 validator', tier: 'Besu L1', c: [
            ['convoy-ship-e', 'Besu QBFT validator'] ] },
-      F: { title: 'Ship F — L1 validator · Alpha relay', tier: 'Besu L1', c: [
-           ['convoy-ship-f', 'Besu QBFT validator · submits the Alpha proof to L1'] ] },
-      a1: { title: 'Drone a1 — Alpha leader', tier: 'Madara L2 · Alpha', c: [
+      F: { title: 'Ship F: L1 validator · Alpha relay', tier: 'Besu L1', c: [
+           ['convoy-ship-f', 'Besu QBFT validator · settles the Alpha proof on L1'],
+           ['convoy-submitter-alpha', 'ship-side L1 proof submitter · holds the Alpha relay key'],
+           ['convoy-tls-shipf', 'stunnel mTLS 1.3 edge · receives the proof, serves L1 RPC to L2'] ] },
+      a1: { title: 'Drone a1: Alpha leader', tier: 'Madara L2 · Alpha', c: [
             ['convoy-madara-alpha', 'Starknet sequencer (L2 block producer)'],
             ['convoy-pathfinder-alpha-1', 'archive full-node (L2 RPC)'],
-            ['convoy-prover-api-alpha', 'Stone STARK prover + L1 submitter'],
+            ['convoy-prover-api-alpha', 'Stone STARK prover'],
+            ['convoy-l1-shim-alpha', 'L1→L2 JSON-RPC shim · Madara L1-sync reads ship F'],
             ['convoy-machine-alpha-1', 'drone signer (ECDSA key custody)'],
-            ['convoy-madara-alpha-seed', 'genesis seeder (one-shot, then removed)'] ] },
-      b1: { title: 'Drone b1 — Bravo leader', tier: 'Madara L2 · Bravo', c: [
+            ['convoy-madara-alpha-seed', 'genesis seeder (one-shot, then removed)'],    
+            ['convoy-tls-node1', 'stunnel mTLS 1.3 edge · serves L2 RPC+gateway, tunnels prover → L1'] ] },
+      b1: { title: 'Drone b1: Bravo leader', tier: 'Madara L2 · Bravo', c: [
             ['convoy-madara-bravo', 'Starknet sequencer (L2 block producer)'],
             ['convoy-pathfinder-bravo-1', 'archive full-node (L2 RPC)'],
-            ['convoy-prover-api-bravo', 'Stone STARK prover + L1 submitter'],
+            ['convoy-prover-api-bravo', 'Stone STARK prover'],
+            ['convoy-l1-shim-bravo', 'L1→L2 JSON-RPC shim · Madara L1-sync reads ship B'],
             ['convoy-machine-bravo-1', 'drone signer (ECDSA key custody)'],
-            ['convoy-madara-bravo-seed', 'genesis seeder (one-shot, then removed)'] ] },
-      HVU: { title: 'High-value unit — protected asset', tier: 'escorted cargo', c: [] },
+            ['convoy-madara-bravo-seed', 'genesis seeder (one-shot, then removed)'],
+            ['convoy-tls-node1b', 'stunnel mTLS 1.3 edge · serves L2 RPC+gateway, tunnels prover → L1'] ] },
+      HVU: { title: 'High-value unit: protected asset', tier: 'escorted cargo', c: [] },
+      DEVOPS: { title: 'DevOps factory: operator node', tier: 'convoy-devops', c: [
+            ['convoy-devops', 'operator + CA · mints the L1 relay & commander keys, stands up the mTLS 1.3 CA + per-node certs, deploys the L1 + L2 contracts, funds the drones, runs the pipeline'],
+            ['convoy-tls-devops', 'stunnel mTLS sidecar · reaches the live mesh over TLS 1.3'],
+            ['convoy-deploy-l1', 'forge · one-shot L1 contract deploy, spawned by the factory · signs with the owner (devops) key'], ] },
     };
     for (let i = 2; i <= 5; i++) {
-      s['a' + i] = { title: `Drone a${i} — Alpha follower`, tier: 'Madara L2 · Alpha', c: [
+      s['a' + i] = { title: `Drone a${i}: Alpha follower`, tier: 'Madara L2 · Alpha', c: [
         ['convoy-madara-alpha-' + i, 'follower full-node (syncs the sequencer)'],
-        ['convoy-machine-alpha-' + i, 'drone signer (ECDSA key custody)'] ] };
-      s['b' + i] = { title: `Drone b${i} — Bravo follower`, tier: 'Madara L2 · Bravo', c: [
+        ['convoy-machine-alpha-' + i, 'drone signer (ECDSA key custody)'],
+        ['convoy-tls-node' + i, 'stunnel mTLS 1.3 edge · tunnels follower + signer → sequencer'] ] };
+      s['b' + i] = { title: `Drone b${i}: Bravo follower`, tier: 'Madara L2 · Bravo', c: [
         ['convoy-madara-bravo-' + i, 'follower full-node (syncs the sequencer)'],
-        ['convoy-machine-bravo-' + i, 'drone signer (ECDSA key custody)'] ] };
+        ['convoy-machine-bravo-' + i, 'drone signer (ECDSA key custody)'],
+        ['convoy-tls-node' + i + 'b', 'stunnel mTLS 1.3 edge · tunnels follower + signer → sequencer'] ] };
     }
     return s;
   })();
@@ -438,7 +479,7 @@
             `<span class="cn">${n}${sz ? `<span class="sz">${sz}</span>` : ''}${log ? '<span class="lgh">▤ logs</span>' : ''}</span>` +
             `<span class="cr">${r}</span></div>`;
         }).join('')
-      : '<div class="empty">no on-chain software — the asset being protected</div>';
+      : '<div class="empty">no on-chain software : the asset being protected</div>';
     const b = document.createElement('div');
     b.className = 'demo-stack';
     b.innerHTML = `<div class="hd"><span class="ut">${u.title}</span><span class="tier">${u.tier}</span>` +
@@ -506,7 +547,7 @@
       win.innerHTML =
         `<div class="ph-hd"><span class="pt">${unit.title} · live performance</span>` +
         `<button class="pl">▶</button><button class="xx" title="close">✕</button></div>` +
-        `<div class="pb">${have ? panels : '<div class="pnone">no stats captured for this run — re-run with the sampler from the start</div>'}</div>` +
+        `<div class="pb">${have ? panels : '<div class="pnone">no stats captured for this run : re-run with the sampler from the start</div>'}</div>` +
         (have ? `<div class="pf">${strip}<div class="pfrow"><span class="cur">—</span>` +
           `<input class="scrub" type="range" min="0" max="${dur}" value="0" step="1"><span class="tl">00:00 / ${fmt(dur)}</span></div></div>` : '');
       document.body.appendChild(win);
@@ -590,7 +631,7 @@
     fetch('/api/node-log?name=' + encodeURIComponent(name))
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(t => { lines = t.split('\n'); render(); })
-      .catch(() => { pre.textContent = '(could not load log — update serve.py with the /api/node-log route and capture node logs into the run)'; });
+      .catch(() => { pre.textContent = '(could not load log : update serve.py with the /api/node-log route and capture node logs into the run)'; });
   }
 
   // ── panel UI ─────────────────────────────────────────────────────────────
@@ -762,7 +803,7 @@
 
   function start() {
     W = window.convoyWorld;
-    if (!W) { console.warn('[demo] convoyWorld API not found — is world3d.js the API build?'); return; }
+    if (!W) { console.warn('[demo] convoyWorld API not found : is world3d.js the API build?'); return; }
     W.drones.forEach(id => { const p = W.posOf(id); if (p) homes[id] = p; });
     if (W.allUnits) unitHomes = W.allUnits();    // home position of EVERY unit (for advance + reset)
     document.body.classList.add('demo-mode');   // strip play-mode HUD lines + selection bar

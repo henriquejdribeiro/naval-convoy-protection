@@ -9,17 +9,17 @@
 # so this file declares NEITHER at top level (declare-once rule, see below).
 # =============================================================================
 services:
-  convoy-tls-shipa:
+  convoy-tls-shipd:
     image: alpine:3.20
-    container_name: convoy-tls-shipa          # == cert SAN; clients checkHost this exact name
+    container_name: convoy-tls-shipd          # == cert SAN; clients checkHost this exact name
     profiles: ["tls"]
     entrypoint: ["sh","-c","apk add --no-cache stunnel >/dev/null && exec sh /convoy-tls-entrypoint.sh"]
     environment:
-      NODE: shipa                              # loads /tls/shipa.pem (SAN convoy-tls-shipa)
-      SERVER_TUNNELS: "8545:ship-a:8545"       # accept TLS on :8545 → plaintext to ship-a:8545
+      NODE: shipd                              # loads /tls/shipd.pem (SAN convoy-tls-shipd)
+      SERVER_TUNNELS: "8545:ship-d:8545"       # accept TLS :8545 → plaintext ship-d:8545 (commander)
     volumes:
       - ./LAYER2/tls/convoy-tls-entrypoint.sh:/convoy-tls-entrypoint.sh:ro
-      - convoy-tls-shipa:/tls:ro
+      - convoy-tls-shipd:/tls:ro
     networks: [convoy-l1]
     restart: unless-stopped
 
@@ -94,7 +94,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  convoy-tls-shipa: { external: true, name: convoy-tls-shipa }
+  convoy-tls-shipd: { external: true, name: convoy-tls-shipd }   # in the volumes: block
   convoy-tls-shipf: { external: true, name: convoy-tls-shipf }
   convoy-tls-shipb: { external: true, name: convoy-tls-shipb }
   submissions-alpha: { name: convoy-submissions-alpha }

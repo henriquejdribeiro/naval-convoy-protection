@@ -81,6 +81,21 @@
   #menu .card p  { margin: 0; font-size: 12.5px; line-height: 1.5; color: #94a3b8; }
   #menu .card .go { margin-top: 14px; font-size: 12px; color: #7dd3fc; }
   #menu .hint { font-size: 11px; color: #475569; }
+  /* ── four-option PoC menu ─────────────────────────────────────── */
+  #menu .pocs { display: flex; flex-direction: column; gap: 26px; }
+  #menu .poc-label {
+    font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase;
+    color: #94a3b8; margin: 0 0 12px 4px; text-align: left;
+  }
+  #menu .poc-label .poc-n { color: #e2e8f0; font-weight: 700; margin-right: 8px; }
+  #menu .poc-label .poc-state {
+    font-size: 10px; letter-spacing: 1px; padding: 2px 8px; border-radius: 999px; margin-left: 8px;
+  }
+  #menu .poc-label .poc-state.ok   { color: #34d399; border: 1px solid #14543e; background: rgba(16,84,62,0.4); }
+  #menu .poc-label .poc-state.soon { color: #64748b; border: 1px solid #334155; background: rgba(30,41,59,0.4); }
+  #menu .card.disabled { cursor: not-allowed; opacity: 0.45; filter: saturate(0.55); }
+  #menu .card.disabled:hover { transform: none; border-color: #1e3a5f; box-shadow: none; }
+  #menu .card .go.soon { color: #64748b; }
 </style>
 </head>
 <body class="menu-open">
@@ -104,22 +119,49 @@
     <div class="sub">Verifiable drone mission-compliance</div>
     <div class="sub2">Besu QBFT L1 · Madara Starknet L2 · Stone STARK proofs</div>
   </div>
-  <div class="cards">
-    <div class="card" data-mode="demo">
-      <div class="tag">Demo</div>
-      <h2>Watch the certified mission</h2>
-      <p>Replay the recorded scenario: 10 drones clear the green + purple zones, two
-         STARK proofs verify on L1, the convoy advances — overlaid with the real proof
-         sizes, step counts, gas and transaction hashes.</p>
-      <div class="go">▶ Play the demo</div>
+  <div class="pocs">
+
+    <div class="poc-group">
+      <div class="poc-label"><span class="poc-n">PoC 1</span>Corridor Clearance<span class="poc-state ok">live</span></div>
+      <div class="cards">
+        <div class="card" data-mode="demo">
+          <div class="tag">Demo</div>
+          <h2>Watch the certified mission</h2>
+          <p>Replay the recorded scenario: 10 drones clear the green + purple zones, two
+             STARK proofs verify on L1, the convoy advances — overlaid with the real proof
+             sizes, step counts, gas and transaction hashes.</p>
+          <div class="go">▶ Play the demo</div>
+        </div>
+        <div class="card disabled" data-mode="play">
+          <div class="tag">Game</div>
+          <h2>Fly the mission</h2>
+          <p>Take manual control of the drones, sweep the zones, and produce your own
+             telemetry to feed the L2 → proof → L1 pipeline. Free-flight sandbox.</p>
+          <div class="go soon">⚙ In construction</div>
+        </div>
+      </div>
     </div>
-    <div class="card" data-mode="play">
-      <div class="tag">Simulate</div>
-      <h2>Fly it yourself</h2>
-      <p>Take manual control of the drones, sweep the zones, and produce your own
-         telemetry to feed the L2 → proof → L1 pipeline. Free-flight sandbox.</p>
-      <div class="go">▶ Start the game</div>
+
+    <div class="poc-group">
+      <div class="poc-label"><span class="poc-n">PoC 2</span>Force Protection · Rules of Engagement<span class="poc-state soon">planned</span></div>
+      <div class="cards">
+        <div class="card disabled" data-mode="demo2">
+          <div class="tag">Demo</div>
+          <h2>Watch the threat neutralised</h2>
+          <p>Detect → track → identify → decide (RoE) → engage → assess: a threat enters the
+             escort envelope, the swarm authorises and neutralises it, two verdicts settle on L1.</p>
+          <div class="go soon">▲ Not started</div>
+        </div>
+        <div class="card disabled" data-mode="play2">
+          <div class="tag">Game</div>
+          <h2>Run the intercept</h2>
+          <p>Take the detector, leader and interceptor roles, hold the protected asset, and drive
+             the engagement yourself into the verifiable RoE pipeline.</p>
+          <div class="go soon">▲ Not started</div>
+        </div>
+      </div>
     </div>
+
   </div>
   <div class="hint">select a mode to begin — the ocean behind is live</div>
 </div>
@@ -134,7 +176,7 @@
 (function () {
   var menu = document.getElementById('menu');
   window.CONVOY_MODE = null;
-  menu.querySelectorAll('.card').forEach(function (card) {
+  menu.querySelectorAll('.card:not(.disabled)').forEach(function (card) {
     card.addEventListener('click', function () {
       var mode = card.getAttribute('data-mode');   // 'demo' | 'play'
       window.CONVOY_MODE = mode;

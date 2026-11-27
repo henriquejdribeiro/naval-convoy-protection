@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "${HOST_REPO_ROOT:-$(cd "$(dirname "$0")/../../.." && pwd)}" || exit 1   # repo root (inside convoy-devops)
 
-BESU=${L1_RPC:-http://ship-a:8545}
+BESU=${L1_RPC:-http://convoy-tls-devops:18545}
 PK=${DEPLOYER_PK:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
 NET=${DOCKER_NET:-convoy-l1}
 DIR=LAYER1/contracts_solidity/starkware-verifier
@@ -18,7 +18,7 @@ mkdir -p SIMULATOR/poc1/demo/.tmp-l1
 
 # Owner key (anvil[0]) lives in ship A's volume — import if absent, then read it
 # from there for every deploy (never passed as --private-key on the host CLI).
-OWNER_KEYVOL=convoy-ship-a-key
+OWNER_KEYVOL=convoy-devops-key
 MSYS_NO_PATHCONV=1 docker run --rm -v "$OWNER_KEYVOL:/key" --entrypoint sh "$FOUNDRY" -c 'test -s /key/pk' 2>/dev/null \
   || printf '%s' "$PK" | MSYS_NO_PATHCONV=1 docker run --rm -i -v "$OWNER_KEYVOL:/key" --entrypoint sh "$FOUNDRY" -c 'cat > /key/pk'
 

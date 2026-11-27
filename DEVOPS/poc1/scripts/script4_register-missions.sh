@@ -47,7 +47,7 @@ REPO_ROOT="${HOST_REPO_ROOT:-$(cd "$(dirname "$0")/../../.." && pwd)}"
 # Every value is ${VAR:-default}: set the env var to override, else use the
 # dev default. This is what lets the script point at a real L1 / real keys
 # in production without editing it.
-L1_RPC="${L1_RPC:-http://ship-a:8545}" # L1 node RPC — Docker DNS in dev, real URL in prod
+L1_RPC="${L1_RPC:-http://convoy-tls-devops:18545}"   # → TLS → convoy-tls-shipd → ship-d:8545
 
 
 # Mission start timestamp (unix seconds). The orchestrator exports TS_START (real
@@ -210,7 +210,7 @@ register_swarm() {
     # a legacy type-0 tx. 2>&1 | tail -3: keep just the last lines of cast's
     # receipt output.
     echo "[register/${swarm}] step 1a: Registry.setConvoyProtocolL2(${mid}, ${conv_addr})"
-    CAST_SHIP "convoy-ship-a-key" send "${REGISTRY_ADDR}" \
+    CAST_SHIP "convoy-devops-key" send "${REGISTRY_ADDR}" \
         "setConvoyProtocolL2(uint256,uint256)" \
         "${mid}" "${conv_addr}" \
         --rpc-url "${L1_RPC}" \
@@ -287,7 +287,7 @@ register_swarm() {
         pub=$(grep "^${up}_DRONE_${did}_PUBKEY=" "${drone_env}" | cut -d= -f2)
         [ -z "${pub}" ] && { echo "[register/${swarm}] no pubkey for drone ${did}"; return 1; }
         echo "[register/${swarm}]   drone ${did} → ${pub}"
-        CAST_SHIP "convoy-ship-a-key" send "${CONVOY_VERIFIER_ADDR}" \
+        CAST_SHIP "convoy-devops-key" send "${CONVOY_VERIFIER_ADDR}" \
             "setDronePubkey(uint256,uint8,uint256)" \
             "${mid}" "${did}" "${pub}" \
             --rpc-url "${L1_RPC}" \
@@ -306,7 +306,7 @@ register_swarm() {
     # cairo-hash-program drops leading zeros → pad to a full 32-byte bytes32
     prog_hash="0x$(printf '%064s' "${prog_hash#0x}" | tr ' ' '0')"
     echo "[register/${swarm}]   program hash: ${prog_hash}"
-    CAST_SHIP "convoy-ship-a-key" send "${CONVOY_VERIFIER_ADDR}" \
+    CAST_SHIP "convoy-devops-key" send "${CONVOY_VERIFIER_ADDR}" \
         "setSwarmProgram(uint256,bytes32)" \
         "${mid}" "${prog_hash}" \
         --rpc-url "${L1_RPC}" \

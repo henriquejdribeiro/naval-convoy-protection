@@ -46,14 +46,54 @@ services:
     entrypoint: ["sh","-c","apk add --no-cache stunnel >/dev/null && exec sh /convoy-tls-entrypoint.sh"]
     environment:
       NODE: devops
-      CLIENT_TUNNELS: "19944:convoy-tls-node1:9444 29944:convoy-tls-node1b:9444 18545:convoy-tls-shipa:8545"
+      CLIENT_TUNNELS: "19944:convoy-tls-node1:9444 29944:convoy-tls-node1b:9444 18545:convoy-tls-shipd:8545"
     volumes:
       - ./LAYER2/tls/convoy-tls-entrypoint.sh:/convoy-tls-entrypoint.sh:ro
-      - convoy-tls-certs:/tls:ro
+      - convoy-tls-devops:/tls:ro
     networks: [convoy-l1]
     restart: unless-stopped
 
+  # ── L1 contract deploy — the factory's one-shot forge job (--profile deploy).
+  #    Spawned by script1 from inside convoy-devops; signs with the owner key held
+  #    in the factory's OWN volume, submits to ship D's RPC.
+  deploy-l1:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: convoy-deploy-l1
+    profiles: ["deploy"]
+    working_dir: /workspace
+    entrypoint: ["/bin/sh", "-c"]
+    environment:
+      FOUNDRY_PROFILE: default
+      COMMANDER_ADDR:      "${COMMANDER_ADDR}"
+      ALPHA_RELAY_ADDR:    "${ALPHA_RELAY_ADDR}"
+      BRAVO_RELAY_ADDR:    "${BRAVO_RELAY_ADDR}"
+      STARK_VERIFIER_ADDR: "0x959922be3caee4b8cd9a407cc3ac1c251c2007b1"
+      STARKNET_CORE_ADDR_ALPHA: "${STARKNET_CORE_ADDR_ALPHA}"
+      STARKNET_CORE_ADDR_BRAVO: "${STARKNET_CORE_ADDR_BRAVO}"
+      CONVOY_SPEED:        "100"
+    command:
+      - |
+        set -e
+        echo "[deploy-l1] installing forge dependencies"
+        mkdir -p lib
+        [ -f lib/forge-std/src/Script.sol ] || git clone --depth 1 --branch v1.9.4 https://github.com/foundry-rs/forge-std lib/forge-std
+        [ -f lib/openzeppelin-contracts/contracts/access/Ownable.sol ] || git clone --depth 1 --branch v5.0.2 https://github.com/OpenZeppelin/openzeppelin-contracts lib/openzeppelin-contracts
+        echo "[deploy-l1] building"
+        forge build
+        echo "[deploy-l1] deploying convoy contracts"
+        forge script script/DeployL1.s.sol \
+          --rpc-url http://ship-d:8545 \
+          --private-key "$(cat /key/pk)" \
+          --broadcast | tee /workspace/deploy-l1.log
+        echo "[deploy-l1] L1 contracts deployed; run script4_register-missions.sh after L2 setup"
+    volumes:
+      - ./LAYER1/contracts_solidity:/workspace
+      - convoy-devops-key:/key
+    networks:
+      - convoy-l1
+
 volumes:
     convoy-tls-devops: { external: true, name: convoy-tls-devops }
+    convoy-devops-key: { external: true, name: convoy-devops-key }
 networks:
     convoy-l1: { external: true }

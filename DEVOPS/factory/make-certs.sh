@@ -7,7 +7,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CA_VOL=convoy-tls-ca
-NODES="node1 node2 node3 node4 node5 node1b node2b node3b node4b node5b shipa shipf shipb devops"
+NODES="node1 node2 node3 node4 node5 node1b node2b node3b node4b node5b shipd shipf shipb devops"
 
 echo "[factory] minting CA + certs into private vault '${CA_VOL}' (idempotent)…"
 docker run -i --rm -v "${CA_VOL}:/tls" alpine:3.20 \

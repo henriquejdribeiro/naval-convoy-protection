@@ -115,7 +115,7 @@ echo "════════════════════════�
 # A's volume; deploy-l1, deploy-stark-verifier and the cast calls below all read
 # it from there — it's never passed as --private-key on the host command line.
 FOUNDRY_IMG="ghcr.io/foundry-rs/foundry:latest"
-OWNER_KEYVOL="convoy-ship-a-key"
+OWNER_KEYVOL="convoy-devops-key"
 ensure_ship_key() {   # $1 = key volume   $2 = raw private key
     MSYS_NO_PATHCONV=1 docker run --rm -v "$1:/key" --entrypoint sh "${FOUNDRY_IMG}" -c 'test -s /key/pk' 2>/dev/null && return 0
     echo "  importing owner key into ship volume $1 (host never keeps it)"
@@ -169,6 +169,12 @@ COMMANDER_ADDR=$(mint_ship_key "convoy-ship-d-key")
 export ALPHA_RELAY_ADDR BRAVO_RELAY_ADDR COMMANDER_ADDR
 echo "  minted fresh mission keys (host never saw them):"
 echo "    alpha relay=${ALPHA_RELAY_ADDR}  bravo relay=${BRAVO_RELAY_ADDR}  commander=${COMMANDER_ADDR}"
+
+# ── Mint + seal per-node TLS certs (devops = CA) BEFORE the mesh ──────────
+# Each convoy-tls-<node> volume gets ONLY its own <node>.pem + ca.crt; the CA
+# private key stays sealed in the convoy-tls-ca vault. Idempotent.
+echo "[factory] minting + sealing per-node TLS certs"
+bash "${REPO_ROOT}/DEVOPS/factory/make-certs.sh"
 
 # Fund the fresh signers from the owner (genesis-funded; the fresh addrs aren't
 # in genesis alloc). Gas is free here, but bootstrapper setup-base MOVES value
@@ -235,13 +241,16 @@ for var in REGISTRY_ADDR CONVOY_VERIFIER_ADDR COMMAND_LOG_ADDR; do
     fi
 done
 
+# Bring up just ship D's + devops's TLS edges before the deploy, so the deploy-l1 service can reach the Besu RPC through the TLS mesh.
+docker compose --project-directory . -f LAYER1/docker-compose.l1.yml -f LAYER1/docker-compose.tls.yml -f DEVOPS/docker-compose.devops.yml --profile tls up -d convoy-tls-shipd convoy-tls-devops
+
 if ${already_deployed}; then
     echo "  L1 contracts already deployed at the local.env addresses — skipping."
     echo "    Registry:         ${REGISTRY_ADDR}"
     echo "    Verifier:         ${CONVOY_VERIFIER_ADDR}"
     echo "    CommandLog:       ${COMMAND_LOG_ADDR}"
 else
-    docker compose --project-directory . -f LAYER1/docker-compose.l1.yml --profile deploy run --rm deploy-l1 2>&1 \
+   docker compose --project-directory . -f DEVOPS/docker-compose.devops.yml --profile deploy run --rm --no-deps deploy-l1 2>&1 \
         | grep -E "deployed at|deploy-l1\]" | head -10
 fi
 
@@ -260,7 +269,7 @@ echo "  wiring convoy Verifier ${CONVOY_VERIFIER_ADDR} -> GPS ${GPS_ADDR}"
 MSYS_NO_PATHCONV=1 docker run --rm --network convoy-l1 -v "${OWNER_KEYVOL}:/key" --entrypoint sh "${FOUNDRY_IMG}" \
     -c 'PK=$(cat /key/pk); exec cast "$@" --private-key "$PK"' sh \
     send "${CONVOY_VERIFIER_ADDR}" "setStarkVerifier(address)" "${GPS_ADDR}" \
-    --rpc-url http://ship-a:8545 \
+    --rpc-url http://convoy-tls-devops:18545 \
     --legacy --gas-price 0 >/dev/null 2>&1 && echo "  ✓ starkVerifier wired"
 
 echo 
@@ -296,12 +305,6 @@ docker compose --project-directory . -f LAYER1/docker-compose.l1.yml -f LAYER2/d
 wait_healthy "convoy-madara-alpha" "madara-alpha (sequencer)"
 wait_healthy "convoy-madara-bravo" "madara-bravo (sequencer)"
 
-# ── Mint + seal per-node TLS certs (devops = CA) BEFORE the mesh ──────────
-# Each convoy-tls-<node> volume gets ONLY its own <node>.pem + ca.crt; the CA
-# private key stays sealed in the convoy-tls-ca vault. Idempotent.
-echo "[factory] minting + sealing per-node TLS certs"
-bash "${REPO_ROOT}/DEVOPS/factory/make-certs.sh"
-
 # ── Wave 2: the rest of the L2 stack + the full TLS mesh ──────────────────
 docker compose --project-directory . -f LAYER1/docker-compose.l1.yml -f LAYER1/docker-compose.tls.yml -f LAYER2/docker-compose.l2.yml -f LAYER2/docker-compose.tls.yml -f PROOF/docker-compose.tls.yml --profile l2 --profile tls up -d 2>&1 | tail -3
 
@@ -334,7 +337,7 @@ echo "    done"
 echo "    
 
 docker run --rm --network convoy-l1 ghcr.io/foundry-rs/foundry:latest \
-  -c "cast call 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0 'advanceCount()(uint256)' --rpc-url http://ship-a:8545"   
+  -c "cast call 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0 'advanceCount()(uint256)' --rpc-url http://convoy-tls-devops:18545"   
   
 "
 echo "    
@@ -342,7 +345,7 @@ echo "
 docker run --rm --network convoy-l1 -v convoy-ship-d-key:/key --entrypoint sh ghcr.io/foundry-rs/foundry:latest -c "\
   cast send 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0 \
     'advance(uint256,uint256,uint256)' 1 2 100 \
-    --rpc-url http://ship-a:8545 \
+    --rpc-url http://convoy-tls-devops:18545 \
     --private-key '$(cat /key/pk)' \
     --legacy"  
     
